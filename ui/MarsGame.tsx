@@ -1,58 +1,52 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
-import { STATIONS } from "../content/survival";
-import { MARS_START } from "../game/marsConfig";
-import BrandIntro from "./BrandIntro";
-import LunarLanding from "./LunarLanding";
-import SurvivalWorld, { type SurvivalWorldHandle, type View } from "./SurvivalWorld";
-import "./survival.css";
-import "./mars.css";
+import {useEffect,useReducer,useRef,useState} from "react";
+import {STATIONS} from "../content/survival";
+import {createMission,missionReducer,rank,discoveryIds,solEvents} from "../game/juniorMission";
+import SurvivalWorld,{type SurvivalWorldHandle,type View} from "./SurvivalWorld";
+import "./survival.css"; import "./mars.css"; import "./junior.css";
+const initial:View={x:0,z:12,yaw:0,target:null,distance:Infinity,locked:false,jumpHeight:0};
+const labels:Record<string,string>={solar:"Solar array",oxygen:"MOXIE oxygen unit",water:"Ice extractor",food:"Hydroponic lab",shelter:"Shielding bunker",rover:"Exploration rover"};
+const questions:Record<string,{q:string;answers:string[];correct:number;explain:string;url:string}>={
+ solar:{q:"What can reduce the sunlight reaching a solar panel?",answers:["Dust","A radio signal","A rover wheel"],correct:0,explain:"Dust can cover solar cells and reduce their power output.",url:"https://science.nasa.gov/mission/insight/insight-spacecraft-lands-on-mars/"},
+ oxygen:{q:"What gas did MOXIE use to make oxygen on Mars?",answers:["Nitrogen","Carbon dioxide","Water vapor"],correct:1,explain:"MOXIE demonstrated oxygen production from Martian carbon dioxide; carbon monoxide was also produced.",url:"https://science.nasa.gov/resource/this-is-one-mars-rover-with-moxie/"},
+ water:{q:"What has NASA found beneath parts of Mars?",answers:["Liquid oceans everywhere","Buried water ice","Forests"],correct:1,explain:"Orbiters and landers have found evidence of water ice on Mars.",url:"https://science.nasa.gov/mars/facts/"},
+ food:{q:"What do plants need to grow?",answers:["Only rocks","Light and water","Only darkness"],correct:1,explain:"Plants need light, water, nutrients and suitable growing conditions.",url:"https://www.nasa.gov/mission/vegetable-production-system-veggie/"},
+ shelter:{q:"Why might a Mars habitat use shielding?",answers:["To reduce radiation exposure","To make gravity disappear","To create sunlight"],correct:0,explain:"Shielding can reduce exposure to some space radiation; this game uses a fictional risk score.",url:"https://www.nasa.gov/hrp/space-radiation/"},
+ rover:{q:"About how long is one Mars sol?",answers:["12 hours","24 hours 39 minutes","48 hours"],correct:1,explain:"A Mars solar day averages about 24 hours and 39 minutes.",url:"https://www.giss.nasa.gov/tools/mars24/help/notes.html"}};
 
-const INITIAL_VIEW: View = { x: 0, z: 12, yaw: 0, target: null, distance: Infinity, locked: false, jumpHeight: 0 };
-const LESSONS: Record<string, string> = {
-  solar: "Dust can reduce the sunlight reaching solar panels. Inspecting them helps the crew plan their power use.",
-  oxygen: "The crew needs breathable air. On Mars, experiments have made oxygen from carbon dioxide, but this station is fictional.",
-  rover: "A rover helps astronauts travel farther. This training model can be inspected; driving is still being built.",
-  shelter: "A protected shelter can reduce exposure to space radiation. Real radiation safety needs more than a game score.",
-  water: "Water is precious. A future outpost would need carefully designed ways to use it again.",
-};
-export default function MarsGame() {
-  const [intro, setIntro] = useState(true);
-  const world = useRef<SurvivalWorldHandle>(null);
-  const [landing, setLanding] = useState(true);
-  const [started, setStarted] = useState(false);
-  const [night, setNight] = useState(false);
-  const [view, setView] = useState(INITIAL_VIEW);
-  const [inspected, setInspected] = useState<string[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
-  const finishIntro = useCallback(() => setIntro(false), []);
-  const finishLanding = useCallback(() => setLanding(false), []);
-  const inspect = (id: string) => {
-    const station = STATIONS.find((s) => s.id === id);
-    if (!station) return;
-    setInspected((previous) => previous.includes(id) ? previous : [...previous, id]);
-    setMessage(LESSONS[id] ?? `${station.name}: This equipment is ready for the next stage of the expedition.`);
-  };
-  const target = STATIONS.find((s) => s.id === view.target);
-  return <main className="sv-root mars-root" data-phase={started ? "explore" : "menu"} data-player-x={view.x.toFixed(2)} data-player-z={view.z.toFixed(2)} data-camera-yaw={view.yaw.toFixed(3)} data-jump-height={view.jumpHeight.toFixed(2)}>
-    <SurvivalWorld ref={world} planet="mars" showTouchControls={false} enabled={started && !message} event={night ? "night" : "quiet"} day={0} target="solar" effect={null} failure={false} stabilized={false} animating={false} onInspect={inspect} onView={setView} onUnavailable={() => setUnavailable(true)} />
-    {intro && <BrandIntro planet="mars" onComplete={finishIntro} />}
-    {landing && <LunarLanding planet="mars" paused={intro} onComplete={finishLanding} />}
-    <header className="mars-header"><b>TARUKH <span> / OUTPOST COMMANDER</span></b><strong>SOL 01 / 10 · {night ? "NIGHT" : "DAY"}</strong><a href="?mode=survival">Lunar game</a></header>
-    <section className="mars-resources" aria-label="Initial training resources">
-      {Object.entries(MARS_START).map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}
-      <small>Training points · illustrative</small>
-    </section>
-    {!intro && !landing && !started && <section className="mars-menu"><p className="mars-kicker">A TARUKH EXPEDITION · PLAYABLE FOUNDATION</p><h1>Ten sols.<br/><em>One new world.</em></h1><p>Before you arrived, robotic cargo missions delivered the habitat and equipment. Now it is your turn to inspect the outpost.</p><p className="mars-controls">WASD walk · Shift sprint · Space jump<br/>Mouse look · V camera · E inspect · Esc releases mouse</p><button onClick={() => { setStarted(true); world.current?.captureMouse(); }}>START MARS EXPLORATION →</button><p className="mars-note">Early build: explore and inspect. The ten-sol campaign and real-time Earth-to-Mars cinematic are still in development.</p></section>}
-    {started && <>
-      <div className="mars-objective">SOL 1 · Inspect the solar array, oxygen cylinder and rover <span>{["solar", "oxygen", "rover"].filter(id => inspected.includes(id)).length}/3</span></div>
-      <button className="mars-light" onClick={() => setNight(!night)}>Preview {night ? "day" : "night"} lighting</button>
-      {target && <div className="mars-target"><strong>{target.id === "rover" ? "Exploration rover" : target.name}</strong><span>{view.distance <= 5.5 ? "Press E to inspect" : `${Math.round(view.distance)} m · move closer`}</span>{view.distance <= 5.5 && <button onClick={() => inspect(target.id)}>Inspect</button>}</div>}
-      <aside className="mars-sage"><b>SAGE /</b> {inspected.length === 0 ? "Welcome to Mars, explorer. Let's check the equipment the robots left for us." : ["solar", "oxygen", "rover"].every(id => inspected.includes(id)) ? "Great inspection! The next stage will add real mission plans and resource changes." : "Good observation. Check the solar array, oxygen cylinder and rover."}</aside>
-      {unavailable && <div className="mars-unavailable">3D is unavailable on this device. Try a browser with WebGL support.</div>}
-      {message && <div className="mars-dialog-backdrop"><section className="mars-dialog" role="dialog" aria-modal="true" aria-label="Sage observation"><p className="mars-kicker">SAGE / FIELD NOTE</p><h2>Good eye, explorer.</h2><p>{message}</p><button onClick={() => setMessage(null)}>Continue exploring →</button></section></div>}
-    </>}
-    <footer className="mars-footer">MARS FOUNDATION · AVERAGE SOL ≈ 24 H 39 MIN · <a href="https://www.giss.nasa.gov/tools/mars24/help/notes.html" target="_blank" rel="noreferrer">NASA SOURCE ↗</a></footer>
-  </main>;
+export default function MarsGame({callsign="Explorer",patch="✦",onHub}:{callsign?:string;patch?:string;onHub?:()=>void}) {
+ const [mission,send]=useReducer(missionReducer,undefined,createMission), [view,setView]=useState(initial),[night,setNight]=useState(false),[modal,setModal]=useState<string|null>(null),[stage,setStage]=useState<"task"|"quiz"|"result">("task"),[answer,setAnswer]=useState<number|null>(null),[progress,setProgress]=useState(0),[angle,setAngle]=useState(45),[drill,setDrill]=useState(40),[led,setLed]=useState(50),[water,setWater]=useState(50),[shield,setShield]=useState(50),[voice,setVoice]=useState(false),[certificate,setCertificate]=useState(false),[quizSol,setQuizSol]=useState(0);
+ const world=useRef<SurvivalWorldHandle>(null); const dragging=useRef(false);
+ useEffect(()=>{const id=window.setInterval(()=>setNight(n=>!n),90000);return()=>clearInterval(id)},[]);
+ const next=discoveryIds.find(id=>!mission.found.includes(id))??"rover", station=STATIONS.find(s=>s.id===next)!, current=STATIONS.find(s=>s.id===view.target), distance=Math.round(Math.hypot(view.x-station.x,view.z-station.z));
+ const bearing=Math.atan2(station.x-view.x,-(station.z-view.z)); const relative=bearing+view.yaw; const dir=Math.sin(relative)>.35?"↗":Math.sin(relative)<-.35?"↖":"↑";
+ const open=(id:string)=>{if(!discoveryIds.includes(id as typeof discoveryIds[number]))return;setProgress(0);setAngle(45);setDrill(40);setLed(50);setWater(50);setShield(50);setAnswer(null);setStage("task");setModal(id)};
+ const complete=()=>{if(!modal)return;send({type:"TASK",id:modal});setStage("quiz")};
+ const hint=`${callsign}, ${labels[next]} is ${distance} metres away ${dir}. ${mission.resources.power<35?"Power is low because our equipment and shifts use stored energy.":mission.resources.oxygen<35?"Oxygen is low because the crew uses air each shift.":"Inspect equipment to learn and earn mission patches."}`;
+ const taskReady=modal==="solar"?progress>=8&&angle>=65:modal==="oxygen"?progress>=2:modal==="water"?drill>=55&&drill<=70:modal==="food"?led>=40&&led<=65&&water>=40&&water<=65:modal==="shelter"?shield>=65:progress>=1;
+ return <main className="sv-root mars-root junior-root" data-phase="explore" data-player-x={view.x.toFixed(2)} data-player-z={view.z.toFixed(2)}>
+ <SurvivalWorld ref={world} planet="mars" showTouchControls={false} enabled={!modal&&!mission.ended} event={night?"night":"quiet"} day={0} target={next} effect={null} failure={false} stabilized={false} animating={false} onInspect={open} onView={setView} onUnavailable={()=>{}} />
+ <header className="junior-header"><b>TARUKH <span>· JUNIOR ASTRONAUT MISSION</span></b><strong>{patch} {callsign} · SOL {String(mission.sol).padStart(2,"0")} / 10 · {night?"NIGHT":"DAY"}</strong><button onClick={onHub}>Mission hub</button></header>
+ <section className="junior-hud" aria-label="Mission resources"><b>MISSION RESOURCES</b>{Object.entries(mission.resources).map(([k,v])=><div key={k}><span>{k==="risk"?"Radiation risk":k}</span><strong>{v}</strong></div>)}<small>Illustrative game points</small><div className="junior-rank"><b>{rank(mission.xp)}</b><span>{mission.xp} XP</span><progress max="1000" value={mission.xp}/></div><button onClick={()=>setModal("guide")}>FIELD GUIDE · {mission.found.length}/6</button><button onClick={()=>setModal("log")}>LOG</button></section>
+ <div className="junior-compass">{dir} NEXT · {labels[next]} · {distance} m</div>
+ {current&&<div className="mars-target"><strong>{labels[current.id]??current.name}</strong><span>{view.distance<=5.5?"Press E to inspect":`${Math.round(view.distance)} m · move closer`}</span>{view.distance<=5.5&&labels[current.id]&&<button onClick={()=>open(current.id)}>Inspect</button>}</div>}
+ <aside className="mars-sage"><b>SAGE / </b>{hint}<button onClick={()=>{setVoice(true);if("speechSynthesis" in window){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(hint))}}}>{voice?"Read again":"🔊 Read hint"}</button></aside>
+ {mission.found.length === 6 && <button className="junior-certificate-button" onClick={()=>setCertificate(true)}>View certificate ✦</button>}
+ <button className="junior-shift" onClick={()=>setModal("shift")}>End sol · choose an event →</button>
+ {modal&&<div className="mars-dialog-backdrop"><section className="mars-dialog junior-dialog" role="dialog" aria-modal="true" aria-label="Mission activity">
+ {modal==="solQuiz"?<><p className="mars-kicker">NASA QUICK QUIZ · SOL {quizSol}</p><h2>About how long is a Martian sol?</h2>{answer===null?<><button onClick={()=>{setAnswer(0);send({type:"SHIFT_QUIZ",sol:quizSol,correct:false})}}>12 hours</button><button onClick={()=>{setAnswer(1);send({type:"SHIFT_QUIZ",sol:quizSol,correct:true})}}>24 hours 39 minutes</button><button onClick={()=>{setAnswer(2);send({type:"SHIFT_QUIZ",sol:quizSol,correct:false})}}>48 hours</button></>:<><p>{answer===1?"Correct! +50 XP, 3 power points and a sol patch.":"Good try!"} A sol averages about 24 hours and 39 minutes. <a href="https://www.giss.nasa.gov/tools/mars24/help/notes.html" target="_blank" rel="noreferrer">NASA source ↗</a></p><button onClick={()=>setModal(null)}>Continue</button></>}</>:
+ modal==="guide"?<><p className="mars-kicker">STICKER & DISCOVERY CODEX</p><h2>{mission.found.length}/6 discoveries</h2><div className="junior-grid">{discoveryIds.map(id=><div key={id} className={mission.found.includes(id)?"unlocked":"locked"}><span>{mission.found.includes(id)?"✦":"?"}</span><b>{mission.found.includes(id)?labels[id]:"Undiscovered"}</b><small>{mission.patches.includes(id)?"Patch earned":"Patch locked"}</small></div>)}</div><p>Explore the outpost to reveal all six discoveries. <a href="https://science.nasa.gov/mars/facts/" target="_blank" rel="noreferrer">NASA Mars facts ↗</a></p><button onClick={()=>setModal(null)}>Back to mission</button></>:
+ modal==="log"?<><p className="mars-kicker">MISSION LOG</p><h2>Your expedition</h2><ol>{mission.log.map((v,i)=><li key={i}>{v}</li>)}</ol><button onClick={()=>setModal(null)}>Close log</button></>:
+ modal==="shift"?<><p className="mars-kicker">SOL {mission.sol} · EVENT</p><h2>{solEvents[mission.sol-1].title}</h2><p>Choose a response. Each sol uses 3 water, food and oxygen points. These are game assumptions.</p><button onClick={()=>{setQuizSol(mission.sol);setAnswer(null);send({type:"SHIFT",choice:"careful"});setModal("solQuiz")}}>{solEvents[mission.sol-1].careful} · power −4, risk steady</button><button onClick={()=>{setQuizSol(mission.sol);setAnswer(null);send({type:"SHIFT",choice:"quick"});setModal("solQuiz")}}>{solEvents[mission.sol-1].quick} · power −1, {solEvents[mission.sol-1].resource} −4, risk +8</button><button onClick={()=>setModal(null)}>Keep exploring</button></>:
+ stage==="quiz"||stage==="result"?<><p className="mars-kicker">NASA QUICK QUIZ · ✦</p><h2>{questions[modal].q}</h2>{questions[modal].answers.map((a,i)=><button key={a} disabled={stage==="result"} onClick={()=>{setAnswer(i);send({type:"QUIZ",id:modal,correct:i===questions[modal].correct});setStage("result")}}>{a}</button>)}{stage==="result"&&<><p><b>{answer===questions[modal].correct?"Correct! +50 XP and a mission patch.":"Good try! You can revisit this station and try again."}</b> {questions[modal].explain} <a href={questions[modal].url} target="_blank" rel="noreferrer">NASA source ↗</a></p><button onClick={()=>setModal(null)}>Continue exploring</button></>}</>:
+ <><p className="mars-kicker">HANDS-ON SCIENCE · {labels[modal]}</p><h2>{labels[modal]}</h2>{mission.found.includes(modal)&&<p>You completed this activity already. You can try its quiz again.</p>}
+ {modal==="solar"?<><p>Drag over the dusty panel to clean it, then tilt it toward the sun. You can also use the brush button.</p><div className="junior-panel" onPointerDown={e=>{dragging.current=true;e.currentTarget.setPointerCapture(e.pointerId);setProgress(v=>Math.min(10,v+1))}} onPointerMove={()=>{if(dragging.current)setProgress(v=>Math.min(10,v+1))}} onPointerUp={()=>dragging.current=false} style={{background:`linear-gradient(rgba(184,109,58,${Math.max(0, .85-progress*.085)}),rgba(23,61,93,.92))`}}>☀ SOLAR ARRAY · DUST {Math.max(0,10-progress)}/10</div><button onClick={()=>setProgress(v=>Math.min(10,v+1))}>Brush dust</button><label>Panel angle: {angle}° <input type="range" min="0" max="90" value={angle} onChange={e=>setAngle(+e.target.value)}/></label><small>Training target: 65–90°. Real optimal angles depend on location and time.</small></>:
+ modal==="oxygen"?<><p>Collect two oxygen atoms from two CO₂ molecules, then combine them into O₂. CO is also produced.</p><button onClick={()=>setProgress(v=>Math.min(2,v+1))}>Split one CO₂ molecule · {progress}/2</button><p>CO₂ → CO + O · O + O → O₂</p></>:
+ modal==="water"?<><p>Set the drill to the marked ice layer while keeping its temperature safe.</p><label>Training depth: {drill} <input type="range" min="0" max="100" value={drill} onChange={e=>setDrill(+e.target.value)}/></label><p>{drill>70?"Too deep: drill is overheating!":drill>=55?"Ice layer reached; temperature safe.":"Keep searching for the ice layer."}</p></>:
+ modal==="food"?<><p>Balance the light and water for the training plants.</p><label>LED spectrum {led}<input type="range" min="0" max="100" value={led} onChange={e=>setLed(+e.target.value)}/></label><label>Water drip {water}<input type="range" min="0" max="100" value={water} onChange={e=>setWater(+e.target.value)}/></label><p>Training target: keep both between 40 and 65.</p></>:
+ modal==="shelter"?<><p>A scripted solar particle alert is active. Add shielding before the crew takes shelter.</p><label>Shielding {shield}<input type="range" min="0" max="100" value={shield} onChange={e=>setShield(+e.target.value)}/></label><p>Training target: at least 65. This score is not a radiation dose.</p></>:<><p>Check the rover before taking it on a safe science route.</p><button onClick={()=>setProgress(1)}>Check wheels and signal</button></>}
+ <button disabled={!taskReady} onClick={complete}>Complete activity →</button><button onClick={()=>setModal(null)}>Close</button></>}
+ </section></div>}
+ {((mission.ended && modal!=="solQuiz") || certificate)&&<div className="mars-dialog-backdrop"><section className="mars-dialog junior-certificate" role="dialog" aria-modal="true"><p className="mars-kicker">TARUKH · JUNIOR ASTRONAUT</p><h2>Junior Astronaut Mission Certificate</h2><div className="junior-patch">{patch}</div><p>Awarded to</p><h1>{callsign}</h1><p>{rank(mission.xp)} · {mission.found.length}/6 discoveries · {mission.xp} XP</p><p>Resource score: {mission.resources.power+mission.resources.water+mission.resources.food+mission.resources.oxygen} / 400</p><button onClick={()=>window.print()}>Print certificate</button>{!mission.ended && <button onClick={()=>setCertificate(false)}>Continue exploring</button>}<button onClick={onHub}>Return to mission hub</button></section></div>}
+ </main>
 }

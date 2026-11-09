@@ -35,14 +35,15 @@ const initialView: View = {
   locked: false,
   jumpHeight: 0,
 };
-export default function SurvivalGame() {
+export default function SurvivalGame({ skipOpening = false }: { skipOpening?: boolean }) {
   const [state, dispatch] = useReducer(
     survivalReducer,
     undefined,
     createSurvival,
   );
-  const [intro, setIntro] = useState(true),
-    [landing, setLanding] = useState(true),
+  useEffect(() => { if (skipOpening) dispatch({ type: "BEGIN", seed: 0 }); }, [skipOpening]);
+  const [intro, setIntro] = useState(!skipOpening),
+    [landing, setLanding] = useState(!skipOpening),
     [inspect, setInspect] = useState<string | null>(null),
     [planning, setPlanning] = useState(false),
     [missionOpen, setMissionOpen] = useState(false),

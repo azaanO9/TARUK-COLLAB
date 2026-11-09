@@ -150,3 +150,7 @@ The "Downlink" interface implements a four-screen lunar satellite mission:
 The Start action requests pointer lock during the user's click. `SurvivalWorld` exposes `captureMouse` through its ref, handles lock/release and leaves yaw unbounded. If lock is unavailable, dragging accumulates yaw across repeated drags; Q/R remain available. Escape releases browser pointer lock. None of these presentation inputs change mission resources.
 
 `ui/MarsGame.tsx` owns presentation-only inspection progress and passes the `planet="mars"` mode to the existing `SurvivalWorld`. The world reports position and the nearby station ID through `onView`, and reports an inspection through `onInspect`; it does not compute resource changes. Initial display values and Mars gravity/sprint parameters are centralized in `game/marsConfig.ts`. The lighting toggle is a manual preview, not a day/night resource cycle. The Mars campaign engine and timed sol transitions have not yet been implemented.
+
+## Junior Astronaut Mars mission
+
+`game/juniorMission.ts` owns Mars points, XP, discoveries, patch awards and shift actions. `ui/MarsGame.tsx` renders hands-on tasks, quiz and events and dispatches actions; `ui/SurvivalWorld.tsx` remains presentation-only. The existing lunar `survivalReducer` is unchanged. The mission is player-paced; the automatic 90-second lighting preview has no supply effects. Values and fictional controls are educational game assumptions. The callsign is kept only in the current page state.

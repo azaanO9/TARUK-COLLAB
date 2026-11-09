@@ -1,5 +1,8 @@
 import * as T from "three";
 import { STATIONS } from "../../content/survival";
+import { dressMarsOutpost } from "./marsDetails";
+import { batchStaticMeshes } from "./batchStaticMeshes";
+import { createMarsTerrain } from "./marsTerrain";
 /** All dimensions are illustrative. This module only builds presentation assets. */
 export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon") {
   const mat = (color: number, extra = {}) =>
@@ -13,6 +16,8 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
     green = mat(0x73c2a1);
   const root = new T.Group();
   scene.add(root);
+  const terrain = planet === "mars" ? createMarsTerrain(root) : null;
+  const heightAt = terrain?.heightAt ?? (() => 0);
   function mesh(
     g: T.BufferGeometry,
     m: T.Material,
@@ -78,6 +83,7 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
   texture.wrapS = texture.wrapT = T.RepeatWrapping;
   texture.repeat.set(22, 22);
   texture.colorSpace = T.SRGBColorSpace;
+  if (planet !== "mars") {
   const ground = mesh(
     new T.PlaneGeometry(260, 260, 1, 1),
     mat(0xb3ada6, { map: texture }),
@@ -93,11 +99,6 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
     -5,
   );
   pad.rotation.x = -Math.PI / 2;
-  if (planet === "mars") {
-    rock.color.setHex(0x8e5942);
-    (ground.material as T.MeshStandardMaterial).color.setHex(0xc77f57);
-    (pad.material as T.MeshStandardMaterial).color.setHex(0xb9805c);
-  }
   // Fine scattered stones are instanced to keep the richer ground inexpensive.
   const pebbles = new T.InstancedMesh(new T.DodecahedronGeometry(1, 1), rock, 900);
   const pebbleTransform = new T.Object3D();
@@ -182,6 +183,8 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
     );
     centre.rotation.x = -Math.PI / 2;
   }
+  }
+  if (planet === "mars") rock.color.setHex(0x976b52);
   // Habitat and a visible pedestrian approach.
   const habitatWindow = mat(0x50776c, {
     emissive: 0x77b799,
@@ -191,6 +194,7 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
   // Raised roof, seams, rails and lights make the habitat read as a working base.
   const roof = mesh(new T.CylinderGeometry(4.5, 4.5, 8, 32, 1, false, Math.PI / 2, Math.PI), ivory, root, -2, 4.8, -30);
   roof.rotation.x = Math.PI / 2;
+  if (planet === "mars") roof.scale.z = .35;
   box(root, 9.25, 0.3, 8.25, dark, -2, 0.3, -30);
   box(root, 9.2, 0.12, 8.2, orange, -2, 4.58, -30);
   for (const x of [-6.25, -4.8, 0.8, 2.25]) {
@@ -335,6 +339,18 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
           cylinder(group, 0.17, 0.3, orange, (i - 1) * 0.45, 1.36, 0.3);
     }
   }
+  if (planet === "mars") dressMarsOutpost(root, targets);
+  if (planet === "mars") {
+    const animated = new Set<T.Object3D>([...panels, ...tanks, ...foods, ...wheelMeshes]);
+    if (dish) animated.add(dish);
+    const changingMaterials = new Set<T.Material>([habitatWindow, ...Object.values(indicators)]);
+    root.traverse(o => { if (o instanceof T.Mesh && changingMaterials.has(o.material)) animated.add(o); });
+    let saved = 0;
+    for (const station of targets) saved += batchStaticMeshes(station, animated);
+    saved += batchStaticMeshes(root, new Set([...animated, ...targets]));
+    root.userData.staticDrawCallsSaved = saved;
+    root.traverse(o => { if (o instanceof T.Mesh && !animated.has(o)) o.updateMatrix(); });
+  }
   const shelter = STATIONS.find((s) => s.id === "shelter")!;
   const obstacles = STATIONS.filter(
     (s) => s.id !== "shelter" && s.id !== "lookout",
@@ -348,6 +364,7 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
     { x: shelter.x - 3, z: shelter.z - 1, radius: 1.2 },
     { x: shelter.x + 3, z: shelter.z - 1, radius: 1.2 },
   );
+  if (terrain) obstacles.push(...terrain.obstacles);
   return {
     root,
     targets,
@@ -359,5 +376,6 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
     dish,
     obstacles,
     habitatWindow,
+    heightAt,
   };
 }

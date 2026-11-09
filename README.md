@@ -1,4 +1,16 @@
-# Six Shifts — a small story on the Moon
+# TARUKH — Outpost Commander
+
+## Graphics update · 9 November 2026
+
+The default Mars exploration now has continuous sculpted terrain with recessed craters and raised rims, 6,950 instanced rocks and pebbles, layered distant escarpments, procedural regolith colour/bump textures, a shader sky, dust, bootprints, updated lighting and an animated original astronaut. Habitat, rover and equipment have additional original detailing. The opening, existing controls and earlier lunar modes are retained.
+
+Open **Camera & graphics** while exploring. **Auto · smoother** is now the default: it adjusts resolution to frame rate and avoids expensive post-processing. **High** adds subtle bloom; **Ultra** also adds screen-space ambient occlusion and a higher resolution cap; **Performance** reduces resolution and disables shadows and post-processing. Static hardware is combined by material to reduce drawing overhead. Sage follows on the player's right at 78% of the previous size. Movement uses small physics steps and smoother walking animation. No external graphics service or model download is needed while playing. Mouse capture can be blocked by embedded browsers: drag to look or use Q/R.
+
+This remains a finite exploration prototype with procedural art, not an AAA production. Driving, the Mars resource simulation and the ten-sol campaign are not implemented. The day/night button previews lighting only. See `docs/GRAPHICS_UPDATE.md` for changed files and verification.
+
+The earlier project notes below are retained as history; some describe the lunar game rather than the current default Mars scene.
+
+---
 
 Aim using the fixed centre crosshair and press **Space** to jump. The objective appears as high-contrast text near the top; use **Details** for MICA's message and the clue list. The compact resource readings are stacked at the upper left. Direction buttons are hidden by default; enable touch movement from Field Guide → Accessible station guide if needed.
 
