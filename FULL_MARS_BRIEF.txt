@@ -1,0 +1,1830 @@
+
+3D Junior Astronaut Mission Trainer | NASA Space Apps Challenge 2026
+
+# 1. YOUR ROLE
+
+Act as a senior game developer, 3D web-game engineer, gameplay programmer, physics engineer, technical artist, UI/UX designer and educational game designer.
+
+You are working inside **Google AI Studio Build mode**.
+
+Your task is to build a complete, functional, browser-playable 3D educational space exploration game called:
+
+**OUTPOST COMMANDER: 10 SOLS ON MARS**
+
+
+
+Competition: NASA Space Apps Challenge 2026
+
+Your goal is to turn this concept into a polished, interactive game suitable for children aged 8–14 .This must be an actual playable 3D game, not:
+- A static website.
+- A simple dashboard.
+- A collection of screenshots.
+- A 2D quiz.
+- A menu-based simulation with no physical world.
+- A non-interactive 3D scene.
+
+The player must be able to explore a 3D Martian outpost, control an astronaut, interact with equipment, drive a rover, complete scientific tasks, manage resources and respond to emergencies.
+
+
+Nova's initial dialogue, hints and mission explanations should be scripted and deterministic. An optional AI-powered conversation system can be added later, but it must not be required to play the game.
+
+This is a single-player game. Do not add multiplayer, user registration, authentication, Firebase or database infrastructure unless a specific feature genuinely requires it.
+
+Use local game state and browser localStorage for optional settings and saved progress.
+
+# 3. REQUIRED TECHNOLOGY STACK
+
+Use this as the preferred architecture.
+
+**Frontend**
+- React.
+- TypeScript.
+- Existing AI Studio project build configuration.
+- CSS or the existing supported styling system.
+
+**3D rendering**
+- Three.js.
+- React Three Fiber.
+- @react-three/drei.
+
+**Physics**
+- @react-three/rapier.
+- Rapier rigid-body physics.
+- Three.js collision and raycasting where suitable.
+
+**Game state**
+- Zustand or lightweight React state management.
+
+**Icons**
+- lucide-react.
+
+**Optional animation**
+- Framer Motion for 2D interface transitions.
+- Three.js animation system for 3D characters and objects.
+
+
+
+
+If React Three Fiber or its physics integration causes compatibility problems, use Three.js directly with Rapier. Do not abandon the 3D game because of one library issue.
+
+Do not use Unity WebGL, Unreal Engine, Blender runtime rendering or desktop-only technology.
+
+# 4. THE GAMEPLAY INSPIRATION
+
+The game should have a third-person 3D experience inspired by the interaction quality of GTA V.
+
+This is an inspiration for gameplay mechanics, like GTA V.
+
+Do not copy GTA characters, maps, UI, branding, sounds, models, missions 
+Focus on these qualities:
+
+Character movement
+- Smooth walking.
+- Running.
+- Sprinting.
+- Jumping.
+- Landing.
+- Ground collision.
+- Natural acceleration and deceleration.
+- Third-person camera.
+- Mouse camera control.
+- Smooth camera follow.
+- Character animations.
+
+*World interaction*
+- Approach an object.
+- Show an interaction prompt.
+- Press E to interact.
+- Open habitat doors.
+- Operate control panels.
+- Activate switches.
+- Repair equipment.
+- Collect samples.
+- Pick up tools.
+- Enter and exit vehicles.
+- Inspect objects.
+- Trigger environmental actions.
+
+*Vehicle gameplay*
+- Enter and exit the rover.
+- Drive using keyboard controls.
+- Accelerate and brake.
+- Turn smoothly.
+- Experience different terrain traction.
+- Use suspension.
+- Collide with rocks.
+- Consume battery power while driving.
+
+*Physics*
+- Realistic-feeling movement.
+- Planet-dependent gravity.
+- Collision detection.
+- Momentum.
+- Friction.
+- Rover suspension and traction.
+- Objects responding to forces.
+- Proper ground detection.
+
+Prioritise responsiveness and believable gameplay instead of attempting an unnecessarily complex physics simulation.
+
+ 5. PLANETARY PHYSICS
+
+Use these approximate gravity values:
+
+| Environment | Surface gravity |
+|---|---:|
+| Earth | 9.81 m/s² |
+| Moon | 1.62 m/s² |
+| Mars | 3.71 m/s² |
+
+Gravity must affect actual player movement and jumping.
+
+Do not merely display different gravity values in the HUD.
+
+Use adjustable parameters for:
+- Movement speed.
+- Running speed.
+- Jump force.
+- Gravity.
+- Air control.
+- Ground friction.
+- Rover mass.
+- Wheel traction.
+- Suspension stiffness.
+
+Implement these through central configuration files.
+
+For Mars, use the appropriate gravity in the playable environment.
+
+Moon mode may be an optional future extension.
+
+ 6. IMPORTANT: 3D ASSETS – REUSE BEFORE CREATING
+
+Do not waste time creating 3D assets from scratch when suitable, high-quality, properly licensed assets already exist.
+
+This is a major requirement.
+
+Search for and reuse assets from reputable sources such as:
+
+- NASA 3D Resources.
+- Poly Haven.
+- ambientCG.
+- Sketchfab, where downloadable licences permit reuse.
+- Kenney.
+- Quaternius.
+- BlenderKit, where licensing permits.
+- Other reputable CC0 or appropriately licensed 3D asset libraries.
+
+Use existing high-quality models for:
+
+**Astronaut**
+- Complete astronaut character.
+- Space suit.
+- Helmet.
+- Backpack.
+- Gloves.
+- Equipment.
+
+**Mars environment**
+- Mars terrain.
+- Rocks.
+- Boulders.
+- Craters.
+- Mountains.
+- Ground textures.
+- Dust materials.
+- Atmospheric skybox.
+
+**Vehicles**
+- Mars rover.
+- Exploration vehicle.
+- Wheels.
+- Robotic equipment.
+
+**Outpost**
+- Habitat modules.
+- Solar panels.
+- Solar array frames.
+- Antennas.
+- Greenhouses.
+- Airlocks.
+- Storage units.
+- Oxygen equipment.
+- Scientific instruments.
+
+**Environment**
+- Stars.
+- Sun.
+- Clouds and atmospheric haze.
+- Dust particles.
+- Terrain decorations.
+- Background landscape.
+
+### Asset selection rules
+
+Prioritise:
+1. High visual quality.
+2. Appropriate licensing.
+3. GLB/GLTF compatibility.
+4. PBR materials.
+5. Optimised geometry.
+6. Good textures.
+7. Compatible animations.
+
+Maintain a file named `ASSET_CREDITS.md` containing the actual source and licence for each imported asset.
+
+
+Do not hotlink unknown models from external websites at runtime.
+
+Download and integrate assets into the project when technically and legally permitted.
+
+If you cannot access an asset download, do not invent an asset URL or pretend the model has been imported.
+
+Instead:
+- Record the missing asset in an asset manifest.
+- Suggest an exact asset search term.
+- Keep an appropriate replaceable temporary model.
+- Continue implementing the actual gameplay.
+
+### Create custom assets only when necessary
+
+If no usable existing asset is available, create a simple procedural model using Three.js geometry.
+
+Do not procedurally recreate detailed astronaut suits, sophisticated rover models or complex habitat structures when suitable assets are available.
+
+Prefer reusing an existing model and adding your own interactive code.
+
+# 7. VISUAL QUALITY AND ENVIRONMENT
+
+The game should feel like a compact, polished 3D planetary exploration simulator.
+
+Create one explorable Martian outpost with surrounding terrain.
+
+
+Include:
+
+1. Main habitat.
+2. Solar power station.
+3. Oxygen production facility.
+4. Greenhouse.
+5. Scientific laboratory.
+6. Rover garage.
+7. Communication antenna.
+8. Storage facility.
+9. Landing zone.
+10. Exploration area.
+11. Rocky terrain.
+12. Distant mountains.
+
+### Mars environment
+
+Use:
+- Reddish-orange terrain.
+- Realistic rocks and boulders.
+- Distant mountains.
+- Thin atmospheric appearance.
+- Suitable sunlight.
+- Dynamic shadows.
+- Dust particles.
+- Environmental haze.
+- Dark nighttime sky.
+- Stars during night.
+- Habitat illumination.
+
+### Weather
+
+Implement:
+- Normal Martian weather.
+- Approaching dust storm.
+- Heavy dust storm.
+- Reduced sunlight.
+- Reduced visibility.
+- Clearing weather.
+
+Weather must change the appearance of the 3D world and affect gameplay resources.
+
+### Day and night
+
+Every sol has two phases:
+
+DAY:
+- Sunlight illuminates the environment.
+- Solar panels generate energy.
+- External activities are possible.
+
+NIGHT:
+- Environment becomes dark.
+- Stars become visible.
+- Habitat lights activate.
+- Heating consumes battery power.
+- Nova explains the cold and darkness.
+
+The sun's position and lighting should change throughout the game.
+
+# 8. MAIN GAME CONCEPT
+
+The player commands a small Martian outpost for ten sols.
+
+A sol is a Martian day, approximately 24 hours and 39 minutes but in this game day light should be 5min of real life time .
+
+The player is an astronaut.
+
+A friendly robotic assistant named Sage accompanies the player.
+
+Sage should:
+- Explain the mission.
+- Display short dialogues.
+- Give hints.
+- React to choices.
+- Provide scientific explanations.
+- Warn the astronaut about danger.
+- Celebrate successful decisions.
+- Explain mistakes in a friendly manner.
+
+it should me like a ai assistant poping up on the bottom right corner of the screen when any above of the event happens.
+
+
+
+Use scripted dialogue initially.
+
+# 9. GAME RESOURCES
+
+Starting variables:
+
+| Variable | Starting value |
+|---|---:|
+| Power | 6 |
+| Air | 6 |
+| Shield | 3 |
+| Science | 0 |
+| Hearts | 3 |
+| Sol | 1 |
+| askedHelp | false |
+
+Resource limits:
+- Power maximum: 10.
+- Air maximum: 10.
+- Shield maximum: 10.
+- Hearts maximum: 3.
+
+Power, Air and Shield are the three primary resources.
+
+Hearts represent crew safety.
+
+Science represents research progress.
+
+These are invented game-balance values, not NASA measurements.
+
+Create a central configuration file for all values.
+
+Do not hardcode resource calculations in multiple components.
+
+# 10. PLAYER CONTROLS
+
+Desktop controls:
+
+| Key | Action |
+|---|---|
+| W | Move forward |
+| A | Move left |
+| S | Move backward |
+| D | Move right |
+| Shift | Sprint |
+| Space | Jump |
+| E | Interact |
+| F | Enter or exit rover |
+| Mouse | Look around |
+| Esc | Pause |
+
+Display a controls guide before the first mission.
+
+Implement a mouse sensitivity option.
+
+Use pointer lock appropriately and provide a visible way to release the mouse.
+
+Use touch controls as a future-compatible feature for mobile devices.
+
+# 11. DAY/NIGHT GAMEPLAY SYSTEM
+
+This is the heart of the simulation.
+
+Every sol contains two phases.
+
+## DAY PHASE
+
+Normal sunlight:
+
+Power +3.
+
+During dust storms:
+
+Power +1.
+
+The player selects ONE Day Plan:
+
+**Science Day**
+- Science +2.
+- Power -3.
+
+**Life-Support Day**
+- Air +2.
+- Power -2.
+
+**Shield Day**
+- Shield +2.
+- Power -2.
+
+**Recharge Day**
+- Power +3.
+- No other benefits.
+
+The player then receives the day's special event.
+
+## NIGHT PHASE
+
+Automatic consumption:
+
+- Power -2.
+- Air -1.
+
+During Low-Power Mode:
+- Power -1.
+- Air -1.
+
+Display nighttime consumption visibly.
+
+Show the new resource levels after the night phase.
+
+### Resource validation
+
+- Cap Power, Air and Shield at 10.
+- Never allow negative resource values.
+- Disable plans that would reduce a resource below zero.
+- Display short explanations for unavailable actions.
+- Apply every resource change immediately.
+- Provide Nova's reaction after each choice.
+
+# 12. RADIATION SYSTEM
+
+Use these invented game thresholds:
+
+| Event | Shield requirement |
+|---|---:|
+| Small storm | 3 |
+| Big storm | 5 |
+
+If Shield is below the required threshold:
+
+Choice A: Shelter.
+- Lose that day's Science gain.
+- Protect the crew.
+
+Choice B: Continue external work.
+- Lose one Heart.
+
+If Shield is sufficient, the crew remains protected under the simplified game rules.
+
+Clearly state that these are gameplay abstractions, not real astronaut radiation safety thresholds.
+
+# 13. FAILURE AND MISSION CONTROL
+
+Never use the phrase "Game Over".
+
+If Power or Air reaches zero, or Hearts reach zero, show a Mission Control assistance screen.
+
+Explain:
+- What went wrong.
+- Which resource became critical.
+- What caused the problem.
+- How the player could improve.
+
+Provide:
+- Retry.
+- Restart mission.
+- Review decisions.
+
+Keep the experience encouraging and educational.
+
+# 14. THE TEN-SOL CAMPAIGN
+
+Implement the following campaign exactly.
+
+Each sol must contain:
+- A short story screen of approximately 40 words maximum.
+- A visible 3D mission environment.
+- A mission objective.
+- Interactive objects where relevant.
+- The specified choices.
+- Exact resource effects.
+- Nova's reaction.
+- A short scientific explanation.
+- Tap-to-reveal vocabulary.
+- A success or continuation condition.
+
+### SOL 1 – TOUCHDOWN AND FIRST NIGHT
+
+Tutorial.
+
+Introduce:
+- Astronaut movement.
+- Camera.
+- Interaction controls.
+- Resource dashboard.
+- Day/night cycle.
+- Four Day Plans.
+
+The player arrives at the Martian outpost.
+
+Scientific fact: A sol lasts approximately 24 hours and 39 minutes.
+
+### SOL 2 – GARDEN DAY
+
+The greenhouse needs activation.
+
+Choice A:
+- Power -2.
+- Science +1.
+- Air +1 on each of the next two sols.
+
+Choice B:
+- Save power.
+- No greenhouse benefits.
+
+Scientific fact: In one study of space-grown lettuce, it had approximately 29–31% less calcium and 25% less magnesium than Earth-grown lettuce.
+
+Do not generalise this result to all space-grown plants.
+
+Show an interactive greenhouse.
+
+### SOL 3 – STORM ALERT #1
+
+Small radiation-related storm event.
+
+Use a verified NASA DONKI archive card.
+
+Placeholder:
+`2025-08-03T07:00:00-CME-001`
+
+Do not invent event details.
+
+Shield threshold: 3.
+
+Choice A:
+- Shelter.
+- Lose today's Science gain.
+
+Choice B:
+- Continue working.
+- If Shield is below 3, Hearts -1.
+
+Scientific facts:
+- Curiosity RAD measured approximately 0.64 millisieverts per day on the Martian surface under its measured conditions.
+- Mars has a thin atmosphere, approximately 1% as thick as Earth's by surface pressure.
+- Mars does not have a global magnetic field like Earth.
+
+Make radiation visually understandable.
+
+### SOL 4 – CALL HOME
+
+Choice A:
+- Power -1.
+- askedHelp = true.
+- Mission Control reply arrives on Sol 5 morning.
+
+Choice B:
+- Skip communication.
+- No Power loss.
+
+Scientific fact:
+Earth-to-Mars one-way signals take approximately 3–22 minutes. A question-and-answer exchange takes approximately 6–44 minutes, excluding other operational delays.
+
+Show an animated communication sequence.
+
+### SOL 5 – DUST STORM BEGINS
+
+Dust storm affects the outpost.
+
+For Sols 5 and 6:
+- Daylight Power gain becomes +1.
+
+If askedHelp is true:
+- Nova delivers Mission Control's warning.
+- Power +1 preparation bonus.
+
+Choice A: Low-Power Mode.
+- Skip today's Day Plan.
+- Night Power drain becomes -1.
+
+Choice B: Normal Operations.
+- Complete the normal Day Plan.
+- Normal night consumption.
+
+Scientific fact:
+In the 2018 global Martian dust storm, Opportunity lost access to sufficient sunlight and became inactive after its power declined.
+
+Show reduced sunlight and visible dust.
+
+### SOL 6 – DUSTY AIR
+
+Dust affects life-support air filters.
+
+Choice A:
+- Air +2.
+- Power -2.
+- Skip today's Day Plan.
+
+Choice B:
+- Complete the usual Day Plan.
+- Air -2 extra.
+
+Scientific fact:
+NASA's MOXIE experiment on Perseverance produced oxygen from Martian atmospheric carbon dioxide, approximately 122 grams in total across its experiments.
+
+Show the oxygen generation equipment.
+
+### SOL 7 – SKY CLEARS AND ROCK SAMPLES
+
+Normal daylight returns.
+
+Power +3.
+
+Random card A:
+- Wind cleans the solar panels.
+- Power +2.
+
+Random card B:
+- No additional effect.
+
+Choice A: Rover exploration.
+- Science +4.
+- Power -4.
+
+Choice B: Stay near the habitat.
+- Save Power.
+- No sample collection.
+
+Scientific fact:
+Perseverance's mission includes collecting and storing Martian rock and soil samples.
+
+This must be a genuinely playable 3D rover mission.
+
+### SOL 8 – BIG STORM WARNING
+
+Mission Control announces an incoming major solar event.
+
+DONKI placeholders:
+
+`2025-10-26T20:36:00-CME-001`
+
+`2025-10-26T21:12:00-CME-001`
+
+Verify the actual archived records before including their descriptions.
+
+This is the final preparation opportunity before Sol 9.
+
+Allow the player to choose an available Day Plan.
+
+Teach that planning today affects tomorrow's survival.
+
+The shortened warning period is a gameplay simplification.
+
+### SOL 9 – THE STORM ARRIVES
+
+Big storm threshold: 5.
+
+If Shield is 5 or higher:
+- Crew is protected under the simplified game rules.
+- Nova celebrates.
+
+If Shield is below 5:
+
+Choice A:
+- Shelter.
+- Protect the crew.
+- Lose today's Science gain.
+
+Choice B:
+- Continue outdoor work.
+- Hearts -1.
+
+Clearly identify the simplified nature of the mechanic.
+
+Show a dramatic Martian storm in 3D.
+
+### SOL 10 – MISSION HANDOFF
+
+The ten-sol mission ends.
+
+Choice A: Prepare the next crew.
+- Power +4.
+- Air +2.
+
+Choice B: Final Science Report.
+- Science +3.
+- Power -3.
+
+Scientific fact:
+NASA research into oxygen production on Mars may support future astronaut breathing needs and potentially rocket fuel production.
+
+Create the final Mission Report.
+
+# 15. IMPORTANT PLAYABLE 3D INTERACTIONS
+
+Integrate the following activities directly into the game.
+
+**A. Repair the Solar Power Station**
+
+Walk to the damaged solar array.
+
+Inspect the equipment.
+
+Use the maintenance console.
+
+Choose the appropriate repair action.
+
+Show visual repair feedback.
+
+Update Power.
+
+**B. Drive the Rover**
+
+Enter the rover.
+
+Drive through rocky Martian terrain.
+
+Avoid obstacles.
+
+Reach the sample collection site.
+
+Collect samples.
+
+Return to the habitat.
+
+**C. Oxygen Leak Emergency**
+
+Inspect the habitat.
+
+Locate the damaged section.
+
+Find the affected control valve.
+
+Isolate the leak.
+
+Activate backup life support.
+
+**D. Geological Sample Collection**
+
+Travel to a marked location.
+
+Exit the rover.
+
+Collect a geological sample.
+
+Store it.
+
+Return to the base.
+
+**E. Restore Communication**
+
+Inspect the antenna.
+
+Check its connections.
+
+Realign it.
+
+Restore the communication system.
+
+**F. Prepare for Dust Storm**
+
+Secure external equipment.
+
+Close airlocks.
+
+Return to the habitat.
+
+Activate emergency systems.
+
+Show the storm arriving.
+
+These interactions must update the actual mission state and resource values.
+
+Do not implement them as decorative animations alone.
+
+# 16. HUD AND INTERFACE
+
+Create a premium mission-control interface.
+
+Always show:
+
+- Power.
+- Air.
+- Shield.
+- Hearts.
+- Science.
+- Sol.
+- Day/night phase.
+- Current mission.
+- Mission objective.
+
+Use readable icons, bars and clear warnings.
+
+Keep the interface compact so that it does not block the 3D world.
+
+### Main menu
+
+Include:
+- TARUKH branding.
+- Game title.
+- Start Mission.
+- Short Mode.
+- Mission Briefing.
+- Science Library.
+- Settings.
+- Credits.
+
+### Pause menu
+
+Include:
+- Resume.
+- Mission Objectives.
+- Resource Status.
+- Science Library.
+- Settings.
+- Restart.
+- Main Menu.
+
+### Mission report
+
+Include:
+- Final resource levels.
+- Hearts remaining.
+- Science score.
+- Decisions that helped.
+- Decisions that hurt.
+- Badges.
+- Scientific concepts learned.
+- Replay button.
+
+# 17. NOVA – ROBOT COMPANION
+
+Nova should be friendly, curious and encouraging.
+
+It should:
+- Guide the astronaut.
+- Display mission information.
+- Explain scientific concepts.
+- React to choices.
+- Alert the player to danger.
+- Celebrate achievements.
+
+Create a consistent personality.
+
+Use short dialogue suitable for children aged 7–12.
+
+If voice support is difficult, implement polished dialogue panels and text bubbles first.
+
+Do not allow Nova's dialogue to interrupt critical gameplay.
+
+# 18. RANDOM EVENTS AND EDITABLE DATA
+
+Randomise:
+- Which verified DONKI event appears on Sol 3.
+- Which verified DONKI event appears on Sol 8.
+- The Sol 7 wind event.
+
+Use seeded randomness where practical.
+
+Create an editable event-card configuration file.
+
+Each event should have:
+- Unique ID.
+- Title.
+- Description.
+- Source name.
+- Source URL.
+- Source date.
+- Verification status.
+- Event type.
+- Game effects.
+- Educational explanation.
+
+Use placeholders for unverified event records.
+
+Never invent NASA DONKI details.
+
+Keep event data separate from gameplay code.
+
+# 19. SCIENCE LIBRARY
+
+Create a Science Behind It page accessible throughout the game.
+
+Include:
+- Sol.
+- Radiation.
+- Dust storm.
+- Shielding.
+- Solar panels.
+- Mars atmosphere.
+- Communication delay.
+- Gravity.
+- Oxygen.
+- Regolith.
+- Rover.
+- MOXIE.
+
+For each scientific concept, include:
+1. Simple explanation.
+2. Scientific fact.
+3. NASA source.
+4. How it appears in gameplay.
+5. Whether the information is a measurement, archived record, model output or gameplay simplification.
+
+Suggested sources:
+- NASA Curiosity Radiation Assessment Detector.
+- NASA DONKI archive.
+- NASA Open Science Data Repository, where relevant.
+- NASA MOXIE research.
+- NASA Opportunity mission.
+- NASA Perseverance mission.
+- NASA planetary science resources.
+
+Show the label:
+
+**ARCHIVED DATA – NOT LIVE**
+
+Never present historical records as current conditions.
+
+Distinguish DONKI analysis and model predictions from confirmed measurements.
+
+Do not invent NASA numbers or scientific claims.
+
+If a claim cannot be verified, label it `[VERIFY SOURCE]` rather than making it up.
+
+# 20. BADGES AND ACHIEVEMENTS
+
+Implement:
+
+**Mars Commander**
+- Balanced resource management.
+
+**Safety Star**
+- All Hearts preserved and strong Shield.
+
+**Science Hero**
+- High Science score.
+
+**Brave Explorer**
+- Took calculated risks and survived.
+
+Place badge thresholds in a central configuration file.
+
+Create a visible achievement screen.
+
+# 21. SHORT MODE
+
+Create an optional short demo campaign:
+
+- Sol 1.
+- Sol 3.
+- Sol 5.
+- Sol 8.
+- Sol 9.
+
+Designed for short competition demonstrations.
+
+It must use valid resource calculations and campaign state.
+
+# 22. AUDIO AND ANIMATIONS
+
+Add appropriate, legally usable audio:
+
+- Martian wind.
+- Rover engine.
+- Astronaut footsteps.
+- Interface sounds.
+- Warnings.
+- Habitat ambience.
+- Solar panel activation.
+- Mission success.
+
+Add animations:
+
+- Astronaut walking.
+- Running.
+- Jumping.
+- Landing.
+- Rover driving.
+- Rover entry and exit.
+- Sample collection.
+- Equipment repair.
+- Habitat doors.
+- Solar arrays.
+- Nova movement.
+
+Prioritise working character and rover animations over optional decorative effects.
+
+# 23. PERFORMANCE REQUIREMENTS
+
+The game must work within a standard modern browser.
+
+Target:
+- Smooth gameplay.
+- Responsive movement.
+- Reasonable asset loading.
+- Stable rendering.
+- No major memory leaks.
+- Optimised geometry.
+- Compressed textures.
+- Efficient shadows.
+- Frustum culling.
+- Instancing where useful.
+- LOD when appropriate.
+
+Provide Low, Medium and High graphics settings.
+
+For the initial implementation, prioritise stable frame rates and a functional game loop.
+
+Do not load unnecessarily enormous 3D assets.
+
+Do not add visual effects that substantially degrade performance.
+
+# 24. PROJECT STRUCTURE
+
+Maintain a modular project.
+
+Suggested structure (adapt to the existing AI Studio scaffold):
+
+src/
+  components/
+    HUD/
+    Menus/
+    MissionUI/
+    Dialogues/
+    Controls/
+
+  game/
+    scene/
+    player/
+    camera/
+    physics/
+    vehicles/
+    interactions/
+    environment/
+    lighting/
+
+  systems/
+    resourceManager/
+    dayNight/
+    weather/
+    radiation/
+    missionManager/
+    dialogue/
+    achievements/
+    saveSystem/
+
+  data/
+    missions/
+    events/
+    scientificFacts/
+    configuration/
+
+  hooks/
+  store/
+  styles/
+
+public/
+  assets/
+    models/
+    textures/
+    audio/
+    environments/
+
+Keep:
+- Mission data editable.
+- Game values editable.
+- Scientific facts editable.
+- Asset attribution documented.
+- Components reusable.
+- Physics logic separate from UI.
+- State consistent across all systems.
+
+Do not force this exact directory layout if the existing generated project uses a different sensible structure.
+
+# 25. DEVELOPMENT STRATEGY – BUILD IN STAGES
+
+This project is substantial.
+
+Do not attempt to generate every feature in a single uncontrolled code-generation pass.
+
+Work in these stages.
+
+## STAGE A – INITIAL PLAYABLE 3D FOUNDATION
+
+Build:
+
+1. Main menu.
+2. Mars environment.
+3. Main habitat and nearby terrain.
+4. Third-person astronaut controller.
+5. Camera.
+6. WASD movement.
+7. Mouse look.
+8. Basic gravity and collision.
+9. Interactive objects.
+10. HUD.
+11. Day/night lighting.
+
+**Acceptance test:** I must be able to start the game, enter the Mars environment, walk around, look around, jump and interact with an object.
+
+Do not move forward until these core features work.
+
+## STAGE B – ROVER AND PHYSICS
+
+Build:
+
+1. Rover model.
+2. Enter and exit.
+3. Keyboard driving.
+4. Steering.
+5. Acceleration and braking.
+6. Suspension and collision.
+7. Terrain interaction.
+8. Battery consumption.
+
+**Acceptance test:** The player must be able to enter a rover, drive across the terrain, stop, exit and interact with the surrounding environment.
+
+## STAGE C – GAMEPLAY SYSTEMS
+
+Build:
+
+1. Resource management.
+2. Power, Air and Shield.
+3. Hearts and Science.
+4. Day Plans.
+5. Day/night cycle.
+6. Night consumption.
+7. Environmental events.
+8. Radiation system.
+9. Failure system.
+
+**Acceptance test:** Resource changes must work correctly after every selection and phase transition.
+
+## STAGE D – MISSION CAMPAIGN
+
+Implement:
+
+- Tutorial.
+- Sols 1–3.
+- Sols 4–7.
+- Sols 8–10.
+- Nova dialogue.
+- Mission objectives.
+- Interactive repairs.
+- Geological exploration.
+- Storm events.
+
+**Acceptance test:** The player can finish the full ten-sol campaign without broken state or incorrect resource calculations.
+
+## STAGE E – ADVANCED SYSTEMS
+
+Implement:
+- Science Library.
+- Mission reports.
+- Badges.
+- Short Mode.
+- Replay.
+- Editable event cards.
+- Saved settings.
+
+## STAGE F – POLISH AND OPTIMISATION
+
+Implement:
+- Audio.
+- Character animations.
+- Better visual effects.
+- UI polish.
+- Graphics settings.
+- Performance improvements.
+- Browser testing.
+- Final bug fixes.
+
+# 26. HOW TO WORK WITH ME
+
+I am developing this project through Google AI Studio, and I may not have extensive programming experience.
+
+Follow these instructions:
+
+1. First provide a five-line implementation plan.
+2. Tell me which technologies you selected and why.
+3. Inspect the current project before modifying it.
+4. Build Stage A first.
+5. Do not overwhelm the first build with every advanced feature.
+6. Make a functional and visible result at every stage.
+7. Use the live preview to verify changes.
+8. Explain what has been implemented.
+9. Tell me what I should test.
+10. Give me the exact next prompt to continue development when a stage is complete.
+
+When making changes:
+- Modify existing files carefully.
+- Do not unnecessarily recreate the project.
+- Keep previously working features.
+- Fix TypeScript errors.
+- Fix broken imports.
+- Fix runtime errors.
+- Check browser rendering.
+- Do not leave core features as placeholders.
+
+If an asset cannot be downloaded, explain the issue and continue with a temporary replaceable asset.
+
+If you encounter technical limitations, choose a practical alternative and explain the trade-off.
+
+
+# SPECIAL FEATURE: OPENING 3D CINEMATIC – JOURNEY FROM EARTH TO MARS
+
+## THE MOST IMPORTANT OPENING EXPERIENCE
+
+Before the player begins the first mission, create an immersive, cinematic, fully 3D-rendered spacecraft journey from Earth to Mars.
+
+This sequence is the opening of the entire game.
+
+The player must experience the journey of astronauts travelling from Earth, approaching Mars, entering the Martian atmosphere and finally landing near their pre-deployed Martian outpost.
+
+**CRITICAL REQUIREMENT: This must be rendered in real time using the actual 3D game engine. It must NOT be a prerecorded video, MP4, GIF, animated image, slideshow or externally generated cinematic clip.**
+
+Use the existing Three.js / React Three Fiber 3D rendering system.
+
+All spacecraft, planets, environments, lighting, particles, animations, camera movements and landing effects must be actual 3D game objects or real-time graphics.
+
+Do not sacrifice the gameplay engine to create this cinematic.
+
+---
+
+## CINEMATIC SEQUENCE
+
+Target duration: approximately 60–90 seconds.
+
+Use cinematic camera movements, smooth scene transitions, realistic-looking lighting, atmospheric effects and immersive sound.
+
+The sequence should have multiple connected stages.
+
+### SCENE 1 – EARTH: THE BEGINNING
+
+<Visual direction: A cinematic view of Earth from space.>
+
+Start with a breathtaking view of Earth.
+
+Show:
+- Earth's curved horizon.
+- Blue oceans and continents.
+- White clouds.
+- Atmospheric glow.
+- Sunlight illuminating one side of the planet.
+- Dark space and distant stars.
+
+A large astronaut transport spacecraft is positioned at a launch facility.
+
+Transition the camera toward the spacecraft.
+
+Display:
+
+"EARTH – HUMANITY'S NEXT FRONTIER"
+
+Introduce the mission:
+
+"TARUKH MARS EXPEDITION"
+
+Show astronauts preparing for their journey.
+
+### SCENE 2 – SPACECRAFT LAUNCH
+
+<Visual direction: A realistic 3D rocket launch sequence.>
+
+Show the spacecraft launching from Earth.
+
+Include:
+- Launchpad.
+- Rocket engines.
+- Bright engine exhaust.
+- Animated flames.
+- Volumetric-looking smoke.
+- Atmospheric lighting.
+- Camera vibration.
+- Gradual acceleration.
+- Earth getting smaller in the background.
+
+Use actual animated 3D spacecraft movement.
+
+The camera should transition between:
+1. Ground-level launch view.
+2. Side-following rocket view.
+3. Close-up engine view.
+4. Wide space view.
+
+The spacecraft should visibly travel upward and leave Earth's atmosphere.
+
+Use particle systems for smoke, exhaust and atmospheric effects.
+
+### SCENE 3 – ESCAPING EARTH
+
+<Visual direction: Cinematic spaceflight.>
+
+Show the spacecraft travelling away from Earth.
+
+The camera follows the spacecraft as Earth gradually becomes smaller.
+
+Include:
+- Earth's curvature.
+- Solar lighting.
+- Spacecraft exterior.
+- Engine activity.
+- Space environment.
+- Distant stars.
+
+Display:
+
+"LEAVING EARTH ORBIT"
+
+Create a short transition indicating that the journey to Mars takes time.
+
+Use compressed cinematic time rather than pretending the actual Earth-to-Mars journey happens in seconds.
+
+A time-lapse effect may show:
+- Earth becoming distant.
+- Sunlight changing across the spacecraft.
+- Mars gradually appearing ahead.
+
+### SCENE 4 – JOURNEY THROUGH DEEP SPACE
+
+<Visual direction: Beautiful cinematic interplanetary travel.>
+
+Show the spacecraft travelling through space toward Mars.
+
+The camera can move around the spacecraft to reveal:
+- Its exterior structure.
+- Solar panels if fitted.
+- Engine modules.
+- Earth in the distant background.
+- Mars gradually getting larger.
+
+Display:
+
+"DESTINATION: MARS"
+
+Optionally show a small mission information panel:
+
+- Destination: Mars.
+- Mission: Human Outpost Deployment.
+- Mission status: In transit.
+
+Do not invent real NASA mission statistics.
+
+This is a fictional TARUKH game mission, not an actual NASA flight.
+
+### SCENE 5 – MARS APPROACH
+
+<Visual direction: A dramatic approach toward the red planet.>
+
+Mars gradually fills the screen.
+
+Show:
+- Red planetary surface.
+- Large craters.
+- Mountains.
+- Dust-covered terrain.
+- Mars's thin atmosphere.
+- Sunlight illuminating the planet.
+
+The spacecraft approaches the planet.
+
+The camera moves toward the spacecraft's exterior and then shows Mars from the landing vehicle's perspective.
+
+Display:
+
+"APPROACHING MARS"
+
+"PREPARING FOR ATMOSPHERIC ENTRY"
+
+Add subtle warning indicators and spacecraft sounds.
+
+### SCENE 6 – MARTIAN ATMOSPHERIC ENTRY
+
+<Visual direction: High-quality 3D atmospheric entry sequence.>
+
+The spacecraft enters Mars's atmosphere.
+
+Show:
+- Heat shield.
+- Atmospheric glow.
+- Entry heating effects.
+- Red-orange atmospheric haze.
+- Spacecraft vibration.
+- Controlled descent.
+- Changing camera angles.
+- Instrument warning indicators.
+
+The spacecraft must visibly slow down as it descends.
+
+Use convincing but simplified entry physics for gameplay presentation.
+
+Do not incorrectly depict Mars as having an Earth-like thick atmosphere.
+
+### SCENE 7 – PARACHUTE AND POWERED DESCENT
+
+<Visual direction: Realistic Mars landing sequence.>
+
+Show the landing vehicle deploying its parachute where appropriate.
+
+Include:
+- Parachute deployment animation.
+- Parachute inflation.
+- Descent speed reduction.
+- Martian landscape becoming larger.
+- Dust disturbance.
+- Landing engines activating.
+
+Because Mars has a thin atmosphere, do not depict a parachute as sufficient to complete the entire landing of a heavy crewed spacecraft.
+
+Use a powered descent sequence for the final landing.
+
+The spacecraft should visibly approach the landing zone near the outpost.
+
+Display:
+
+"LANDING SEQUENCE INITIATED"
+
+### SCENE 8 – TOUCHDOWN ON MARS
+
+<Visual direction: Cinematic landing near the Martian outpost.>
+
+The spacecraft gently touches down near the pre-deployed Martian habitat.
+
+Show:
+- Landing legs contacting the ground.
+- Dust spreading around the lander.
+- Engine shutdown.
+- Rover and habitat in the distance.
+- Solar panels near the habitat.
+- Communication antenna.
+- Martian mountains in the background.
+
+The camera should move from an exterior cinematic perspective toward the spacecraft entrance.
+
+Display:
+
+"TOUCHDOWN CONFIRMED"
+
+"WELCOME TO MARS"
+
+Add a short Nova dialogue:
+
+"Welcome to Mars, Commander! Our outpost is ready. Let's prepare for our first Martian sol."
+
+The spacecraft door opens.
+
+The astronaut exits the spacecraft.
+
+The camera smoothly transitions into the normal third-person gameplay camera.
+
+The player now gains full movement control.
+
+---
+
+# IMPORTANT STORY CONTINUITY
+
+The Martian habitat and essential infrastructure should have been deployed before the astronauts arrived.
+
+Establish this through a short narrative:
+
+"Before the crew's arrival, robotic cargo missions delivered the habitat, power systems, scientific equipment and essential supplies to Mars."
+
+This explains why the crew can land near an already established outpost.
+
+The outpost should be visibly present during the landing sequence.
+
+Do not make the spacecraft land in a completely empty environment and then suddenly teleport the player into a populated base.
+
+Maintain visual continuity between the cinematic landing area and the playable Mars environment.
+
+Ideally, use the same 3D scene and world assets for both the cinematic and gameplay.
+
+---
+
+# REAL-TIME 3D IMPLEMENTATION REQUIREMENTS
+
+Build the cinematic using the existing Three.js scene and rendering system.
+
+Use:
+
+- Three.js.
+- React Three Fiber.
+- Drei where useful.
+- Rapier physics for appropriate landing and ground interactions.
+- Three.js particle systems.
+- Real-time lighting.
+- Animated spacecraft transforms.
+- Camera interpolation.
+- Procedural atmospheric effects.
+- Real-time shadows where performance permits.
+
+Use existing high-quality 3D assets for:
+- Earth.
+- Mars.
+- Spacecraft.
+- Rocket.
+- Spacecraft interior or exterior.
+- Parachute.
+- Landing gear.
+- Martian terrain.
+- Habitat.
+
+Search for properly licensed NASA models or other reusable 3D assets before creating models.
+
+Do not create detailed models from scratch if high-quality compatible alternatives exist.
+
+If an asset is unavailable, use a temporary model and clearly document what needs replacement.
+
+### Real-time animation
+
+Implement the following as actual animated 3D elements:
+
+- Spacecraft launching.
+- Rocket engine exhaust.
+- Smoke and particles.
+- Spacecraft travelling through space.
+- Planet approach.
+- Atmospheric entry.
+- Heat effects.
+- Parachute deployment.
+- Powered descent.
+- Dust particles on landing.
+- Landing gear contact.
+- Spacecraft door opening.
+- Astronaut exiting.
+
+Use the actual game engine's rendering loop.
+
+Use deterministic cinematic timelines or controlled animation states rather than relying on a prerecorded animation.
+
+The cinematic should render continuously on the player's device.
+
+### Camera system
+
+Implement cinematic camera shots with smooth transitions.
+
+Use:
+- Wide planetary shots.
+- Spacecraft tracking shots.
+- Close-up engine shots.
+- First-person landing perspective.
+- Landing-site aerial view.
+- Final third-person player camera transition.
+
+Avoid abrupt camera jumps.
+
+### Performance
+
+The opening cinematic should not make the game excessively large or slow.
+
+Use:
+- Optimised models.
+- Compressed textures.
+- Efficient particles.
+- Controlled shadow quality.
+- LOD.
+- Reusable assets.
+- Frustum culling.
+
+Load cinematic assets efficiently.
+
+Do not load unnecessary high-resolution assets that negatively affect gameplay performance.
+
+---
+
+# PLAYER CONTROL DURING THE CINEMATIC
+
+The opening cinematic should initially be automated.
+
+Provide:
+- Skip Cinematic button.
+- Pause Cinematic option if practical.
+- Replay Intro option in the main menu.
+- Subtitles for Nova's dialogue.
+
+Once the spacecraft lands, the cinematic must transition into playable gameplay.
+
+When the player skips the cinematic, immediately position the astronaut outside the landed spacecraft at the correct starting location.
+
+Skipping must not skip any mission logic or resource calculations.
+
+---
+
+# TRANSITION INTO SOL 1
+
+This is extremely important.
+
+The opening Earth-to-Mars journey happens BEFORE the ten-sol campaign begins.
+
+It does not count as a gameplay sol.
+
+After touchdown:
+
+1. Display the title screen:
+
+   **SOL 1 / 10**
+
+2. Show:
+
+   **MARS – DAY 1**
+
+3. Show the day/night indicator:
+
+   **SUNLIGHT: DAY PHASE**
+
+4. Initialise the starting resources:
+
+   - Power: 6
+   - Air: 6
+   - Shield: 3
+   - Science: 0
+   - Hearts: 3
+
+5. Introduce Nova.
+
+6. Show the first mission objective.
+
+7. Give control to the player.
+
+The ten-sol campaign must begin only after the complete landing sequence.
+
+---
+
+# REVISED SOL 1 – TOUCHDOWN AND FIRST NIGHT
+
+Sol 1 should now begin with the astronaut already landed on Mars.
+
+The opening cinematic has already shown the journey and landing.
+
+The actual playable Sol 1 begins with daylight.
+
+Mission objective:
+
+**"Complete the initial inspection of your Martian outpost."**
+
+The player must:
+
+1. Exit the landed spacecraft.
+2. Meet Nova.
+3. Explore the nearby habitat.
+4. Inspect the solar power station.
+5. Check oxygen reserves.
+6. Locate the rover.
+7. Understand the resource dashboard.
+
+Use actual 3D interactions for the first few tasks.
+
+Nova should provide short explanations.
+
+Then introduce the four Day Plans.
+
+Teach:
+
+- Sunlight provides solar power during the day.
+- Batteries store power for nighttime.
+- Air is continuously needed by the crew.
+- Shielding helps protect astronauts against radiation.
+
+The player completes the selected Day Plan.
+
+The first night then begins.
+
+Show the habitat lights activating, the environment becoming dark and Nova explaining nighttime resource consumption.
+
+Scientific fact:
+
+A Martian sol lasts approximately 24 hours and 39 minutes.
+
+This updated Sol 1 replaces the old version that began directly with a touchdown tutorial.
+
+---
+
+# CINEMATIC ACCEPTANCE TESTS
+
+Before proceeding with the remaining campaign, verify:
+
+1. Earth is rendered as a real 3D planet.
+2. The rocket and spacecraft are actual 3D models.
+3. The launch is animated in real time.
+4. The spacecraft visibly travels through space.
+5. Mars gradually approaches the camera.
+6. Atmospheric entry is visible.
+7. Parachute deployment works visually.
+8. Powered descent is visible.
+9. The spacecraft lands near the outpost.
+10. Landing dust effects work.
+11. The spacecraft door opens.
+12. The astronaut exits.
+13. Nova welcomes the player.
+14. The cinematic transitions into third-person gameplay.
+15. Sol 1 begins with correct starting resources.
+16. The cinematic can be skipped without breaking the campaign.
+17. No prerecorded video is used.
+
+Do not declare the cinematic complete unless these features have actually been implemented and tested.
+
+**DESIGN GOAL:**
+
+Make the opening feel like the beginning of a genuine human expedition to Mars.
+
+The player should experience the excitement of leaving Earth, travelling through space, approaching the red planet and finally stepping onto Martian soil for the first time.
+
+The cinematic should establish the scale of the journey and create an emotional connection before the player begins managing the outpost.
+
+**The opening journey is a real-time 3D game-engine sequence, not a movie file.**
+# 27. FINAL TESTING
+
+Before completion, test:
+
+**Movement**
+- Walking.
+- Running.
+- Jumping.
+- Camera.
+- Gravity.
+- Collision.
+
+**Interactions**
+- Habitat doors.
+- Control panels.
+- Repairs.
+- Rover.
+- Equipment.
+- Sample collection.
+
+**Resources**
+- Power calculations.
+- Air calculations.
+- Shield.
+- Hearts.
+- Science.
+- Maximum limits.
+- No negative values.
+
+**Mission progression**
+- All ten sols.
+- Communication delay.
+- Dust storm.
+- Sol 7 random event.
+- Sol 8 preparation.
+- Sol 9 consequences.
+- Final report.
+
+**Browser**
+- Initial loading.
+- Rendering.
+- Responsive controls.
+- Performance.
+- No broken assets.
+- No console errors.
+
+**Education**
+- Correct scientific attribution.
+- No invented NASA values.
+- Archived data labelled correctly.
+- Simplifications explained.
+- Child-friendly explanations.
+
+Test the finished game with three children or a teacher.
+
+Observe whether they:
+- Understand the controls.
+- Understand their objectives.
+- Understand resources.
+- Can complete missions.
+- Learn real space science.
+
+# FINAL CREATIVE DIRECTION
+
+Make the player feel like an astronaut actually living and working on Mars.
+
+They should explore the outpost in third person, operate equipment, drive a rover, inspect scientific instruments, repair systems, collect geological samples and experience changing planetary conditions.
+
+The 3D world must support the gameplay, not just decorate it.
+
+The physics must make interactions satisfying.
+
+The science must be accurate.
+
+The resource system must teach planning.
+
+Nova must make the experience friendly and understandable.
+
+Use existing high-quality 3D assets wherever possible. Build custom models only when no suitable, properly licensed alternatives exist.
+
+Most importantly:
+
+**BUILD A FUNCTIONAL GAME, NOT JUST A BEAUTIFUL DEMO.**
+
+TARUKH
+
+**EXPLORE. ENGINEER. SURVIVE. DISCOVER.**

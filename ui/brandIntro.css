@@ -1,0 +1,356 @@
+.ss-brand-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  perspective: 1000px;
+  color: #f6eee2;
+  background: transparent;
+  isolation: isolate;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+.ss-shutter {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50.1%;
+  background: radial-gradient(ellipse at 50% 100%, #1a2a37, #08121d 68%);
+  overflow: hidden;
+  will-change: transform;
+  z-index: 1;
+}
+.ss-shutter-top {
+  top: 0;
+  border-bottom: 1px solid #d7b38666;
+}
+.ss-shutter-bottom {
+  bottom: 0;
+  border-top: 1px solid #d7b38644;
+  background: radial-gradient(ellipse at 50% 0, #1a2a37, #08121d 68%);
+}
+.ss-shutter i {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e7b78488, transparent);
+}
+.ss-shutter-bottom i {
+  top: 0;
+  bottom: auto;
+}
+.ss-shutter > span {
+  position: absolute;
+  inset: 10px;
+  opacity: 0.24;
+  border: 1px solid #82959b33;
+}
+.ss-shutter-top > span {
+  border-bottom: 0;
+  bottom: -1px;
+}
+.ss-shutter-bottom > span {
+  border-top: 0;
+  top: -1px;
+}
+.ss-intro-seam {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e7b78499, transparent);
+  box-shadow: 0 0 28px #e7b78433;
+}
+.ss-intro-brand {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  text-align: center;
+  transform: translateZ(-360px) scale(0.78);
+  opacity: 0;
+  will-change: transform, opacity;
+  padding: 50px 24px;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+.ss-intro-emblem {
+  height: 125px;
+  width: 115px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e7b78488;
+  border-radius: 65px 65px 8px 8px;
+  background: #0b1823;
+  font:
+    95px/1 Georgia,
+    serif;
+  color: #e7b784;
+  position: relative;
+  box-shadow: 0 0 60px #e7b7840d;
+}
+.ss-intro-emblem > span {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  font-size: 23px;
+}
+.ss-intro-brand h1 {
+  font:
+    400 clamp(30px, 4vw, 68px) / 1.1 Georgia,
+    serif;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: #f8f1e6;
+  margin: 28px 0 0;
+  text-shadow: 0 2px 22px #0006;
+}
+.ss-intro-brand p {
+  font:
+    8px/1.6 Consolas,
+    monospace;
+  letter-spacing: 3px;
+  color: #c6ae8e;
+  margin: 18px 0 0;
+}
+.ss-team-logo {
+  width: min(430px, 70vw);
+  height: min(290px, 36vh);
+  object-fit: contain;
+  filter: drop-shadow(0 12px 35px #0005);
+}
+.ss-team-intro {
+  color: #202526;
+}
+.ss-team-intro .ss-shutter {
+  background: radial-gradient(ellipse at 50% 100%, #f4f0e7, #ebe7dd 78%);
+}
+.ss-team-intro .ss-shutter-bottom {
+  background: radial-gradient(ellipse at 50% 0, #f4f0e7, #ebe7dd 78%);
+}
+.ss-team-intro .ss-shutter-top {
+  border-bottom-color: #5c625d26;
+}
+.ss-team-intro .ss-shutter-bottom {
+  border-top-color: #5c625d20;
+}
+.ss-team-intro .ss-shutter > span {
+  border-color: #545d5120;
+}
+.ss-team-intro .ss-shutter i,
+.ss-team-intro .ss-intro-seam {
+  background: linear-gradient(90deg, transparent, #555f4b55, transparent);
+  box-shadow: none;
+}
+.ss-team-intro .ss-team-logo {
+  width: min(510px, 78vw);
+  height: min(240px, 31vh);
+  object-fit: cover;
+  object-position: 50% 52%;
+  mix-blend-mode: darken;
+  filter: none;
+}
+.ss-team-intro .ss-intro-brand h1 {
+  color: #222827;
+  text-shadow: none;
+  text-transform: none;
+  font-size: clamp(38px, 4.6vw, 66px);
+  letter-spacing: -1px;
+  margin-top: 12px;
+}
+.ss-team-intro .ss-intro-brand p {
+  color: #5b645b;
+}
+.ss-team-intro .ss-intro-brand .ss-presents {
+  font:
+    10px/1.6 Consolas,
+    monospace;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  margin: 4px 0 0;
+}
+.ss-team-name-fallback {
+  color: #202526;
+  font:
+    600 40px/1.2 "Segoe UI",
+    sans-serif;
+  letter-spacing: 8px;
+}
+.ss-intro-team-caption {
+  color: #202526;
+  font:
+    13px/1.6 Consolas,
+    monospace;
+  letter-spacing: 5px;
+}
+.ss-team-name-fallback + .ss-intro-team-caption {
+  display: none;
+}
+.ss-team-intro .ss-intro-skip {
+  color: #35403a;
+  background: #f3f0e899;
+  border-color: #42504444;
+}
+.ss-team-intro .ss-intro-skip span {
+  color: #35403a;
+}
+.ss-team-intro .ss-intro-skip:hover {
+  color: #111b16;
+  border-color: #42504488;
+}
+.ss-team-intro .ss-intro-skip:focus-visible {
+  outline-color: #35403a;
+}
+.ss-intro-skip {
+  position: absolute;
+  right: 30px;
+  bottom: 25px;
+  z-index: 5;
+  background: #07121a8c;
+  border: 1px solid #a1b3bc44;
+  color: #c0cbd1;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font:
+    10px/1.5 Consolas,
+    monospace;
+  letter-spacing: 0.5px;
+  min-height: 44px;
+}
+.ss-intro-skip span {
+  color: #e7b784;
+}
+.ss-intro-skip:hover {
+  border-color: #e7b784;
+  color: #f8eddf;
+}
+.ss-intro-skip:focus-visible {
+  outline: 2px solid #e7b784;
+  outline-offset: 5px;
+}
+.ss-intro-playing .ss-intro-brand {
+  animation: ss-brand-approach 3.5s cubic-bezier(0.17, 0.67, 0.27, 1) both;
+}
+.ss-intro-playing .ss-shutter-top {
+  animation: ss-shutter-up 1.5s 1.7s cubic-bezier(0.65, 0, 0.25, 1) both;
+}
+.ss-intro-playing .ss-shutter-bottom {
+  animation: ss-shutter-down 1.5s 1.7s cubic-bezier(0.65, 0, 0.25, 1) both;
+}
+.ss-intro-playing .ss-intro-seam {
+  animation: ss-seam-fade 1s 1.7s ease both;
+}
+@keyframes ss-brand-approach {
+  0% {
+    opacity: 0;
+    transform: translateZ(-360px) scale(0.78);
+    filter: blur(5px);
+  }
+  18% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  65% {
+    opacity: 1;
+    transform: translateZ(0) scale(1.02);
+  }
+  88% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateZ(180px) scale(1.13);
+    filter: blur(2px);
+  }
+}
+@keyframes ss-shutter-up {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-102%);
+  }
+}
+@keyframes ss-shutter-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(102%);
+  }
+}
+@keyframes ss-seam-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (max-width: 600px) {
+  .ss-intro-emblem {
+    width: 85px;
+    height: 98px;
+    font-size: 72px;
+  }
+  .ss-intro-emblem > span {
+    font-size: 17px;
+    top: 12px;
+    right: 14px;
+  }
+  .ss-intro-brand h1 {
+    font-size: 31px;
+    letter-spacing: 3px;
+    max-width: 90vw;
+  }
+  .ss-intro-brand p {
+    font-size: 6px;
+    letter-spacing: 1.8px;
+  }
+  .ss-intro-skip {
+    right: 19px;
+    bottom: 20px;
+  }
+  .ss-team-logo {
+    width: 76vw;
+    height: 30vh;
+  }
+  .ss-team-intro .ss-team-logo {
+    width: 86vw;
+    height: 180px;
+  }
+  .ss-team-intro .ss-intro-brand h1 {
+    font-size: 42px;
+    letter-spacing: -1px;
+  }
+  .ss-team-intro .ss-intro-brand .ss-presents {
+    font-size: 8px;
+    letter-spacing: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ss-intro-playing .ss-intro-brand {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .ss-intro-playing .ss-shutter-top,
+  .ss-intro-playing .ss-shutter-bottom,
+  .ss-intro-playing .ss-intro-seam {
+    animation: none;
+  }
+  .ss-intro-brand,
+  .ss-shutter {
+    will-change: auto;
+  }
+}
