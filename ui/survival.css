@@ -1357,8 +1357,8 @@
   pointer-events: auto;
 }
 .sv-rover-prompt-btn {
-  background: #eab285;
-  color: #16242c;
+  background: #9acd32;
+  color: #122114;
   border: 2px solid #fff;
   border-radius: 6px;
   font: 700 13px/1.2 monospace;
@@ -1371,13 +1371,13 @@
   transition: transform 0.15s ease, background 0.15s ease;
 }
 .sv-rover-prompt-btn:hover {
-  background: #f7ca9e;
+  background: #b0e633;
   transform: translateX(0) scale(1.04);
 }
 .sv-key-badge {
   background: #172532;
-  color: #f7ca9e;
-  border: 1px solid #eab285;
+  color: #c8fa4b;
+  border: 1px solid #9acd32;
   border-radius: 4px;
   padding: 3px 7px;
   font-weight: 800;

@@ -24,10 +24,15 @@ export function createBigRover(): BigRoverHandle {
   root.name = "BigRover";
 
   // --- Materials ---
-  const hullWhite = new T.MeshStandardMaterial({
-    color: 0xf0efe8,
+  const hullYellowGreen = new T.MeshStandardMaterial({
+    color: 0x9acd32,
     roughness: 0.35,
     metalness: 0.15,
+  });
+  const commsWhite = new T.MeshStandardMaterial({
+    color: 0xf0efe8,
+    roughness: 0.4,
+    metalness: 0.1,
   });
   const chassisDark = new T.MeshStandardMaterial({
     color: 0x22262c,
@@ -118,7 +123,7 @@ export function createBigRover(): BigRoverHandle {
   // ==========================================
   // Main reinforced skid frame
   box(2.2, 0.3, 4.6, chassisDark, 0, 0.45, 0);
-  box(2.0, 0.2, 4.4, hullWhite, 0, 0.65, 0);
+  box(2.0, 0.2, 4.4, hullYellowGreen, 0, 0.65, 0);
 
   // Front bull-bar bumper & tow winches
   const frontBumper = box(2.4, 0.35, 0.35, chassisDark, 0, 0.55, -2.35);
@@ -221,7 +226,7 @@ export function createBigRover(): BigRoverHandle {
   root.add(cabin);
 
   // Main composite shell
-  box(2.1, 0.85, 2.4, hullWhite, 0, 0.45, -0.3, cabin);
+  box(2.1, 0.85, 2.4, hullYellowGreen, 0, 0.45, -0.3, cabin);
   box(2.14, 0.12, 2.44, accentOrange, 0, 0.88, -0.3, cabin);
 
   // Cockpit glass canopy
@@ -252,7 +257,7 @@ export function createBigRover(): BigRoverHandle {
   cabin.add(roofGlass);
 
   // Roof frame structure
-  box(1.9, 0.1, 1.5, hullWhite, 0, 1.62, -0.45, cabin);
+  box(1.9, 0.1, 1.5, hullYellowGreen, 0, 1.62, -0.45, cabin);
   box(0.1, 0.75, 0.1, chassisDark, -0.92, 1.25, -1.2, cabin).rotation.x = 0.45;
   box(0.1, 0.75, 0.1, chassisDark, 0.92, 1.25, -1.2, cabin).rotation.x = 0.45;
 
@@ -367,13 +372,13 @@ export function createBigRover(): BigRoverHandle {
 
   // Flatbed deck & side walls
   box(2.0, 0.15, 1.8, chassisDark, 0, 0.08, 0, cargoBed);
-  box(0.12, 0.5, 1.8, hullWhite, -0.98, 0.35, 0, cargoBed);
-  box(0.12, 0.5, 1.8, hullWhite, 0.98, 0.35, 0, cargoBed);
-  box(1.9, 0.5, 0.12, hullWhite, 0, 0.35, 0.88, cargoBed);
+  box(0.12, 0.5, 1.8, hullYellowGreen, -0.98, 0.35, 0, cargoBed);
+  box(0.12, 0.5, 1.8, hullYellowGreen, 0.98, 0.35, 0, cargoBed);
+  box(1.9, 0.5, 0.12, hullYellowGreen, 0, 0.35, 0.88, cargoBed);
 
   // High-pressure science / gas tanks
   cylinder(0.18, 0.18, 1.2, 16, accentOrange, -0.55, 0.32, 0, cargoBed).rotation.x = Math.PI / 2;
-  cylinder(0.18, 0.18, 1.2, 16, hullWhite, 0.55, 0.32, 0, cargoBed).rotation.x = Math.PI / 2;
+  cylinder(0.18, 0.18, 1.2, 16, hullYellowGreen, 0.55, 0.32, 0, cargoBed).rotation.x = Math.PI / 2;
 
   // Geological sample container crates
   box(0.65, 0.45, 0.7, titaniumRim, 0, 0.35, -0.3, cargoBed);
@@ -383,7 +388,7 @@ export function createBigRover(): BigRoverHandle {
   const commMast = cylinder(0.05, 0.05, 1.4, 8, titaniumRim, 0.82, 1.2, 0.75, cargoBed);
   const dishBowl = new T.Mesh(
     new T.SphereGeometry(0.38, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-    hullWhite,
+    commsWhite,
   );
   dishBowl.rotation.x = Math.PI / 3;
   dishBowl.position.set(0, 0.7, 0);

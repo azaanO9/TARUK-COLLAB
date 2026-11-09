@@ -248,7 +248,7 @@ export default function LunarScene({ focus, resolved, view }: Props) {
       rover.position.set(3.1, 0.5, 2.3);
       rover.rotation.y = -0.4;
       island.add(rover);
-      box(1.35, 0.43, 0.85, light, rover);
+      box(1.35, 0.43, 0.85, material(0x9acd32), rover);
       box(0.8, 0.07, 0.65, scienceMaterial, rover, 0, 0.26, 0);
       for (const x of [-0.5, 0, 0.5])
         for (const z of [-0.52, 0.52]) {

@@ -13,7 +13,8 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
     rock = mat(0x797c83),
     blue = mat(0x184d72, { metalness: 0.5 }),
     cyan = mat(0x58a4ae),
-    green = mat(0x73c2a1);
+    green = mat(0x73c2a1),
+    yellowGreen = mat(0x9acd32, { roughness: 0.35, metalness: 0.15 });
   const root = new T.Group();
   scene.add(root);
   const terrain = planet === "mars" ? createMarsTerrain(root) : null;
@@ -288,7 +289,7 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
         box(group, 0.25, 0.18, 0.08, lamp, 2.1, 1.5, -1.36);
         box(group, 0.35, 0.25, 0.5, orange, 2.1, 0.3, -1.0);
       } else {
-        box(group, 2.7, 0.85, 3, ivory, 0, 1);
+        box(group, 2.7, 0.85, 3, yellowGreen, 0, 1);
         box(group, 1.4, 0.7, 1.2, dark, 0, 1.65, -0.7);
         cylinder(group, 0.22, 0.1, lamp, 0, 2.05, -0.9);
         for (const x of [-1.5, 1.5])
