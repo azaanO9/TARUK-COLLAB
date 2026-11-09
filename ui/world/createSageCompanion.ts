@@ -1,4 +1,33 @@
 import * as T from "three";
+import { SAGE_DOCK } from "../../game/sageCompanion";
+
+/** An open-front home for Sage, with a landing pad and a lit nameplate. */
+export function createSageDock() {
+  const dock = new T.Group();
+  dock.position.set(SAGE_DOCK.x, 0, SAGE_DOCK.z);
+  const frame = new T.MeshStandardMaterial({ color: 0x47525a, metalness: .55, roughness: .5 });
+  const shell = new T.MeshStandardMaterial({ color: 0xc9c9bc, metalness: .25, roughness: .65 });
+  const copper = new T.MeshStandardMaterial({ color: 0xc8763e, roughness: .7 });
+  const light = new T.MeshStandardMaterial({ color: 0xa8fff0, emissive: 0x55bfa8, emissiveIntensity: 1.5 });
+  const box = (w:number,h:number,d:number,x:number,y:number,z:number, material:T.Material) => {
+    const mesh = new T.Mesh(new T.BoxGeometry(w,h,d), material);
+    mesh.position.set(x,y,z); mesh.castShadow = mesh.receiveShadow = true; dock.add(mesh); return mesh;
+  };
+  box(3.6,.16,3.2,0,.08,0,frame);
+  box(.22,2.25,3, -1.65,1.2,0,shell); box(.22,2.25,3,1.65,1.2,0,shell);
+  box(3.3,2.25,.2,0,1.2,-1.4,shell);
+  box(3.8,.25,3.3,0,2.38,0,frame);
+  box(3.7,.1,.18,0,2.45,1.62,copper);
+  for (const x of [-1.35,1.35]) { box(.12,2.1,.12,x,1.15,1.5,frame); box(.08,.8,.08,x,1.6,1.58,light); }
+  for (const x of [-1.2,0,1.2]) box(.65,.035,.06,x,.18,-1.27,light);
+  const pad = new T.Mesh(new T.RingGeometry(.55,.7,32), new T.MeshBasicMaterial({color:0x77dece,side:T.DoubleSide}));
+  pad.rotation.x=-Math.PI/2; pad.position.y=.17; dock.add(pad);
+  const canvas=document.createElement("canvas");canvas.width=512;canvas.height=128;
+  const ctx=canvas.getContext("2d"); if(ctx){ctx.fillStyle="#23343a";ctx.fillRect(0,0,512,128);ctx.fillStyle="#c6f9ec";ctx.font="bold 54px sans-serif";ctx.textAlign="center";ctx.fillText("SAGE / HOME",256,82);}
+  const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
+  const sign=new T.Mesh(new T.PlaneGeometry(2.1,.52),new T.MeshStandardMaterial({map:texture,emissive:0x22584f,emissiveIntensity:.5})); sign.position.set(0,2.02,1.67);dock.add(sign);
+  return dock;
+}
 
 /** Original, replaceable companion model. It has no gameplay or collision logic. */
 export function createSageCompanion() {

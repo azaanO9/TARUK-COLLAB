@@ -154,3 +154,5 @@ The Start action requests pointer lock during the user's click. `SurvivalWorld` 
 ## Junior Astronaut Mars mission
 
 `game/juniorMission.ts` owns Mars points, XP, discoveries, patch awards and shift actions. `ui/MarsGame.tsx` renders hands-on tasks, quiz and events and dispatches actions; `ui/SurvivalWorld.tsx` remains presentation-only. The existing lunar `survivalReducer` is unchanged. The mission is player-paced; the automatic 90-second lighting preview has no supply effects. Values and fictional controls are educational game assumptions. The callsign is kept only in the current page state.
+
+Mars Sage starts at the home dock. `MarsGame` owns the follow setting and passes it to `SurvivalWorld`; the player can toggle it using the Sage button or B while the world is focused. In home mode Sage returns to the dock; in follow mode Sage approaches a point to the player's right. Dock and follow positions are presentation only and do not alter mission supplies. The choice lasts for the current mission session.
