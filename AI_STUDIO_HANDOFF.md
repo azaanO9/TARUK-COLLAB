@@ -1,3 +1,8 @@
+# Historical handoff — superseded
+
+This document records an earlier prototype. For the current game and next steps, read `AI_STUDIO_START_HERE.md` first. The instructions below to wait and the descriptions of incomplete Mars features are historical; follow the current user request and current source.
+
+---
 # TARUKH / Six Shifts — AI Studio handoff
 
 Read this file and `FULL_MARS_BRIEF.txt`, then inspect the existing source. The developer will send the next task separately. This ZIP contains the real project source, assets and tests.
