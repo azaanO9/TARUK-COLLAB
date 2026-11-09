@@ -42,22 +42,10 @@ export function dressMarsOutpost(root: T.Group, targets: T.Group[]) {
   for (const g of targets) {
     const id = g.userData.station as string;
     if (id === "rover") {
-      label(g, "R-01", 0, 1.05, 1.52, 1.1);
-      const glass = new T.MeshPhysicalMaterial({ color: 0x344c54, metalness: .5, roughness: .15, clearcoat: 1 });
-      box(g, 0, 1.83, -.77, 1.35, .48, 1.28, glass);
-      box(g, 0, 2.16, -.77, 1.6, .1, 1.5, alloy);
-      for (const x of [-1.5, 1.5]) for (const z of [-1, 1]) {
-        const hub = new T.Mesh(new T.CylinderGeometry(.25, .25, .39, 20), alloy); hub.rotation.z = Math.PI / 2; hub.position.set(x, .5, z); g.add(hub);
-        for (let i = 0; i < 16; i++) {
-          const a = i * Math.PI / 8;
-          const tread = box(g, x, .5 + Math.cos(a) * .47, z + Math.sin(a) * .47, .4, .055, .13, graphite); tread.rotation.x = -a;
-        }
-        tube(g, [new T.Vector3(x * .5, 1, z * .7), new T.Vector3(x, .65, z)], .055, alloy);
-      }
-      for (const x of [-1, 1]) box(g, x, 1.17, -1.54, .38, .18, .08, glow);
-      box(g, -.9, 2, 1, .045, 1.8, .045, alloy);
-      box(g, 0, .7, -1.8, 2.2, .12, .4, graphite);
-      tube(g, [new T.Vector3(-1.2, 1.3, .2), new T.Vector3(-1.2, 2.15, .7), new T.Vector3(1.2, 2.15, .7), new T.Vector3(1.2, 1.3, .2)], .07, alloy);
+      label(g, "ROVER BAY · R-01", 0, 0.25, 2.7, 1.2);
+      box(g, 2.1, 2.1, -1.5, 0.35, 0.08, 0.35, alloy);
+      tube(g, [new T.Vector3(2.1, 1.2, -1.5), new T.Vector3(1.6, 0.35, -1.0)], 0.045, graphite);
+      box(g, 2.1, 1.35, -1.33, 0.22, 0.16, 0.04, glow);
     } else if (id === "oxygen" || id === "water") {
       for (const x of [-.62, .62]) {
         tube(g, [new T.Vector3(x, 2.95, 0), new T.Vector3(x, 3.3, .3), new T.Vector3(0, 2.7, .65), new T.Vector3(0, .25, 1)], .045, graphite);

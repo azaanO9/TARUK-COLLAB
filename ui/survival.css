@@ -1346,3 +1346,148 @@
   .sv-bearing { top: 108px; left: 50%; transform: translateX(-50%); text-align: center; }
   .sv-look-controls { top: 185px; right: 12px; max-width: 180px; }
 }
+
+/* --- Open World Rover Vehicle Styles --- */
+.sv-rover-prompt {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: auto;
+}
+.sv-rover-prompt-btn {
+  background: #eab285;
+  color: #16242c;
+  border: 2px solid #fff;
+  border-radius: 6px;
+  font: 700 13px/1.2 monospace;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.sv-rover-prompt-btn:hover {
+  background: #f7ca9e;
+  transform: translateX(0) scale(1.04);
+}
+.sv-key-badge {
+  background: #172532;
+  color: #f7ca9e;
+  border: 1px solid #eab285;
+  border-radius: 4px;
+  padding: 3px 7px;
+  font-weight: 800;
+  font-size: 11px;
+}
+.sv-rover-hud {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  background: rgba(18, 30, 42, 0.94);
+  border: 1px solid #eab28588;
+  border-radius: 8px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  font-family: monospace;
+  pointer-events: auto;
+}
+.sv-rover-speedometer {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  gap: 2px 6px;
+  border-right: 1px solid #ffffff33;
+  padding-right: 18px;
+}
+.sv-rover-speedometer strong {
+  font-size: 26px;
+  font-weight: 800;
+  color: #56ebdb;
+  line-height: 1;
+}
+.sv-rover-speedometer span {
+  font-size: 11px;
+  color: #bec7c5;
+  font-weight: 700;
+}
+.sv-rover-speedometer small {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  color: #eab285;
+  letter-spacing: 0.08em;
+}
+.sv-rover-hints {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+.sv-rover-hints b {
+  color: #f7ca9e;
+  background: #233444;
+  padding: 2px 5px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+.sv-rover-exit-btn {
+  background: #2a3d4c;
+  color: #fce7d2;
+  border: 1px solid #eab285;
+  border-radius: 5px;
+  padding: 7px 14px;
+  font: 700 11px monospace;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sv-rover-exit-btn:hover {
+  background: #3e586d;
+}
+.sv-rover-touch-controls {
+  position: absolute;
+  bottom: 90px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  z-index: 5;
+  pointer-events: auto;
+}
+.sv-rover-touch-controls button {
+  background: #1e3342eb;
+  color: #f7ca9e;
+  border: 1px solid #ffffff55;
+  padding: 12px 18px;
+  font: 700 12px monospace;
+  border-radius: 6px;
+}
+@media (max-width: 800px) {
+  .sv-rover-hud {
+    bottom: 12px;
+    padding: 8px 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .sv-rover-hints {
+    display: none;
+  }
+  .sv-rover-prompt {
+    bottom: 80px;
+  }
+}

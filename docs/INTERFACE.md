@@ -1,8 +1,25 @@
 # Interface contracts
 
-## Current default: ten-day first-person expedition (v4)
+## Current default: ten-day first-person expedition and open-world Mars rover (v4)
 
 The centre crosshair is the sole aim point for station raycasts in both views. Space queues one jump from the ground; holding it cannot repeatedly jump in midair. `stepJump` is a pure illustrative movement helper and has no resource effects. The HUD reads resources and risk from engine state and shows them vertically at the upper left. The unboxed objective text expands for the full clue list and MICA's message; planning and clue gates remain authoritative in the survival engine. On-screen movement controls, including Jump, are hidden by default and can be enabled in Field Guide → Accessible station guide. `SurvivalGame` passes this presentation preference to `SurvivalWorld` as `showTouchControls`; it does not change mission state.
+
+### Open-world exploration rover
+
+A full-scale, six-wheeled heavy exploration rover (`ui/world/createBigRover.ts`, `game/roverVehicle.ts`) is stationed at the Mars outpost base (`ROVER BAY · R-01`).
+- **Enter/Exit (`F` key or on-screen button)**: When on foot within 4.8m of the rover, pressing `F` places the astronaut into the driver's bucket seat inside the transparent cockpit cabin (open-world / GTA 5 style). Pressing `F` again safely dismounts the astronaut to the driver's side of the vehicle and parks the rover.
+- **Driving Controls**:
+  - `W` / `ArrowUp`: Accelerate forward up to illustrative top speed ~48.6 km/h (13.5 m/s).
+  - `S` / `ArrowDown`: Service brake when moving forward; reverses up to ~18.7 km/h when stopped.
+  - `A` / `D` (`ArrowLeft` / `ArrowRight`): Steer front wheels up to ±30° using Ackermann vehicle kinematics.
+  - `Space`: Emergency handbrake with rapid stopping deceleration.
+  - `V`: Switch between third-person chase camera and first-person interior cockpit view.
+- **Physical Integration**:
+  - Six all-terrain wheels with 3D treads and titanium alloy hubs rotate proportionally to driving speed.
+  - Front wheel assemblies physically pivot on their steering yokes.
+  - Dynamic terrain conformity samples front/rear and left/right Mars elevation for smooth pitch and roll over dunes and crater slopes.
+  - Dual high-beam LED headlights with directional illumination; taillights intensify under braking and reverse.
+  - Pure vehicle physics live in `game/roverVehicle.ts` and are verified in `tests/roverVehicle.test.mjs`. Driving has no supply penalties.
 
 The player can switch between first- and third-person cameras with V or the view button. Pointer movement over the world rotates the camera, with an adjustable sensitivity; pointer capture remains optional. The astronaut and landing sequence are presentation only and never alter survival state. The TARUKH opening precedes a skippable, reduced-motion-aware rough landing, then the player starts day one. Day seven presents an authored crater-route decision; existing retry and resource rules continue to apply.
 

@@ -279,17 +279,27 @@ export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = 
       box(group, 1.8, 1, 0.15, cyan, 0, 1.5, -3.6);
       box(group, 0.8, 0.2, 0.2, lamp, 2.5, 3, 2.1);
     } else if (station.id === "rover") {
-      box(group, 2.7, 0.85, 3, ivory, 0, 1);
-      box(group, 1.4, 0.7, 1.2, dark, 0, 1.65, -0.7);
-      cylinder(group, 0.22, 0.1, lamp, 0, 2.05, -0.9);
-      for (const x of [-1.5, 1.5])
-        for (const z of [-1, 1]) {
-          const w = cylinder(group, 0.48, 0.35, dark, x, 0.5, z);
-          w.rotation.z = Math.PI / 2;
-          wheelMeshes.push(w);
-        }
-      box(group, 1.1, 0.65, 0.9, orange, 0.5, 1.8, 1);
-      mesh(new T.DodecahedronGeometry(0.25), rock, group, 1.6, 0.22, 1);
+      if (planet === "mars") {
+        // High-tech Rover Service & Launch Bay on Mars
+        box(group, 4.2, 0.1, 6.2, dark, 0, 0.05, 0);
+        box(group, 3.8, 0.04, 5.8, ivory, 0, 0.11, 0);
+        cylinder(group, 0.08, 2.4, ivory, 2.1, 1.2, -1.5);
+        box(group, 0.7, 0.45, 0.3, dark, 2.1, 1.35, -1.5);
+        box(group, 0.25, 0.18, 0.08, lamp, 2.1, 1.5, -1.36);
+        box(group, 0.35, 0.25, 0.5, orange, 2.1, 0.3, -1.0);
+      } else {
+        box(group, 2.7, 0.85, 3, ivory, 0, 1);
+        box(group, 1.4, 0.7, 1.2, dark, 0, 1.65, -0.7);
+        cylinder(group, 0.22, 0.1, lamp, 0, 2.05, -0.9);
+        for (const x of [-1.5, 1.5])
+          for (const z of [-1, 1]) {
+            const w = cylinder(group, 0.48, 0.35, dark, x, 0.5, z);
+            w.rotation.z = Math.PI / 2;
+            wheelMeshes.push(w);
+          }
+        box(group, 1.1, 0.65, 0.9, orange, 0.5, 1.8, 1);
+        mesh(new T.DodecahedronGeometry(0.25), rock, group, 1.6, 0.22, 1);
+      }
     } else if (station.id === "relay") {
       cylinder(group, 0.12, 7.5, ivory);
       dish = new T.Group();

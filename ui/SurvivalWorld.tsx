@@ -8,6 +8,14 @@ import { createSageCompanion, createSageDock } from "./world/createSageCompanion
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints, marsHeight } from "./world/marsTerrain";
 import { createMarsAstronaut } from "./world/marsDetails";
+import { createBigRover } from "./world/createBigRover";
+import {
+  spawnRoverVehicle,
+  stepRoverVehicle,
+  canEnterRover,
+  enterRover,
+  exitRover,
+} from "../game/roverVehicle";
 import type { Effect } from "../game/survivalTypes";
 export type View = {
   x: number;
@@ -35,7 +43,10 @@ type Props = {
   onView: (view: View) => void;
   onUnavailable: () => void;
 };
-export type SurvivalWorldHandle = { captureMouse: () => void };
+export type SurvivalWorldHandle = {
+  captureMouse: () => void;
+  toggleRover?: () => void;
+};
 const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWorld(props, ref) {
   const host = useRef<HTMLDivElement>(null),
     current = useRef(props);
@@ -43,7 +54,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   current.current = props;
   const controls = useRef(new Set<string>()),
     lockAction = useRef<() => void>(() => {});
-  useImperativeHandle(ref, () => ({ captureMouse: () => lockAction.current() }), []);
+  const toggleRoverAction = useRef<() => void>(() => {});
+  const [roverDriving, setRoverDriving] = useState(false),
+    [roverNear, setRoverNear] = useState(false),
+    [roverSpeed, setRoverSpeed] = useState(0);
+  useImperativeHandle(
+    ref,
+    () => ({
+      captureMouse: () => lockAction.current(),
+      toggleRover: () => toggleRoverAction.current(),
+    }),
+    [],
+  );
   const [loaded, setLoaded] = useState(false),
     [locked, setLocked] = useState(false),
     [message, setMessage] = useState(""),
@@ -123,6 +145,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         scene.add(beacon);
       }
       const footprints = props.planet === "mars" ? createMarsFootprints(scene) : null;
+      const bigRover = props.planet === "mars" ? createBigRover() : null;
+      if (bigRover) {
+        scene.add(bigRover.root);
+      }
       const sage = props.planet === "mars" ? createSageCompanion() : null;
       if (sage) {
         const dock = createSageDock(); scene.add(dock);
@@ -274,6 +300,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         ray = new T.Raycaster();
       let walker = spawnWalker(),
         jump = { height: 0, velocity: 0 },
+        rover = spawnRoverVehicle(17, 10, 0),
+        lastRoverNear = false,
+        lastRoverSpeed = 0,
         pitch = -0.04,
         dragging = false,
         px = 0,
@@ -286,6 +315,27 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         previousDay = -1,
         lastMarsNight: boolean | null = null,
         captureDenied = false;
+      toggleRoverAction.current = () => {
+        if (!current.current.enabled || current.current.planet !== "mars") return;
+        if (!rover.driving) {
+          if (canEnterRover(walker, rover)) {
+            rover = enterRover(rover);
+            keys.clear();
+            setRoverDriving(true);
+            setRoverNear(false);
+          }
+        } else {
+          const { rover: nextRover, exitPosition } = exitRover(rover);
+          rover = nextRover;
+          walker.x = exitPosition.x;
+          walker.z = exitPosition.z;
+          walker.yaw = rover.yaw;
+          walker.vx = 0;
+          walker.vz = 0;
+          keys.clear();
+          setRoverDriving(false);
+        }
+      };
       let lastQuality = cameraSettings.current.quality;
       let metricStart = 0, metricFrames = 0;
       let lastAimCheck = 0, resolutionScale = Math.min(devicePixelRatio, 1.25), qualityStart = 0;
@@ -384,13 +434,22 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (k === "b" && !e.repeat && current.current.planet === "mars") {
           e.preventDefault(); current.current.onToggleSage?.();
         }
+        if (k === "f" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault();
+          toggleRoverAction.current();
+        }
         if (e.code === "Space" && !e.repeat) {
           e.preventDefault();
           keys.add("jump");
+          keys.add("handbrake");
         }
       };
       const keyup = (e: KeyboardEvent) => {
         keys.delete(e.key.toLowerCase());
+        if (e.code === "Space") {
+          keys.delete("jump");
+          keys.delete("handbrake");
+        }
         if (e.key.toLowerCase() === "q") keys.delete("look-left");
         if (e.key.toLowerCase() === "r") keys.delete("look-right");
       };
@@ -465,51 +524,124 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (p.enabled) {
           // Small physics steps keep acceleration and jumping consistent across slower frames.
           const steps = Math.max(1, Math.ceil(dt / (1 / 120))), step = dt / steps;
-          for (let i = 0; i < steps; i++) {
-            walker = stepWalker(walker, keys, step, model.obstacles, props.planet === "mars" && keys.has("shift") ? MARS_PHYSICS.sprintSpeed : undefined);
-            jump = stepJump(jump, i === 0 && keys.has("jump"), step, props.planet === "mars" ? MARS_PHYSICS.gravity : undefined);
+          if (rover.driving) {
+            for (let i = 0; i < steps; i++) {
+              rover = stepRoverVehicle(
+                rover,
+                keys,
+                step,
+                model.obstacles,
+                (rx, rz) => model.heightAt(rx, rz),
+              );
+            }
+            walker.x = rover.x;
+            walker.z = rover.z;
+            walker.yaw = rover.yaw;
+          } else {
+            const dynamicObstacles = bigRover
+              ? [...model.obstacles, { x: rover.x, z: rover.z, radius: 2.2 }]
+              : model.obstacles;
+            for (let i = 0; i < steps; i++) {
+              walker = stepWalker(
+                walker,
+                keys,
+                step,
+                dynamicObstacles,
+                props.planet === "mars" && keys.has("shift") ? MARS_PHYSICS.sprintSpeed : undefined,
+              );
+              jump = stepJump(
+                jump,
+                i === 0 && keys.has("jump"),
+                step,
+                props.planet === "mars" ? MARS_PHYSICS.gravity : undefined,
+              );
+            }
+            keys.delete("jump");
+            if (keys.has("look-left")) walker.yaw += dt * 1.3;
+            if (keys.has("look-right")) walker.yaw -= dt * 1.3;
           }
-          keys.delete("jump");
-          if (keys.has("look-left")) walker.yaw += dt * 1.3;
-          if (keys.has("look-right")) walker.yaw -= dt * 1.3;
+        }
+        if (bigRover) {
+          const roverGround = model.heightAt(rover.x, rover.z);
+          bigRover.update(rover, roverGround, dt, p.event === "night" || p.event === "eclipse");
+        }
+        if (props.planet === "mars") {
+          const nearNow = !rover.driving && canEnterRover(walker, rover);
+          if (nearNow !== lastRoverNear) {
+            lastRoverNear = nearNow;
+            setRoverNear(nearNow);
+          }
+          if (rover.driving) {
+            const spd = Math.round(Math.abs(rover.speed) * 3.6);
+            if (spd !== lastRoverSpeed) {
+              lastRoverSpeed = spd;
+              setRoverSpeed(spd);
+            }
+          }
         }
         const third = cameraSettings.current.thirdPerson;
-        astronaut.visible = third;
-        const groundHeight = model.heightAt(walker.x, walker.z);
-        astronaut.position.set(walker.x, groundHeight + jump.height, walker.z);
-        if (p.enabled) footprints?.(walker.x, walker.z, walker.yaw, jump.height < .04);
-        astronaut.rotation.y = walker.yaw;
+        if (rover.driving) {
+          astronaut.visible = false;
+          const roverGround = model.heightAt(rover.x, rover.z);
+          cameraGround += (roverGround - cameraGround) * (1 - Math.exp(-14 * dt));
+          if (third) {
+            const vehicleBack = 7.5;
+            const vehicleHeight = 3.3;
+            camera.position.set(
+              rover.x + Math.sin(rover.yaw) * vehicleBack,
+              cameraGround + vehicleHeight,
+              rover.z + Math.cos(rover.yaw) * vehicleBack,
+            );
+            if (props.planet === "mars") {
+              camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + 0.6);
+            }
+            camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
+          } else {
+            const eyeX = rover.x - Math.cos(rover.yaw) * 0.46 - Math.sin(rover.yaw) * 0.45;
+            const eyeY = cameraGround + 1.82;
+            const eyeZ = rover.z + Math.sin(rover.yaw) * 0.46 - Math.cos(rover.yaw) * 0.45;
+            camera.position.set(eyeX, eyeY, eyeZ);
+            camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
+          }
+        } else {
+          astronaut.visible = third;
+          const groundHeight = model.heightAt(walker.x, walker.z);
+          astronaut.position.set(walker.x, groundHeight + jump.height, walker.z);
+          if (p.enabled) footprints?.(walker.x, walker.z, walker.yaw, jump.height < .04);
+          astronaut.rotation.y = walker.yaw;
+          const speed = Math.hypot(walker.vx, walker.vz);
+          gaitPhase += speed * dt * 2.4;
+          gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
+          const stride = reduced.matches ? 0 : Math.sin(gaitPhase) * .38 * gaitBlend;
+          marsAstronaut?.animate(stride, jump.height > .1);
+          leftLeg.rotation.x = stride;
+          rightLeg.rotation.x = -stride;
+          leftArm.rotation.x = -stride * 0.65;
+          rightArm.rotation.x = stride * 0.65;
+          const back = third ? 4.3 : 0;
+          const shoulder = third ? 0.8 : 0;
+          cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
+          camera.position.set(
+            walker.x + Math.sin(walker.yaw) * back + Math.cos(walker.yaw) * shoulder,
+            cameraGround + (third ? (props.planet === "mars" ? 2.8 : 3.1) : 1.7) + jump.height,
+            walker.z + Math.cos(walker.yaw) * back - Math.sin(walker.yaw) * shoulder,
+          );
+          if (props.planet === "mars" && third) camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + .45);
+          camera.rotation.set(pitch, walker.yaw, 0, "YXZ");
+        }
         if (sage) {
           const following = current.current.sageFollowing ?? false;
-          const next = stepSage(sage.position, sageDestination(following, walker), dt);
+          const targetEntity = rover.driving ? rover : walker;
+          const next = stepSage(sage.position, sageDestination(following, targetEntity), dt);
           sage.position.x = next.x; sage.position.z = next.z;
-          sage.rotation.y = following ? walker.yaw + Math.PI : Math.PI;
+          sage.rotation.y = following ? targetEntity.yaw + Math.PI : Math.PI;
           const dockDistance = Math.hypot(next.x - SAGE_DOCK.x, next.z - SAGE_DOCK.z);
           sage.position.y = model.heightAt(next.x, next.z) + Math.max(0, 1 - dockDistance / 1.5) * .16;
         }
         if (dust) {
-          dust.position.set(walker.x + (reduced.matches ? 0 : Math.sin(time * 0.00015) * 3), groundHeight, walker.z);
+          dust.position.set(walker.x + (reduced.matches ? 0 : Math.sin(time * 0.00015) * 3), model.heightAt(walker.x, walker.z), walker.z);
           dust.rotation.y = reduced.matches ? 0 : time * 0.000018;
         }
-        const speed = Math.hypot(walker.vx, walker.vz);
-        gaitPhase += speed * dt * 2.4;
-        gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
-        const stride = reduced.matches ? 0 : Math.sin(gaitPhase) * .38 * gaitBlend;
-        marsAstronaut?.animate(stride, jump.height > .1);
-        leftLeg.rotation.x = stride;
-        rightLeg.rotation.x = -stride;
-        leftArm.rotation.x = -stride * 0.65;
-        rightArm.rotation.x = stride * 0.65;
-        const back = third ? 4.3 : 0;
-        const shoulder = third ? 0.8 : 0;
-        cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
-        camera.position.set(
-          walker.x + Math.sin(walker.yaw) * back + Math.cos(walker.yaw) * shoulder,
-          cameraGround + (third ? (props.planet === "mars" ? 2.8 : 3.1) : 1.7) + jump.height,
-          walker.z + Math.cos(walker.yaw) * back - Math.sin(walker.yaw) * shoulder,
-        );
-        if (props.planet === "mars" && third) camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + .45);
-        camera.rotation.set(pitch, walker.yaw, 0, "YXZ");
         if (aim.current) {
           aim.current.style.left = "50%";
           aim.current.style.top = "50%";
@@ -612,6 +744,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             jump = { height: 0, velocity: 0 };
             pitch = -0.04;
             mouse.set(0, 0);
+            rover = spawnRoverVehicle(17, 10, 0);
+            setRoverDriving(false);
           }
           previousDay = p.day;
           keys.clear();
@@ -667,6 +801,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         renderer.dispose();
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
         environment?.dispose();
+        bigRover?.dispose();
         scene.traverse((o) => {
           const m = o as Mesh;
           m.geometry?.dispose();
@@ -693,6 +828,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     };
   }, []);
   function touch(key: string, on: boolean) {
+    if (key === "f") {
+      if (on) toggleRoverAction.current();
+      return;
+    }
     if (on) {
       host.current?.focus();
       controls.current.add(key);
@@ -742,7 +881,65 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             </select></label>}
             </details>
           </div>
-          {props.showTouchControls && <div className="sv-touch-controls" aria-label="Movement controls">
+          {roverNear && !roverDriving && (
+            <div className="sv-rover-prompt">
+              <button
+                type="button"
+                className="sv-rover-prompt-btn"
+                onClick={() => toggleRoverAction.current()}
+              >
+                <span className="sv-key-badge">F</span> Drive Exploration Rover
+              </button>
+            </div>
+          )}
+          {roverDriving && (
+            <div className="sv-rover-hud" role="region" aria-label="Rover Vehicle HUD">
+              <div className="sv-rover-speedometer">
+                <strong>{roverSpeed}</strong>
+                <span>KM/H</span>
+                <small>{roverSpeed > 0 ? "DRIVE (D)" : "STOPPED"}</small>
+              </div>
+              <div className="sv-rover-hints">
+                <span><b>W / S</b> Drive / Reverse</span>
+                <span><b>A / D</b> Steer</span>
+                <span><b>Space</b> Handbrake</span>
+                <span><b>V</b> Camera</span>
+              </div>
+              <button
+                type="button"
+                className="sv-rover-exit-btn"
+                onClick={() => toggleRoverAction.current()}
+              >
+                <span className="sv-key-badge">F</span> Exit Rover
+              </button>
+            </div>
+          )}
+          {props.showTouchControls && roverDriving && (
+            <div className="sv-rover-touch-controls" aria-label="Rover driving touch controls">
+              {[
+                ["w", "Accelerate", "↑ Drive"],
+                ["s", "Reverse / Brake", "↓ Reverse"],
+                ["a", "Steer Left", "← Left"],
+                ["d", "Steer Right", "→ Right"],
+                ["handbrake", "Handbrake", "⏹ Handbrake"],
+              ].map(([key, label, text]) => (
+                <button
+                  key={key}
+                  aria-label={label}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    touch(key, true);
+                  }}
+                  onPointerUp={() => touch(key, false)}
+                  onPointerCancel={() => touch(key, false)}
+                >
+                  {text}
+                </button>
+              ))}
+              <button type="button" onClick={() => toggleRoverAction.current()}>Exit Rover (F)</button>
+            </div>
+          )}
+          {props.showTouchControls && !roverDriving && <div className="sv-touch-controls" aria-label="Movement controls">
             {[
               ["w", "Walk forward", "↑"],
               ["a", "Walk left", "←"],
