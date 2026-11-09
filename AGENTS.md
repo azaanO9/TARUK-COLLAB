@@ -1,3 +1,7 @@
+# Current Junior Astronaut project status
+
+The default game now has a Junior Astronaut mission briefing and a playable, player-paced Mars prototype with six activities, quizzes, fictional resource points, ranks, sol events and a certificate. The existing lunar survival campaign remains separate. See `COLLABORATION.md` and `docs/INTERFACE.md` for current scope and collaboration. Earlier historical notes below describe prior stages; when they conflict with the current implementation or the latest user instructions, follow the current implementation and user instructions.
+
 # Instructions for assistants and builders
 
 ## Scope
