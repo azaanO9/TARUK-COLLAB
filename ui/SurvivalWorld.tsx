@@ -4,7 +4,8 @@ import type { Mesh, MeshStandardMaterial, Object3D } from "three";
 import { STATIONS } from "../content/survival";
 import { spawnWalker, stepWalker, stepJump } from "../game/navigation";
 import { MARS_PHYSICS } from "../game/marsConfig";
-import { createSageCompanion } from "./world/createSageCompanion";
+import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
+import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints, marsHeight } from "./world/marsTerrain";
 import { createMarsAstronaut } from "./world/marsDetails";
 import type { Effect } from "../game/survivalTypes";
@@ -28,6 +29,8 @@ type Props = {
   failure: boolean;
   stabilized: boolean;
   animating: boolean;
+  sageFollowing?: boolean;
+  onToggleSage?: () => void;
   onInspect: (id: string) => void;
   onView: (view: View) => void;
   onUnavailable: () => void;
@@ -121,7 +124,15 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       const footprints = props.planet === "mars" ? createMarsFootprints(scene) : null;
       const sage = props.planet === "mars" ? createSageCompanion() : null;
-      if (sage) { sage.scale.setScalar(.78); sage.position.set(1.8, 0, 12.5); scene.add(sage); }
+      if (sage) {
+        const dock = createSageDock(); scene.add(dock);
+        sage.scale.setScalar(.78); sage.position.set(SAGE_DOCK.x, .16, SAGE_DOCK.z); scene.add(sage);
+        // Small overlapping circles keep the dock walls solid while leaving the front open.
+        for (const z of [-1.25, -.55, .15, .85, 1.45]) for (const x of [-1.65, 1.65])
+          model.obstacles.push({ x: SAGE_DOCK.x + x, z: SAGE_DOCK.z + z, radius: .4 });
+        for (const x of [-1.1, -.45, .2, .85, 1.35])
+          model.obstacles.push({ x: SAGE_DOCK.x + x, z: SAGE_DOCK.z - 1.4, radius: .4 });
+      }
       const marsSky = props.planet === "mars" ? createMarsSky(scene) : null;
       let dust: import("three").Points | null = null;
       if (props.planet === "mars") {
@@ -370,6 +381,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           e.preventDefault();
           setThirdPerson((v) => !v);
         }
+        if (k === "b" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault(); current.current.onToggleSage?.();
+        }
         if (e.code === "Space" && !e.repeat) {
           e.preventDefault();
           keys.add("jump");
@@ -466,13 +480,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (p.enabled) footprints?.(walker.x, walker.z, walker.yaw, jump.height < .04);
         astronaut.rotation.y = walker.yaw;
         if (sage) {
-          const sx = walker.x + Math.cos(walker.yaw) * 1.8 + Math.sin(walker.yaw) * .5;
-          const sz = walker.z - Math.sin(walker.yaw) * 1.8 + Math.cos(walker.yaw) * .5;
-          const blend = 1 - Math.exp(-6 * dt);
-          sage.position.x += (sx - sage.position.x) * blend;
-          sage.position.z += (sz - sage.position.z) * blend;
-          sage.rotation.y = walker.yaw + Math.PI;
-          sage.position.y = model.heightAt(sage.position.x, sage.position.z);
+          const following = current.current.sageFollowing ?? false;
+          const next = stepSage(sage.position, sageDestination(following, walker), dt);
+          sage.position.x = next.x; sage.position.z = next.z;
+          sage.rotation.y = following ? walker.yaw + Math.PI : Math.PI;
+          const dockDistance = Math.hypot(next.x - SAGE_DOCK.x, next.z - SAGE_DOCK.z);
+          sage.position.y = model.heightAt(next.x, next.z) + Math.max(0, 1 - dockDistance / 1.5) * .16;
         }
         if (dust) {
           dust.position.set(walker.x + (reduced.matches ? 0 : Math.sin(time * 0.00015) * 3), groundHeight, walker.z);
@@ -626,6 +639,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.sageX = sage?.position.x.toFixed(2) ?? "";
           element.dataset.sageZ = sage?.position.z.toFixed(2) ?? "";
           element.dataset.sageScale = sage?.scale.x.toFixed(2) ?? "";
+          element.dataset.sageFollowing = String(current.current.sageFollowing ?? false);
           element.dataset.resolutionScale = resolutionScale.toFixed(2);
           const fps = metricFrames * 1000 / (time - metricStart);
           if (lastQuality === "auto" && p.enabled && time - qualityStart > 3000) {
