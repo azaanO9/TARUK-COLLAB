@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Six Shifts · Junior Astronaut Mission Trainer",
+  title: "TARUKH · Outpost Commander",
   description:
-    "Explore a lunar outpost in first person with WASD. Manage ten survival days, food, water, oxygen, power and solar-weather risk with MICA. For ages 7–12.",
+    "Explore a Martian outpost with Sage. Walk the crater fields, inspect mission equipment and discover a new world. Includes the earlier lunar missions.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

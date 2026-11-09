@@ -1,4 +1,16 @@
 .mars-root { background:#261d1b; }
+.mars-root[data-phase="menu"] .mars-resources { display:none; }
+.mars-root::after { content:""; position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 45%,transparent 45%,#17100a44 100%); z-index:2; }
+.mars-root .sv-look-controls { top:112px; right:22px; width:224px; max-width:224px; }
+.mars-root .sv-look-controls details { width:100%; background:#172020e8; border:1px solid #d9c4ab35; padding:10px 12px; border-radius:3px; }
+.mars-root .sv-look-controls summary { color:#eee2d3; cursor:pointer; font:11px/1.6 "Segoe UI",sans-serif; letter-spacing:.5px; }
+.mars-root .sv-look-controls details[open] { display:grid; gap:9px; }
+.mars-root .sv-look-controls label { font:10px/1.5 "Segoe UI",sans-serif; justify-content:space-between; }
+.mars-root .sv-look-controls button { width:100%; margin-top:8px; font:10px/1.5 "Segoe UI",sans-serif; }
+.mars-root .sv-look-controls span { display:block; padding:6px 0; }
+.mars-root select { color:#f6ebdc; background:#303837; border:1px solid #d2c5ad55; border-radius:2px; padding:4px; font-size:11px; }
+.mars-root .sv-world-message { top:auto; bottom:105px; right:22px; max-width:250px; background:#162321de; font-size:10px; border:0; padding:9px 12px; }
+.mars-root .mars-light { top:65px; right:22px; border-color:#d9c4ab35; border-radius:3px; }
 .mars-header { position:absolute; z-index:4; top:20px; left:22px; right:22px; display:flex; justify-content:space-between; align-items:center; gap:10px; font:700 12px/1.3 Arial,sans-serif; letter-spacing:1px; text-shadow:0 2px 5px #000; }
 .mars-header span { color:#f3c5a0; font-size:10px; }
 .mars-header strong { font:700 11px Consolas,monospace; padding:9px; background:#171d26d9; }
@@ -24,3 +36,5 @@
 .mars-dialog { width:min(430px,100%); background:#15232f; border:1px solid #b5aea65c; padding:28px; } .mars-dialog p { line-height:1.6; } .mars-dialog h2 { font:28px Georgia,serif; }
 .mars-unavailable { position:absolute; top:300px; right:20px; max-width:240px; background:#182431; padding:12px; }
 @media(max-width:800px){.mars-header span{display:none}.mars-resources{top:110px;left:12px;width:125px}.mars-objective{top:66px;width:90vw;font-size:11px}.mars-light{top:315px;right:12px}.mars-sage{right:12px;bottom:48px;max-width:220px}.mars-menu{top:28%;left:6%;padding:20px}.mars-footer{max-width:180px;line-height:1.4}.mars-root .sv-look-controls{top:125px}.mars-header{left:12px;right:12px}}
+@media(max-width:800px){.mars-root .sv-look-controls{width:168px;right:12px;top:145px}.mars-root .mars-light{top:105px;right:12px}.mars-root .sv-world-message{bottom:140px;right:12px;max-width:180px}.mars-menu h1{font-size:42px}.mars-menu p{font-size:12px}.mars-menu{top:24%;padding:16px 22px}.mars-resources{width:110px}.mars-sage{font-size:11px}.mars-objective{font-size:11px;line-height:1.5}}
+@media(max-height:560px){.mars-menu{top:13%;padding:14px 22px}.mars-menu h1{font-size:38px;margin:8px 0}.mars-menu p{font-size:11px;margin:7px 0}.mars-resources{top:75px}.mars-root .sv-world-message{bottom:40px}}

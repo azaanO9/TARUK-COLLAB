@@ -5,6 +5,8 @@ import { STATIONS } from "../content/survival";
 import { spawnWalker, stepWalker, stepJump } from "../game/navigation";
 import { MARS_PHYSICS } from "../game/marsConfig";
 import { createSageCompanion } from "./world/createSageCompanion";
+import { createMarsSky, createMarsFootprints, marsHeight } from "./world/marsTerrain";
+import { createMarsAstronaut } from "./world/marsDetails";
 import type { Effect } from "../game/survivalTypes";
 export type View = {
   x: number;
@@ -43,9 +45,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [locked, setLocked] = useState(false),
     [message, setMessage] = useState(""),
     [thirdPerson, setThirdPerson] = useState(true),
-    [sensitivity, setSensitivity] = useState(1);
-  const cameraSettings = useRef({ thirdPerson, sensitivity });
-  cameraSettings.current = { thirdPerson, sensitivity };
+    [sensitivity, setSensitivity] = useState(1),
+    [quality, setQuality] = useState(props.planet === "mars" ? "auto" : "high");
+  const cameraSettings = useRef({ thirdPerson, sensitivity, quality });
+  cameraSettings.current = { thirdPerson, sensitivity, quality };
   useEffect(() => {
     if (props.enabled) host.current?.focus({ preventScroll: true });
     else {
@@ -66,50 +69,62 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const element = host.current;
       const renderer = new T.WebGLRenderer({
         antialias: true,
-        powerPreference: "low-power",
+        powerPreference: "high-performance",
       });
-      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+      renderer.setPixelRatio(Math.min(devicePixelRatio, props.planet === "mars" ? 1.25 : 1.7));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = T.PCFSoftShadowMap;
       renderer.outputColorSpace = T.SRGBColorSpace;
       renderer.toneMapping = T.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.15;
+      renderer.toneMappingExposure = props.planet === "mars" ? 1.05 : 1.15;
+      renderer.info.autoReset = false;
       renderer.domElement.setAttribute("aria-hidden", "true");
       element.insertBefore(renderer.domElement, element.firstChild);
       const scene = new T.Scene();
+      let environment: import("three").WebGLRenderTarget | null = null;
+      if (props.planet === "mars") {
+        const { RoomEnvironment } = await import("three/examples/jsm/environments/RoomEnvironment.js");
+        if (cancelled) { renderer.dispose(); renderer.domElement.remove(); return; }
+        const pmrem = new T.PMREMGenerator(renderer), room = new RoomEnvironment();
+        environment = pmrem.fromScene(room, .04);
+        scene.environment = environment.texture; scene.environmentIntensity = .38;
+        room.dispose(); pmrem.dispose();
+      }
       scene.background = new T.Color(0x090e18);
       scene.fog = new T.FogExp2(0x333b48, 0.0024);
       const camera = new T.PerspectiveCamera(72, 1, 0.08, 500);
       camera.rotation.order = "YXZ";
       const light = new T.DirectionalLight(0xffe5c7, 3.5);
-      light.position.set(-40, 60, -80);
+      light.position.set(-55, props.planet === "mars" ? 28 : 60, -80);
       light.castShadow = true;
-      light.shadow.mapSize.set(2048, 2048);
+      light.shadow.mapSize.set(props.planet === "mars" ? 1024 : 2048, props.planet === "mars" ? 1024 : 2048);
       Object.assign(light.shadow.camera, {
-        left: -40,
-        right: 40,
-        top: 40,
-        bottom: -40,
+        left: -55,
+        right: 55,
+        top: 55,
+        bottom: -55,
+        near: 1,
+        far: 220,
       });
-      light.shadow.bias = -0.001;
+      light.shadow.bias = -0.00015;
+      light.shadow.normalBias = 0.035;
       scene.add(light);
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const model = createSurvivalOutpost(scene, props.planet);
+      const beacon = props.planet === "mars" ? new T.Group() : null;
+      if (beacon) {
+        const beam = new T.Mesh(new T.CylinderGeometry(.12, .4, 8, 16, 1, true), new T.MeshBasicMaterial({color:0x8ef7e1, transparent:true, opacity:.3, depthWrite:false, side:T.DoubleSide}));
+        beam.position.y = 4; beacon.add(beam);
+        const marker = new T.Mesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({color:0xb0fff1})); marker.position.y=8; beacon.add(marker);
+        scene.add(beacon);
+      }
+      const footprints = props.planet === "mars" ? createMarsFootprints(scene) : null;
       const sage = props.planet === "mars" ? createSageCompanion() : null;
-      if (sage) { sage.position.set(-2.1, 0, 10.7); scene.add(sage); }
-      let marsHorizon: import("three").Mesh | null = null;
+      if (sage) { sage.scale.setScalar(.78); sage.position.set(1.8, 0, 12.5); scene.add(sage); }
+      const marsSky = props.planet === "mars" ? createMarsSky(scene) : null;
       let dust: import("three").Points | null = null;
       if (props.planet === "mars") {
-        const horizonTexture = new T.TextureLoader().load("/art/mars-horizon.png");
-        horizonTexture.colorSpace = T.SRGBColorSpace;
-        const horizonGeometry = new T.CylinderGeometry(125, 125, 100, 64, 1, true);
-        marsHorizon = new T.Mesh(
-          horizonGeometry,
-          new T.MeshBasicMaterial({ map: horizonTexture, side: T.BackSide, fog: false }),
-        );
-        marsHorizon.position.y = 25;
-        scene.add(marsHorizon);
         const dustPositions = new Float32Array(260 * 3);
         for (let i = 0; i < 260; i++) {
           dustPositions[i * 3] = ((i * 19.17) % 34) - 17;
@@ -198,38 +213,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       part(new T.BoxGeometry(0.24, 0.1, 0.26), accent, -0.5, 1.23, 0);
       part(new T.BoxGeometry(0.24, 0.1, 0.26), accent, 0.5, 1.23, 0);
       scene.add(astronaut);
-      if (props.planet === "mars") {
-        // Use NASA's downloadable model when available; retain the original as fallback.
-        const [{ GLTFLoader }, { DRACOLoader }] = await Promise.all([
-          import("three/examples/jsm/loaders/GLTFLoader.js"),
-          import("three/examples/jsm/loaders/DRACOLoader.js"),
-        ]);
-        const draco = new DRACOLoader();
-        draco.setDecoderPath("/draco/");
-        new GLTFLoader().setDRACOLoader(draco).load("/models/nasa-astronaut.glb", (gltf) => {
-          if (cancelled) return;
-          gltf.scene.rotation.y = Math.PI;
-          gltf.scene.updateMatrixWorld(true);
-          const bounds = new T.Box3().setFromObject(gltf.scene);
-          const size = new T.Vector3(); bounds.getSize(size);
-          if (!size.y) return;
-          const scale = 1.85 / size.y;
-          gltf.scene.scale.setScalar(scale);
-          gltf.scene.position.set(-(bounds.min.x + bounds.max.x) * scale / 2, -bounds.min.y * scale, -(bounds.min.z + bounds.max.z) * scale / 2);
-          astronaut.children.forEach((child) => { child.visible = false; });
-          astronaut.add(gltf.scene);
-          // The unrigged NASA model's backpack hides its small helmet from the chase camera.
-          // A clear outer helmet silhouette keeps the player's head readable.
-          part(new T.SphereGeometry(0.27, 24, 16), suit, 0, 1.76, 0);
-          part(new T.SphereGeometry(0.22, 20, 14), visor, 0, 1.78, -0.19).scale.set(1, 0.72, 0.4);
-          draco.dispose();
-        }, undefined, () => { draco.dispose(); });
-      }
+      const marsAstronaut = props.planet === "mars" ? createMarsAstronaut() : null;
+      if (marsAstronaut) { astronaut.clear(); astronaut.add(marsAstronaut.root); }
       const sun = new T.Mesh(
         new T.SphereGeometry(4, 24, 16),
-        new T.MeshBasicMaterial({ color: 0xffecc4 }),
+        new T.MeshBasicMaterial({ color: 0xfff1ce, fog: false, toneMapped: false }),
       );
-      sun.position.set(-70, 65, -180);
+      sun.position.set(-110, props.planet === "mars" ? 56 : 65, -160);
       scene.add(sun);
       const earth = new T.Mesh(
         new T.SphereGeometry(5, 28, 20),
@@ -247,9 +237,27 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       const sg = new T.BufferGeometry();
       sg.setAttribute("position", new T.BufferAttribute(stars, 3));
-      scene.add(
-        new T.Points(sg, new T.PointsMaterial({ size: 0.3, color: 0xdbe7ed })),
-      );
+      const starField = new T.Points(sg, new T.PointsMaterial({ size: 0.3, color: 0xdbe7ed }));
+      scene.add(starField);
+      let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
+      let occlusion: import("three/examples/jsm/postprocessing/GTAOPass.js").GTAOPass | null = null;
+      if (props.planet === "mars") {
+        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { GTAOPass }] = await Promise.all([
+          import("three/examples/jsm/postprocessing/EffectComposer.js"),
+          import("three/examples/jsm/postprocessing/RenderPass.js"),
+          import("three/examples/jsm/postprocessing/UnrealBloomPass.js"),
+          import("three/examples/jsm/postprocessing/OutputPass.js"),
+          import("three/examples/jsm/postprocessing/GTAOPass.js"),
+        ]);
+        composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        occlusion = new GTAOPass(scene, camera, 512, 512);
+        occlusion.updateGtaoMaterial({ radius: .55, thickness: .7, distanceFallOff: 1, samples: 8 });
+        occlusion.blendIntensity = .65; occlusion.enabled = false;
+        composer.addPass(occlusion);
+        composer.addPass(new UnrealBloomPass(new T.Vector2(512, 512), .15, .5, 1.25));
+        composer.addPass(new OutputPass());
+      }
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
@@ -267,11 +275,17 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         previousDay = -1,
         lastMarsNight: boolean | null = null,
         captureDenied = false;
+      let lastQuality = cameraSettings.current.quality;
+      let metricStart = 0, metricFrames = 0;
+      let lastAimCheck = 0, resolutionScale = Math.min(devicePixelRatio, 1.25), qualityStart = 0;
+      let gaitPhase = 0, gaitBlend = 0, cameraGround = 0;
+      const center = new T.Vector2(0, 0);
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
       const resize = () => {
         camera.aspect = element.clientWidth / element.clientHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(element.clientWidth, element.clientHeight);
+        if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(element.clientWidth, element.clientHeight); }
       };
       const observer = new ResizeObserver(resize);
       observer.observe(element);
@@ -317,14 +331,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           dragging
         ) {
           walker.yaw -=
-            e.movementX * 0.0023 * cameraSettings.current.sensitivity;
-          pitch = Math.max(
-            -1.2,
-            Math.min(
-              1.2,
-              pitch - e.movementY * 0.0023 * cameraSettings.current.sensitivity,
-            ),
-          );
+            (e.clientX - px) * 0.0023 * cameraSettings.current.sensitivity;
+          pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - py) * 0.0023 * cameraSettings.current.sensitivity));
           px = e.clientX;
           py = e.clientY;
         }
@@ -424,68 +432,101 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           keys.clear();
           return;
         }
-        const dt = Math.min((time - last) / 1000, 0.05);
+        const dt = last ? Math.min((time - last) / 1000, 0.1) : 1 / 60;
         last = time;
         const p = current.current;
+        if (beacon) { const destination = STATIONS.find(s => s.id === p.target); if (destination) beacon.position.set(destination.x, model.heightAt(destination.x,destination.z),destination.z); }
+        if (cameraSettings.current.quality !== lastQuality) {
+          lastQuality = cameraSettings.current.quality;
+          resolutionScale = Math.min(devicePixelRatio, lastQuality === "ultra" ? 2 : lastQuality === "high" ? 1.5 : lastQuality === "auto" ? 1.25 : 1);
+          renderer.setPixelRatio(resolutionScale);
+          renderer.shadowMap.enabled = lastQuality !== "performance";
+          if (occlusion) occlusion.enabled = lastQuality === "ultra";
+          scene.traverse(o => { if (o instanceof T.Mesh) {
+            for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true;
+          } });
+          resize();
+          qualityStart = time;
+        }
         if (p.enabled) {
-          walker = stepWalker(walker, keys, dt, model.obstacles, props.planet === "mars" && keys.has("shift") ? MARS_PHYSICS.sprintSpeed : undefined);
-          jump = stepJump(jump, keys.has("jump"), dt, props.planet === "mars" ? MARS_PHYSICS.gravity : undefined);
+          // Small physics steps keep acceleration and jumping consistent across slower frames.
+          const steps = Math.max(1, Math.ceil(dt / (1 / 120))), step = dt / steps;
+          for (let i = 0; i < steps; i++) {
+            walker = stepWalker(walker, keys, step, model.obstacles, props.planet === "mars" && keys.has("shift") ? MARS_PHYSICS.sprintSpeed : undefined);
+            jump = stepJump(jump, i === 0 && keys.has("jump"), step, props.planet === "mars" ? MARS_PHYSICS.gravity : undefined);
+          }
           keys.delete("jump");
           if (keys.has("look-left")) walker.yaw += dt * 1.3;
           if (keys.has("look-right")) walker.yaw -= dt * 1.3;
         }
         const third = cameraSettings.current.thirdPerson;
         astronaut.visible = third;
-        astronaut.position.set(walker.x, jump.height, walker.z);
+        const groundHeight = model.heightAt(walker.x, walker.z);
+        astronaut.position.set(walker.x, groundHeight + jump.height, walker.z);
+        if (p.enabled) footprints?.(walker.x, walker.z, walker.yaw, jump.height < .04);
         astronaut.rotation.y = walker.yaw;
         if (sage) {
-          const sx = walker.x - Math.cos(walker.yaw) * 2.1 - Math.sin(walker.yaw) * 1.3;
-          const sz = walker.z + Math.sin(walker.yaw) * 2.1 - Math.cos(walker.yaw) * 1.3;
-          const blend = 1 - Math.exp(-2.5 * dt);
+          const sx = walker.x + Math.cos(walker.yaw) * 1.8 + Math.sin(walker.yaw) * .5;
+          const sz = walker.z - Math.sin(walker.yaw) * 1.8 + Math.cos(walker.yaw) * .5;
+          const blend = 1 - Math.exp(-6 * dt);
           sage.position.x += (sx - sage.position.x) * blend;
           sage.position.z += (sz - sage.position.z) * blend;
           sage.rotation.y = walker.yaw + Math.PI;
+          sage.position.y = model.heightAt(sage.position.x, sage.position.z);
         }
         if (dust) {
-          dust.position.set(walker.x + (reduced.matches ? 0 : Math.sin(time * 0.00015) * 3), 0, walker.z);
+          dust.position.set(walker.x + (reduced.matches ? 0 : Math.sin(time * 0.00015) * 3), groundHeight, walker.z);
           dust.rotation.y = reduced.matches ? 0 : time * 0.000018;
         }
-        const moving = Math.hypot(walker.vx, walker.vz) > 0.3;
-        const stride =
-          moving && !reduced.matches ? Math.sin(time * 0.012) * 0.38 : 0;
+        const speed = Math.hypot(walker.vx, walker.vz);
+        gaitPhase += speed * dt * 2.4;
+        gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
+        const stride = reduced.matches ? 0 : Math.sin(gaitPhase) * .38 * gaitBlend;
+        marsAstronaut?.animate(stride, jump.height > .1);
         leftLeg.rotation.x = stride;
         rightLeg.rotation.x = -stride;
         leftArm.rotation.x = -stride * 0.65;
         rightArm.rotation.x = stride * 0.65;
         const back = third ? 4.3 : 0;
         const shoulder = third ? 0.8 : 0;
+        cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
         camera.position.set(
           walker.x + Math.sin(walker.yaw) * back + Math.cos(walker.yaw) * shoulder,
-          (third ? 3.1 : 1.7) + jump.height,
+          cameraGround + (third ? (props.planet === "mars" ? 2.8 : 3.1) : 1.7) + jump.height,
           walker.z + Math.cos(walker.yaw) * back - Math.sin(walker.yaw) * shoulder,
         );
+        if (props.planet === "mars" && third) camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + .45);
         camera.rotation.set(pitch, walker.yaw, 0, "YXZ");
         if (aim.current) {
           aim.current.style.left = "50%";
           aim.current.style.top = "50%";
         }
         const eclipse = p.event === "eclipse" || p.event === "night";
-        light.intensity = eclipse ? 0.18 : 3.5;
-        ambient.intensity = eclipse ? 0.65 : 1.65;
+        light.intensity = eclipse ? .18 : props.planet === "mars" ? 3.4 : 3.5;
+        ambient.intensity = eclipse ? (props.planet === "mars" ? .4 : .65) : props.planet === "mars" ? 1.2 : 1.65;
+        if (props.planet === "mars") {
+          ambient.color.setHex(eclipse ? 0x7f9dca : 0xd0bca0);
+          ambient.groundColor.setHex(eclipse ? 0x312a36 : 0x77543e);
+          light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
+          scene.environmentIntensity = eclipse ? .12 : .38;
+          starField.visible = eclipse; earth.visible = false;
+        }
         if (props.planet === "mars" && lastMarsNight !== eclipse) {
           scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
-          scene.fog = new T.FogExp2(eclipse ? 0x23212a : 0xa77359, eclipse ? 0.004 : 0.0045);
-          if (marsHorizon) marsHorizon.visible = !eclipse;
+          scene.fog = new T.FogExp2(eclipse ? 0x23212a : 0xb28a70, eclipse ? 0.003 : 0.0038);
+          if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
           if (dust) (dust.material as import("three").PointsMaterial).opacity = eclipse ? 0.12 : 0.35;
           lastMarsNight = eclipse;
         }
-        sun.visible = true;
+        sun.visible = props.planet !== "mars" || !eclipse;
         earth.position.set(
           eclipse ? -70 : 65,
           eclipse ? 65 : 40,
           eclipse ? -179 : -170,
         );
-        ray.setFromCamera(new T.Vector2(0, 0), camera);
+        if (time - lastAimCheck >= 80) {
+        lastAimCheck = time;
+        ray.setFromCamera(center, camera);
         const hit = ray.intersectObjects(model.targets, true)[0];
         hover = null;
         range = Infinity;
@@ -503,6 +544,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (props.planet === "mars" && (!hover || range > 5.5)) {
           const nearest = STATIONS.map((station) => ({ station, distance: Math.hypot(walker.x - station.x, walker.z - station.z) })).sort((a, b) => a.distance - b.distance)[0];
           if (nearest.distance <= 5.5) { hover = nearest.station.id; range = nearest.distance; }
+        }
         }
         const pulse =
           !reduced.matches && p.animating
@@ -573,7 +615,26 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             jumpHeight: jump.height,
           });
         }
-        renderer.render(scene, camera);
+        renderer.info.reset();
+        if (composer && (lastQuality === "high" || lastQuality === "ultra")) composer.render();
+        else renderer.render(scene, camera);
+        metricFrames++;
+        if (time - metricStart > 1000) {
+          element.dataset.fps = (metricFrames * 1000 / (time - metricStart)).toFixed(1);
+          element.dataset.renderCalls = String(renderer.info.render.calls);
+          element.dataset.staticDrawCallsSaved = String(model.root.userData.staticDrawCallsSaved ?? 0);
+          element.dataset.sageX = sage?.position.x.toFixed(2) ?? "";
+          element.dataset.sageZ = sage?.position.z.toFixed(2) ?? "";
+          element.dataset.sageScale = sage?.scale.x.toFixed(2) ?? "";
+          element.dataset.resolutionScale = resolutionScale.toFixed(2);
+          const fps = metricFrames * 1000 / (time - metricStart);
+          if (lastQuality === "auto" && p.enabled && time - qualityStart > 3000) {
+            const next = Math.max(.7, Math.min(devicePixelRatio, 1.25, resolutionScale + (fps < 48 ? -.15 : fps > 58 ? .05 : 0)));
+            if (Math.abs(next - resolutionScale) > .01) { resolutionScale = next; renderer.setPixelRatio(next); resize(); }
+            qualityStart = time;
+          }
+          metricStart = time; metricFrames = 0;
+        }
       }
       frame = requestAnimationFrame(animate);
       setLoaded(true);
@@ -590,6 +651,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         document.removeEventListener("pointerlockchange", lockChange);
         if (document.pointerLockElement === element) document.exitPointerLock();
         renderer.dispose();
+        if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
+        environment?.dispose();
         scene.traverse((o) => {
           const m = o as Mesh;
           m.geometry?.dispose();
@@ -597,11 +660,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             for (const material of Array.isArray(m.material)
               ? m.material
               : [m.material])
-              { const mapped = material as import("three").MeshStandardMaterial; mapped.map?.dispose(); material.dispose(); }
+              { const mapped = material as import("three").MeshStandardMaterial; mapped.map?.dispose(); mapped.bumpMap?.dispose(); material.dispose(); }
           }
         });
         renderer.domElement.remove();
       };
+      if (cancelled) dispose();
     }
     mount().catch(() => {
       setMessage(
@@ -629,7 +693,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       tabIndex={0}
     >
       {!loaded && (
-        <div className="sv-loading">BUILDING TRANQUILITY OUTPOST…</div>
+        <div className="sv-loading">PREPARING EXPEDITION…</div>
       )}
       {props.enabled && (
         <>
@@ -638,6 +702,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             <i />
           </div>
           <div className="sv-look-controls">
+            <details open={props.planet !== "mars" ? true : undefined}>
+            <summary>Camera &amp; graphics</summary>
             <button onClick={() => lockAction.current()}>
               {locked ? "Release mouse · Esc" : "Capture mouse for 360° look"}
             </button>
@@ -657,6 +723,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             <button onClick={() => setThirdPerson((v) => !v)}>
               {thirdPerson ? "Third person · V" : "First person · V"}
             </button>
+            {props.planet === "mars" && <label>Graphics <select aria-label="Graphics quality" value={quality} onChange={e => setQuality(e.target.value)}>
+              <option value="auto">Auto · smoother</option><option value="performance">Performance</option><option value="high">High</option><option value="ultra">Ultra</option>
+            </select></label>}
+            </details>
           </div>
           {props.showTouchControls && <div className="sv-touch-controls" aria-label="Movement controls">
             {[
