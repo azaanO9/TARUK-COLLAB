@@ -36,7 +36,7 @@ type RoverWheelAssembly = {
 function buildSubGeometry(
   origGeom: T.BufferGeometry,
   triIndices: number[],
-  centerOffset?: T.Vector3,
+  centerOffset?: { x: number; y: number; z: number },
 ): T.BufferGeometry {
   const origPos = origGeom.attributes.position;
   const origNorm = origGeom.attributes.normal;
@@ -96,6 +96,7 @@ function buildSubGeometry(
  */
 function partitionRoverMesh(
   mesh: T.Mesh,
+  wheelCenters: { x: number; y: number; z: number }[],
 ): {
   chassisMesh: T.Mesh;
   wheels: RoverWheelAssembly[];
@@ -105,46 +106,9 @@ function partitionRoverMesh(
   const idx = geom.index;
   if (!pos || !idx || idx.count < 9) return null;
 
-  // 1. Gather vertex clusters for each of the 6 wheel regions (FL, FR, ML, MR, RL, RR)
-  const binSums = Array.from({ length: 6 }, () => ({
-    x: 0,
-    y: 0,
-    z: 0,
-    count: 0,
-  }));
-
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-
-    // Wheels are strictly in the lower region below the main cabin belly
-    if (y < 0.78 && Math.abs(x) > 0.65) {
-      const isLeft = x < 0;
-      const row = z < -0.42 ? 0 : z > 0.42 ? 2 : 1;
-      const binIdx = row * 2 + (isLeft ? 0 : 1);
-      binSums[binIdx].x += x;
-      binSums[binIdx].y += y;
-      binSums[binIdx].z += z;
-      binSums[binIdx].count++;
-    }
-  }
-
-  // Calculate the 6 wheel hub centers
-  const wheelCenters: T.Vector3[] = binSums.map((b, i) => {
-    if (b.count > 20) {
-      return new T.Vector3(b.x / b.count, b.y / b.count, b.z / b.count);
-    }
-    const isLeft = i % 2 === 0;
-    const row = Math.floor(i / 2);
-    const z = row === 0 ? -1.15 : row === 1 ? 0.05 : 1.25;
-    return new T.Vector3(isLeft ? -1.1 : 1.1, 0.38, z);
-  });
-
-  // 2. Segment triangles: if centroid is within wheel sphere, allocate to that wheel
   const wheelTriangles: number[][] = Array.from({ length: 6 }, () => []);
   const chassisTriangles: number[] = [];
-  const captureRadiusSq = 0.50 * 0.50; // Capture wheel rim + spokes + tire
+  const captureRadiusSq = 0.46 * 0.46; // Radius of authentic MMSEV wire-mesh wheel
 
   for (let i = 0; i < idx.count; i += 3) {
     const i0 = idx.getX(i);
@@ -156,7 +120,8 @@ function partitionRoverMesh(
     const cz = (pos.getZ(i0) + pos.getZ(i1) + pos.getZ(i2)) / 3;
 
     let assigned = -1;
-    if (cy < 0.82) {
+    // Wheels are strictly below the cabin floor (y < 0.88m) and outboard (|cx| > 0.65m)
+    if (cy < 0.88 && Math.abs(cx) > 0.65) {
       let minDistSq = captureRadiusSq;
       for (let k = 0; k < 6; k++) {
         const dx = cx - wheelCenters[k].x;
@@ -177,13 +142,13 @@ function partitionRoverMesh(
     }
   }
 
-  // Ensure every wheel received triangles
+  // Ensure all 6 wheels received triangles
   const allWheelsHaveTris = wheelTriangles.every((t) => t.length > 0);
   if (!allWheelsHaveTris || chassisTriangles.length === 0) {
     return null;
   }
 
-  // 3. Build sub-geometries and assemble meshes
+  // Build chassis and 6 wheels
   const chassisGeom = buildSubGeometry(geom, chassisTriangles);
   const chassisMesh = new T.Mesh(chassisGeom, mesh.material);
   chassisMesh.castShadow = true;
@@ -198,7 +163,7 @@ function partitionRoverMesh(
     wheelMesh.receiveShadow = true;
 
     const pivot = new T.Group();
-    pivot.position.copy(center);
+    pivot.position.set(center.x, center.y, center.z);
     pivot.add(wheelMesh);
 
     wheels.push({
@@ -256,12 +221,12 @@ export function createBigRover(
   // 6 wheels on fallback chassis with working suspension pivots
   const fallbackWheels: RoverWheelAssembly[] = [];
   const fallbackPositions = [
-    [-1.25, 0.45, -1.25],
-    [1.25, 0.45, -1.25],
-    [-1.25, 0.45, 0.05],
-    [1.25, 0.45, 0.05],
-    [-1.25, 0.45, 1.25],
-    [1.25, 0.45, 1.25],
+    [-1.12, 0.42, -0.91],
+    [1.12, 0.42, -0.91],
+    [-1.12, 0.44, 0.31],
+    [1.12, 0.44, 0.31],
+    [-1.12, 0.41, 1.46],
+    [1.12, 0.41, 1.46],
   ];
 
   for (let i = 0; i < fallbackPositions.length; i++) {
@@ -373,7 +338,7 @@ export function createBigRover(
     (gltf) => {
       const model = gltf.scene;
 
-      // Configure materials and shadows
+      // Configure double-sided materials and shadows
       model.traverse((o) => {
         if ((o as T.Mesh).isMesh) {
           const mesh = o as T.Mesh;
@@ -388,44 +353,14 @@ export function createBigRover(
               if (mat.map) mat.map.colorSpace = T.SRGBColorSpace;
               if (mat.emissiveMap) mat.emissiveMap.colorSpace = T.SRGBColorSpace;
               mat.roughness = Math.max(0.28, mat.roughness);
+              mat.side = T.DoubleSide;
               mat.needsUpdate = true;
             }
           }
         }
       });
 
-      // Align model:
-      // The authentic NASA MMSEV model was authored in CAD orientation where:
-      // Roof = -X, Wheels = +X, Front Canopy = +Z, Rear Suitports = -Z, Sides = +/-Y.
-      // Rotating by Euler(0, Math.PI / 2, -Math.PI / 2, "YXZ") sets:
-      // - Roof pointing UP (+Y)
-      // - Wheels pointing DOWN onto ground (-Y)
-      // - Front Canopy pointing FORWARD (-Z)
-      // - Rear Suitports pointing REARWARD (+Z)
-      model.rotation.set(0, Math.PI / 2, -Math.PI / 2, "YXZ");
-      model.updateMatrixWorld(true);
-
-      // Measure unscaled dimensions in vehicle coordinates:
-      const rawBox = new T.Box3().setFromObject(model);
-      const rawSize = rawBox.getSize(new T.Vector3());
-
-      // Target vehicle length ~4.35m (scaled proportionally to the 1.92m astronaut:
-      // height ~2.94m, width ~2.86m, with ample interior cockpit headroom)
-      const targetLength = 4.35;
-      const scale = rawSize.z > 0.1 ? targetLength / rawSize.z : 0.72;
-      model.scale.multiplyScalar(scale);
-      model.updateMatrixWorld(true);
-
-      const scaledBox = new T.Box3().setFromObject(model);
-      const center = scaledBox.getCenter(new T.Vector3());
-
-      // Center horizontally on origin (0, 0) and place bottom of wheels at ground level (Y = 0)
-      model.position.x = -center.x;
-      model.position.z = -center.z;
-      model.position.y = -scaledBox.min.y;
-      model.updateMatrixWorld(true);
-
-      // Bake this transform into the primary mesh so that vertices are directly in vehicle coordinates
+      // Find the primary MMSEV mesh
       let primaryMesh: T.Mesh | null = null;
       model.traverse((o) => {
         if (!primaryMesh && (o as T.Mesh).isMesh) {
@@ -433,33 +368,77 @@ export function createBigRover(
         }
       });
 
+      if (!primaryMesh) {
+        console.warn("[BigRover] No mesh found in GLTF model.");
+        return;
+      }
+      const targetMesh = primaryMesh as T.Mesh;
+
+      // Ground-truth Basis Mapping for NASA MMSEV:
+      // The authentic CAD mesh has:
+      // - Raw X: Left (-2.02) to Right (+2.02) -> Three.js X
+      // - Raw Y: Rear (-3.35) to Front (+2.56) -> Three.js -Z
+      // - Raw Z: Roof (-1.73) to Wheels (+2.24) -> Three.js -Y
+      //
+      // Target proportions for Junior Astronaut:
+      // Length = 4.35m, Height = 2.92m, Width = 2.97m (fits 1.92m astronaut perfectly!)
+      const scale = 4.35 / 5.91002; // ~0.736038
+      const bottomY = -1.65011;     // lowest point of wheels in -Z * scale
+      const centerZ = 0.29402;      // vehicle midpoint in -Y * scale
+
+      // Transformation matrix directly into vehicle world space:
+      // x' = x * scale
+      // y' = -z * scale - bottomY   (places soles of tires exactly on ground y = 0)
+      // z' = -y * scale - centerZ   (front canopy at -Z, rear suitports at +Z)
+      const M = new T.Matrix4().set(
+        scale,     0,      0,        0,
+            0,     0, -scale, -bottomY,
+            0, -scale,     0, -centerZ,
+            0,     0,      0,        1,
+      );
+
+      // Apply matrix directly to the geometry vertices
+      targetMesh.geometry.applyMatrix4(M);
+
+      // Invert triangle index winding because det(M) < 0 (left-to-right hand conversion)
+      const idx = targetMesh.geometry.index;
+      if (idx) {
+        for (let i = 0; i < idx.count; i += 3) {
+          const tmp = idx.getX(i + 1);
+          idx.setX(i + 1, idx.getX(i + 2));
+          idx.setX(i + 2, tmp);
+        }
+        idx.needsUpdate = true;
+      }
+      targetMesh.geometry.computeVertexNormals();
+
+      // Exact wheel hub centers in the transformed vehicle space (sampled directly from the mesh vertices)
+      const wheelCenters = [
+        { x: -1.119, y: 0.422, z: -0.906 }, // Front-Left
+        { x:  1.118, y: 0.421, z: -0.906 }, // Front-Right
+        { x: -1.120, y: 0.436, z:  0.308 }, // Mid-Left
+        { x:  1.119, y: 0.436, z:  0.308 }, // Mid-Right
+        { x: -1.115, y: 0.412, z:  1.460 }, // Rear-Left
+        { x:  1.114, y: 0.412, z:  1.460 }, // Rear-Right
+      ];
+
       const assembledGroup = new T.Group();
       assembledGroup.name = "MMSEV_Assembled";
 
-      if (primaryMesh) {
-        // Bake model transform into geometry
-        (primaryMesh as T.Mesh).geometry.applyMatrix4(model.matrixWorld);
-        (primaryMesh as T.Mesh).position.set(0, 0, 0);
-        (primaryMesh as T.Mesh).rotation.set(0, 0, 0);
-        (primaryMesh as T.Mesh).scale.set(1, 1, 1);
-
-        // Segment geometry into chassis and 6 independent rotating wheels
-        const partitioned = partitionRoverMesh(primaryMesh as T.Mesh);
-        if (partitioned) {
-          assembledGroup.add(partitioned.chassisMesh);
-          for (const w of partitioned.wheels) {
-            assembledGroup.add(w.pivot);
-          }
-          activeWheels = partitioned.wheels;
-        } else {
-          assembledGroup.add(model);
+      // Segment geometry into chassis and 6 independent rotating wheels
+      const partitioned = partitionRoverMesh(targetMesh, wheelCenters);
+      if (partitioned) {
+        assembledGroup.add(partitioned.chassisMesh);
+        for (const w of partitioned.wheels) {
+          assembledGroup.add(w.pivot);
         }
+        activeWheels = partitioned.wheels;
       } else {
-        assembledGroup.add(model);
+        assembledGroup.add(targetMesh);
       }
 
       // Re-anchor high-power headlights to the scaled front bumper
-      const frontZ = scaledBox.min.z + 0.12;
+      const frontZ = -2.175;
       const headlightY = 1.35;
       headlightL.position.set(-0.75, headlightY, frontZ);
       headlightR.position.set(0.75, headlightY, frontZ);
@@ -475,7 +454,7 @@ export function createBigRover(
       isModelLoaded = true;
 
       console.info(
-        `[BigRover] Loaded NASA Space Exploration Vehicle successfully (${(rawSize.x * scale).toFixed(2)}m wide x ${(rawSize.z * scale).toFixed(2)}m long x ${(rawSize.y * scale).toFixed(2)}m high). 6 independent rotating wheels and surface suspension initialized.`,
+        `[BigRover] Loaded NASA Space Exploration Vehicle successfully (2.97m wide x 4.35m long x 2.92m high). Forward heading aligned (-Z), tires placed at ground level (Y = 0), and 6 independent rotating wheels with active surface suspension initialized.`,
       );
     },
     undefined,
@@ -505,7 +484,7 @@ export function createBigRover(
     const cosYaw = Math.cos(rover.yaw);
 
     for (const w of activeWheels) {
-      // Rotate tire around axle with wheelRoll
+      // Rotate tire around axle with wheelRoll (spins forward when driving forward)
       w.wheelMesh.rotation.x = rover.wheelRoll;
 
       // Front wheels steer into turns
@@ -541,10 +520,10 @@ export function createBigRover(
       for (let k = 0; k < 2; k++) {
         const i = dustIndex;
         dustIndex = (dustIndex + 1) % dustCount;
-        const side = k === 0 ? -1.15 : 1.15;
+        const side = k === 0 ? -1.12 : 1.12;
         dustPos[i * 3] = side + (Math.random() - 0.5) * 0.3;
         dustPos[i * 3 + 1] = 0.12;
-        dustPos[i * 3 + 2] = 1.7 + Math.random() * 0.35;
+        dustPos[i * 3 + 2] = 1.46 + Math.random() * 0.35;
         dustVel[i * 3] = (Math.random() - 0.5) * 0.7;
         dustVel[i * 3 + 1] = 0.45 + Math.random() * 0.6;
         dustVel[i * 3 + 2] = 1.1 + Math.random() * 1.5;
