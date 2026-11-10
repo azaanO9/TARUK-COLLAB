@@ -18,6 +18,14 @@ import {
   exitRover,
 } from "../game/roverVehicle";
 import type { Effect } from "../game/survivalTypes";
+
+function shortestAngleDiff(from: number, to: number): number {
+  let diff = (to - from) % (Math.PI * 2);
+  if (diff > Math.PI) diff -= Math.PI * 2;
+  if (diff < -Math.PI) diff += Math.PI * 2;
+  return diff;
+}
+
 export type View = {
   x: number;
   z: number;
@@ -327,6 +335,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         rover = spawnRoverVehicle(17, 10, 0),
         lastRoverNear = false,
         lastRoverSpeed = 0,
+        cameraYaw = 0,
+        characterYaw = 0,
         pitch = -0.04,
         dragging = false,
         lookPointer: number | null = null,
@@ -355,6 +365,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           walker.x = exitPosition.x;
           walker.z = exitPosition.z;
           walker.yaw = rover.yaw;
+          cameraYaw = rover.yaw;
+          characterYaw = rover.yaw;
           walker.vx = 0;
           walker.vz = 0;
           keys.clear();
@@ -405,7 +417,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         );
         if (!current.current.enabled) return;
         if (document.pointerLockElement === element) {
-          walker.yaw -=
+          cameraYaw -=
             e.movementX * 0.0023 * cameraSettings.current.sensitivity;
           pitch = Math.max(
             -1.2,
@@ -418,7 +430,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           current.current.enabled &&
           dragging && e.pointerId === lookPointer
         ) {
-          walker.yaw -=
+          cameraYaw -=
             (e.clientX - px) * 0.0023 * cameraSettings.current.sensitivity;
           pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - py) * 0.0023 * cameraSettings.current.sensitivity));
           px = e.clientX;
@@ -569,10 +581,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             walker.x = rover.x;
             walker.z = rover.z;
             walker.yaw = rover.yaw;
+            cameraYaw = rover.yaw;
+            characterYaw = rover.yaw;
           } else {
             const dynamicObstacles = bigRover
               ? [...model.obstacles, { x: rover.x, z: rover.z, radius: 2.2 }]
               : model.obstacles;
+            walker.yaw = cameraYaw;
             for (let i = 0; i < steps; i++) {
               walker = stepWalker(
                 walker,
@@ -589,8 +604,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               );
             }
             keys.delete("jump");
-            if (keys.has("look-left")) walker.yaw += dt * 1.3;
-            if (keys.has("look-right")) walker.yaw -= dt * 1.3;
+            if (keys.has("look-left")) cameraYaw += dt * 1.3;
+            if (keys.has("look-right")) cameraYaw -= dt * 1.3;
           }
         }
         if (bigRover) {
@@ -639,9 +654,23 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           astronaut.visible = third;
           const groundHeight = model.heightAt(walker.x, walker.z);
           astronaut.position.set(walker.x, groundHeight + jump.height, walker.z);
-          if (p.enabled) footprints?.(walker.x, walker.z, walker.yaw, jump.height < .04);
-          astronaut.rotation.y = walker.yaw;
           const speed = Math.hypot(walker.vx, walker.vz);
+
+          // GTA 5 style controller:
+          // In 1st person: character faces camera direction.
+          // In 3rd person: character turns smoothly towards movement direction when walking/sprinting;
+          // when stationary (idle), character remains in place while the mouse freely orbits the camera 360 degrees.
+          if (!third) {
+            characterYaw = cameraYaw;
+          } else if (speed > 0.15) {
+            const moveHeading = Math.atan2(-walker.vx, -walker.vz);
+            const diff = shortestAngleDiff(characterYaw, moveHeading);
+            characterYaw += diff * (1 - Math.exp(-14 * dt));
+          }
+          astronaut.rotation.y = characterYaw;
+
+          if (p.enabled) footprints?.(walker.x, walker.z, characterYaw, jump.height < .04);
+
           gaitPhase += speed * dt * 2.4;
           gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
           const stride = reduced.matches ? 0 : Math.sin(gaitPhase) * .38 * gaitBlend;
@@ -657,12 +686,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const shoulder = third ? (props.planet === "mars" ? .22 : .8) : 0;
           cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
           camera.position.set(
-            walker.x + Math.sin(walker.yaw) * back + Math.cos(walker.yaw) * shoulder,
+            walker.x + Math.sin(cameraYaw) * back + Math.cos(cameraYaw) * shoulder,
             cameraGround + (third ? (props.planet === "mars" ? 2.8 : 3.1) : 1.7) + jump.height,
-            walker.z + Math.cos(walker.yaw) * back - Math.sin(walker.yaw) * shoulder,
+            walker.z + Math.cos(cameraYaw) * back - Math.sin(cameraYaw) * shoulder,
           );
           if (props.planet === "mars" && third) camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + .45);
-          camera.rotation.set(pitch, walker.yaw, 0, "YXZ");
+          camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
         }
         if (sage) {
           const following = current.current.sageFollowing ?? false;
@@ -690,8 +719,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
           scene.environmentIntensity = eclipse ? .16 : .24;
           const shadowStep = 68 / 1024;
-          const sx = Math.round((walker.x - Math.sin(walker.yaw) * 15) / shadowStep) * shadowStep;
-          const sz = Math.round((walker.z - Math.cos(walker.yaw) * 15) / shadowStep) * shadowStep;
+          const sx = Math.round((walker.x - Math.sin(cameraYaw) * 15) / shadowStep) * shadowStep;
+          const sz = Math.round((walker.z - Math.cos(cameraYaw) * 15) / shadowStep) * shadowStep;
           light.target.position.set(sx, 0, sz);
           light.position.set(sx - 55, 28, sz - 80);
           starField.visible = eclipse; earth.visible = eclipse;
@@ -787,6 +816,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             walker = spawnWalker();
             jump = { height: 0, velocity: 0 };
             pitch = -0.04;
+            cameraYaw = 0;
+            characterYaw = 0;
             mouse.set(0, 0);
             rover = spawnRoverVehicle(17, 10, 0);
             setRoverDriving(false);
@@ -799,7 +830,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           current.current.onView({
             x: walker.x,
             z: walker.z,
-            yaw: walker.yaw,
+            yaw: cameraYaw,
             target: hover,
             distance: range,
             locked: document.pointerLockElement === element,

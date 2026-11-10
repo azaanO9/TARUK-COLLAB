@@ -1,20 +1,21 @@
 /**
  * Procedural Mars-Walking Gait Engine
  *
- * Implements low-gravity (approx. 0.38g) locomotion physics for a human in an
- * EVA planetary space suit:
+ * Implements low-gravity (approx. 0.38g) locomotion physics with realistic
+ * weight-transfer and character dynamics (GTA 5 inspired):
  * 1. Bounding / Floatiness: Slower, floating stride frequency with higher vertical
  *    oscillation (sinusoidal hip bounce with extended ballistic hang time).
  * 2. Foot Plant: Legs extend forward during strides to absorb forward momentum.
  * 3. Counter-Balance: Arms sway in opposition to the legs with space-suit lateral abduction.
- * 4. Grounding: Smooth foot arc and plant angles to prevent clipping or floating weightlessly.
- * 5. Airborne & Idle Blending: Smooth transitions between stationary breathing, walking,
- *    and low-gravity jump/flight poses.
+ * 4. Grounding & Weight Transfer: Smooth foot arc, heel-strike, and lateral hip sway.
+ * 5. Dynamic Speed Scaling: Smooth transitions between stationary breathing, walking,
+ *    sprinting, and low-gravity jump/flight poses.
  */
 
 export type MarsGaitPose = {
   // Hips / Pelvis
   hipOffsetY: number;       // Vertical oscillation in metres
+  hipOffsetX: number;       // Lateral weight shift in metres
   hipPitch: number;         // Forward lean / pitch (radians)
   hipRoll: number;          // Lateral pelvic roll (radians)
   hipYaw: number;           // Pelvic twist / yaw (radians)
@@ -113,8 +114,8 @@ export function stepMarsGait(
 
   // 3. Cadence & Phase Accumulation
   // Under 0.38g, natural pendulum stride is slower than Earth:
-  // Base frequency ~ 1.25 Hz, scaling gently with speed
-  const cadence = (1.2 + Math.min(speed / 4.0, 1.2) * 1.5) * Math.sqrt(opts.gravityFactor / 0.38);
+  // Base frequency ~ 1.25 Hz, scaling smoothly up to ~1.75 Hz when sprinting
+  const cadence = (1.2 + Math.min(speed / 4.0, 1.4) * 1.5) * Math.sqrt(opts.gravityFactor / 0.38);
   if (state.blend > 0.005) {
     state.phase = (state.phase + cadence * safeDt * Math.PI) % (Math.PI * 2);
   }
@@ -124,50 +125,50 @@ export function stepMarsGait(
   const ab = state.airborneBlend;
   const groundBlend = (1 - ab) * b;
 
-  // 4. Low-Gravity Vertical Oscillation (Sine wave bounding with ballistic hang time)
-  // Two bounces per full stride cycle (one per step).
-  // In 0.38g, push-off floats upward with a rounded ballistic apex:
+  // 4. Low-Gravity Vertical Oscillation & Lateral Weight Shift
+  // Parabolic float at the apex of each stride + lateral sway over stance leg
   const rawBounce = Math.pow(Math.abs(Math.sin(p)), 0.85);
   const hipOffsetY = rawBounce * opts.bounceAmplitude * groundBlend;
+  const hipOffsetX = Math.sin(p) * 0.028 * groundBlend;
 
-  // 5. Pelvic Dynamics (Yaw & Roll)
-  // Stance hip lifts slightly (roll); pelvis rotates forward with the swing leg (yaw)
+  // 5. Pelvic Dynamics (Yaw, Roll, Forward Lean)
   const hipYaw = Math.sin(p) * 0.10 * groundBlend;
   const hipRoll = Math.cos(p) * 0.06 * groundBlend;
-  const hipPitch = (0.04 + 0.04 * groundBlend) * (1 - ab);
+  // Forward lean increases with speed / sprint (GTA 5 character posture):
+  const forwardLean = 0.03 + 0.12 * Math.min(speed / 7.0, 1.0);
+  const hipPitch = (forwardLean + 0.04 * groundBlend) * (1 - ab);
 
-  // 6. Spine Counter-Balance & Idle Breathing
-  // Spine twists opposite to hips to keep shoulders/helmet forward
+  // 6. Spine Counter-Balance & Forward Drive
   const breathe = Math.sin(state.time * 1.8) * 0.02 * (1 - groundBlend);
   const idleSway = Math.sin(state.time * 0.8) * 0.015 * (1 - groundBlend);
 
   const spineYaw = -hipYaw * 0.75;
   const spineRoll = -hipRoll * 0.65 + idleSway;
-  const spinePitch = 0.03 * groundBlend + breathe - ab * 0.05;
+  const spinePitch = forwardLean * 0.75 * groundBlend + breathe - ab * 0.05;
 
-  // 7. Leg Dynamics (Forward Foot Plant & Low-Gravity Grounding)
+  // 7. Leg Dynamics (Forward Foot Plant, Heel Strike & Low-Gravity Grounding)
   // Left leg: phase p; Right leg: phase p + PI
   const leftPhase = p;
   const rightPhase = p + Math.PI;
+
+  const sprintFactor = 1.0 + 0.22 * Math.min(Math.max(0, speed - 3.5) / 3.5, 1.0);
 
   const calcLeg = (legPhase: number) => {
     const s = Math.sin(legPhase);
     const c = Math.cos(legPhase);
 
     // Forward reach: extended forward during swing to absorb forward momentum in 0.38g
-    // Forward swing is positive pitch; backward push-off is negative pitch
-    const swingReach = s > 0 ? s * opts.strideReach * 1.1 : s * opts.strideReach * 0.8;
+    const swingReach = s > 0 ? s * opts.strideReach * 1.1 * sprintFactor : s * opts.strideReach * 0.8;
     const thighPitch = swingReach * groundBlend;
 
-    // Knee flexion: bends during swing (s > 0) to clear terrain,
-    // extends before touchdown, cushions into stance
-    const swingKnee = Math.max(0, s) * 0.85;
+    // Knee flexion: bends during swing (s > 0) to clear terrain, lifts higher in sprint
+    const swingKnee = Math.max(0, s) * (0.85 * sprintFactor);
     const plantKnee = Math.max(0, -c) * 0.16; // soft landing absorption
     const kneePitch = (swingKnee + plantKnee) * groundBlend;
 
-    // Ankle: dorsiflexes (toes up) during swing to avoid stubbing;
-    // flattens during stance for firm grounding without clipping
-    const ankleSwing = s > 0 ? -s * 0.26 : Math.max(-0.06, s * 0.16);
+    // Ankle: dorsiflexes (toes up, heel strike) during swing;
+    // flattens during stance, pushes off with toes at end of stance
+    const ankleSwing = s > 0 ? -s * 0.32 : Math.max(-0.08, s * 0.22);
     const anklePitch = ankleSwing * groundBlend;
 
     return { thighPitch, kneePitch, anklePitch };
@@ -178,12 +179,14 @@ export function stepMarsGait(
 
   // 8. Arm Dynamics (Space-Suit Lateral Abduction & Counter-Balance)
   // Left arm opposes left leg (syncs with right leg phase); right arm opposes right leg
+  const sprintArmFactor = 1.0 + 0.28 * Math.min(Math.max(0, speed - 3.5) / 3.5, 1.0);
+
   const calcArm = (armPhase: number, isLeft: boolean) => {
     const s = Math.sin(armPhase);
     const c = Math.cos(armPhase);
 
     // Forward/backward swing
-    const armPitch = -s * opts.armSwingAmplitude * groundBlend;
+    const armPitch = -s * opts.armSwingAmplitude * sprintArmFactor * groundBlend;
 
     // Natural EVA space-suit lateral abduction (suit pressure holds arms slightly outward)
     const baseAbduct = opts.suitAbduction;
@@ -193,7 +196,7 @@ export function stepMarsGait(
     const armYaw = c * 0.08 * groundBlend * (isLeft ? 1 : -1);
 
     // Elbow: natural bent space-suit posture + extra flex during forward pump
-    const forearmPitch = (0.38 + Math.max(0, -s) * 0.28) * groundBlend + (1 - groundBlend) * 0.25;
+    const forearmPitch = (0.38 + Math.max(0, -s) * 0.30 * sprintArmFactor) * groundBlend + (1 - groundBlend) * 0.25;
 
     return { armPitch, armRoll, armYaw, forearmPitch };
   };
@@ -222,6 +225,7 @@ export function stepMarsGait(
 
   return {
     hipOffsetY,
+    hipOffsetX,
     hipPitch,
     hipRoll,
     hipYaw,

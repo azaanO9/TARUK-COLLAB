@@ -49,11 +49,11 @@ export type RiggedAstronautHandle = {
  */
 const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
   hips: [
-    /master/i,
     /hip_joint/i,
+    /pelvis/i,
     /mixamorig:?hips/i,
     /hips/i,
-    /pelvis/i,
+    /master/i,
     /bip00?1_pelvis/i,
     /bip00?1_root/i,
     /root/i,
@@ -245,6 +245,7 @@ export function createRiggedAstronaut(
   const root = new T.Group();
   let bones: AstronautBones = {};
   const gaitState: MarsGaitState = createMarsGaitState();
+  let baseModelX = 0;
   let baseModelY = 0;
   let modelRef: T.Object3D | null = null;
 
@@ -260,9 +261,9 @@ export function createRiggedAstronaut(
       const pose: MarsGaitPose = stepMarsGait(gaitState, speed, isAirborne, dt);
 
       if (handle.isModelLoaded && bones.leftUpLeg && modelRef) {
-        // 1. Vertical bounce on Mars: lift the astronaut root smoothly in world space
-        // Gives authentic low-gravity ballistic float during strides
+        // 1. Vertical bounce & lateral weight shift (GTA 5 inspired root motion)
         modelRef.position.y = baseModelY + pose.hipOffsetY;
+        modelRef.position.x = baseModelX + pose.hipOffsetX;
 
         // 2. Detect rig type: FBX-style rig (e.g. Sketchfab astro_bones with leg_1) vs standard Mixamo/humanoid
         const isAstroRig = /leg_?1/i.test(bones.leftUpLeg.bone.name);
@@ -333,11 +334,21 @@ export function createRiggedAstronaut(
             [{ axis: AXIS_X, angle: pose.rightForearmPitch }],
           );
 
-          // Spine: counter-balance twist & breathing
+          // Pelvis / Hips: roll & twist over stance leg
+          applyAxisRotations(
+            bones.hips,
+            [
+              { axis: AXIS_X, angle: -pose.hipPitch },
+              { axis: AXIS_Y, angle: -pose.hipYaw },
+              { axis: AXIS_Z, angle: -pose.hipRoll },
+            ],
+          );
+
+          // Spine: forward drive lean, counter-balance twist & breathing
           applyAxisRotations(
             bones.spine,
             [
-              { axis: AXIS_X, angle: -pose.spinePitch },
+              { axis: AXIS_X, angle: pose.spinePitch },
               { axis: AXIS_Y, angle: pose.spineYaw },
               { axis: AXIS_Z, angle: pose.spineRoll },
             ],
@@ -443,6 +454,7 @@ export function createRiggedAstronaut(
       model.position.x -= scaledCenter.x;
       model.position.z -= scaledCenter.z;
       model.position.y -= scaledBox.min.y;
+      baseModelX = model.position.x;
       baseModelY = model.position.y;
       modelRef = model;
 
