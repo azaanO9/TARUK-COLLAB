@@ -55,7 +55,11 @@ export function createMarsColony(scene:T.Scene, surface?:T.Texture, panelSurface
   for(let i=0;i<4;i++)b.box(habitat,2.5,.16,.48,0,.15+i*.14,5.9-i*.4,m.alloy);
   for(const x of [-2.4,2.4]){b.vent(habitat,.8,.65,x,1.2,4.05);b.pipe(habitat,[[x,3.8,3.95],[x,4.2,4.15],[x,1,4.3],[x+.45,.3,4.8]],.065,m.graphite);}
   contact(habitat,13,13);
-  for(let i=0;i<13;i++)b.box(root,.14,.012,1.4,-1,.03,9-i*2.3,m.ceramic,false);
+  for(let i=0;i<13;i++){
+    const z=9-i*2.3;
+    const stripe=b.box(root,.14,.012,1.4,-1,terrain.heightAt(-1,z)+.03,z,m.ceramic,false);
+    stripe.rotation.x=-Math.atan2(terrain.heightAt(-1,z+.7)-terrain.heightAt(-1,z-.7),1.4);
+  }
 
   const labelNames:Record<string,string>={solar:"SOLAR / 01",oxygen:"MOXIE / O2",water:"ICE / H2O",food:"GROW LAB",battery:"ENERGY / P1",shelter:"SHIELD / S1",rover:"ROVER BAY",monitor:"MISSION COMMS"};
   for(const station of STATIONS){
@@ -150,9 +154,20 @@ export function createMarsColony(scene:T.Scene, surface?:T.Texture, panelSurface
     b.cylinder(g,.035,.65,1.9,.35,1.45,m.graphite);b.box(g,.09,.14,.09,1.9,.74,1.45,lamp);
   }
   // Accessory conduits and marked approach lights lead the eye toward the habitat.
-  b.pipe(root,[[-12,.07,-12],[-16,.07,-18],[-11,.07,-24],[-6,.12,-27]],.065,m.graphite);
-  b.pipe(root,[[11,.07,-8],[14,.07,-18],[6,.07,-25],[2,.12,-27]],.065,m.orange);
-  for(const x of [-3,1])for(const z of [-3,-10,-17,-23]){b.cylinder(root,.03,.65,x,.34,z,m.alloy);b.box(root,.085,.12,.085,x,.7,z,m.light);}
+  const groundedCable=(route:number[][])=>{
+    const points:number[][]=[];
+    for(let i=1;i<route.length;i++){
+      const a=route[i-1],c=route[i],steps=Math.ceil(Math.hypot(c[0]-a[0],c[1]-a[1])/.6);
+      for(let j=i===1?0:1;j<=steps;j++){
+        const t=j/steps,x=a[0]+(c[0]-a[0])*t,z=a[1]+(c[1]-a[1])*t;
+        points.push([x,terrain.heightAt(x,z)+.09,z]);
+      }
+    }
+    return points;
+  };
+  b.pipe(root,groundedCable([[-12,-12],[-16,-18],[-11,-24],[-6,-27]]),.065,m.graphite);
+  b.pipe(root,groundedCable([[11,-8],[14,-18],[6,-25],[2,-27]]),.065,m.orange);
+  for(const x of [-3,1])for(const z of [-3,-10,-17,-23]){const y=terrain.heightAt(x,z);b.cylinder(root,.03,.65,x,y+.34,z,m.alloy);b.box(root,.085,.12,.085,x,y+.7,z,m.light);}
   const animated=new Set<T.Object3D>([...panels,...tanks,...foods]);if(dish)animated.add(dish);
   // Shared lamp/window materials still animate after merging; only moving objects need exclusion.
   const luminous=new Set<T.Material>([habitatWindow,m.light,m.warm,display,...Object.values(indicators)]);

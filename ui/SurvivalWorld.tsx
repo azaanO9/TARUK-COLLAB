@@ -5,9 +5,10 @@ import type { Mesh, MeshStandardMaterial, Object3D } from "three";
 import { STATIONS } from "../content/survival";
 import { spawnWalker, stepWalker, stepJump } from "../game/navigation";
 import { MARS_PHYSICS } from "../game/marsConfig";
+import { boxObstacle } from "../game/collision";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
-import { createMarsSky, createMarsFootprints, marsHeight } from "./world/marsTerrain";
+import { createMarsSky, createMarsFootprints } from "./world/marsTerrain";
 import { createRiggedAstronaut } from "./world/createRiggedAstronaut";
 import { createBigRover } from "./world/createBigRover";
 import { graphicsTier } from "./world/graphicsTiers";
@@ -17,6 +18,7 @@ import {
   canEnterRover,
   enterRover,
   exitRover,
+  roverFootprint,
   getRoverGear,
   type RoverGear,
 } from "../game/roverVehicle";
@@ -186,7 +188,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const marker = new T.Mesh(new T.OctahedronGeometry(.5), new T.MeshBasicMaterial({color:0xb0fff1})); marker.position.y=8; beacon.add(marker);
         scene.add(beacon);
       }
-      const footprints = props.planet === "mars" ? createMarsFootprints(scene) : null;
+      const footprints = props.planet === "mars" ? createMarsFootprints(scene,model.heightAt) : null;
       const bigRover = props.planet === "mars" ? createBigRover() : null;
       if (bigRover) {
         scene.add(bigRover.root);
@@ -194,12 +196,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const sage = props.planet === "mars" ? createSageCompanion() : null;
       if (sage) {
         const dock = createSageDock(panelSurface); scene.add(dock);
-        sage.scale.setScalar(.78); sage.position.set(SAGE_DOCK.x, .16, SAGE_DOCK.z); scene.add(sage);
-        // Small overlapping circles keep the dock walls solid while leaving the front open.
-        for (const z of [-1.25, -.55, .15, .85, 1.45]) for (const x of [-1.65, 1.65])
-          model.obstacles.push({ x: SAGE_DOCK.x + x, z: SAGE_DOCK.z + z, radius: .4 });
-        for (const x of [-1.1, -.45, .2, .85, 1.35])
-          model.obstacles.push({ x: SAGE_DOCK.x + x, z: SAGE_DOCK.z - 1.4, radius: .4 });
+        sage.scale.setScalar(.78);
+        sage.userData.groundOffset=-new T.Box3().setFromObject(sage).min.y;
+        sage.position.set(SAGE_DOCK.x, model.heightAt(SAGE_DOCK.x,SAGE_DOCK.z)+sage.userData.groundOffset, SAGE_DOCK.z); scene.add(sage);
+        for (const x of [-1.65, 1.65]) model.obstacles.push(boxObstacle(SAGE_DOCK.x+x,SAGE_DOCK.z,.15,1.55));
+        model.obstacles.push(boxObstacle(SAGE_DOCK.x,SAGE_DOCK.z-1.4,1.65,.1));
       }
       const marsSky = props.planet === "mars" ? createMarsSky(scene) : null;
       let dust: import("three").Points | null = null;
@@ -381,7 +382,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             lastMouseMoveTime = performance.now();
           }
         } else {
-          const { rover: nextRover, exitPosition } = exitRover(rover);
+          const { rover: nextRover, exitPosition } = exitRover(rover,model.obstacles);
+          if (!exitPosition) { setMessage("There isn't room to exit here. Move the rover to an open area."); return; }
           rover = nextRover;
           walker.x = exitPosition.x;
           walker.z = exitPosition.z;
@@ -645,7 +647,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               );
             }
             const dynamicObstacles = bigRover
-              ? [...model.obstacles, { x: rover.x, z: rover.z, radius: 2.2 }]
+              ? [...model.obstacles, roverFootprint(rover.x,rover.z,rover.yaw)]
               : model.obstacles;
             walker.yaw = cameraYaw;
             for (let i = 0; i < steps; i++) {
@@ -740,9 +742,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               roverTargetY + vertBack,
               rover.z + Math.cos(cameraYaw) * horizBack,
             );
-            const groundUnderCam = props.planet === "mars"
-              ? marsHeight(camera.position.x, camera.position.z)
-              : model.heightAt(camera.position.x, camera.position.z);
+            const groundUnderCam = model.heightAt(camera.position.x, camera.position.z);
             camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.6);
             camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
           } else {
@@ -800,9 +800,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               targetY + vertBack,
               walker.z + Math.cos(cameraYaw) * horizBack - Math.sin(cameraYaw) * shoulder,
             );
-            const groundUnderCam = props.planet === "mars"
-              ? marsHeight(camera.position.x, camera.position.z)
-              : model.heightAt(camera.position.x, camera.position.z);
+            const groundUnderCam = model.heightAt(camera.position.x, camera.position.z);
             camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.45);
           } else {
             camera.position.set(
@@ -819,8 +817,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const next = stepSage(sage.position, sageDestination(following, targetEntity), dt);
           sage.position.x = next.x; sage.position.z = next.z;
           sage.rotation.y = following ? targetEntity.yaw + Math.PI : Math.PI;
-          const dockDistance = Math.hypot(next.x - SAGE_DOCK.x, next.z - SAGE_DOCK.z);
-          sage.position.y = model.heightAt(next.x, next.z) + Math.max(0, 1 - dockDistance / 1.5) * .16;
+          sage.position.y = model.heightAt(next.x, next.z) + sage.userData.groundOffset;
         }
         if (dust) {
           dust.position.set(walker.x + (reduced.matches ? 0 : Math.sin(time * 0.00015) * 3), model.heightAt(walker.x, walker.z), walker.z);

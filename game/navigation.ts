@@ -1,4 +1,6 @@
 /** Pure first-person walking: metres are illustrative world units. No reserve changes. */
+import { moveAndSlide, type CollisionObstacle } from "./collision.ts";
+export const WALKER_RADIUS = .32;
 export const WORLD_LIMIT = 88;
 export const WALK_SPEED = 5.2;
 /** Illustrative jump motion, not a simulation of lunar suit physics. */
@@ -36,10 +38,11 @@ export function stepWalker(
   w: Walker,
   keys: ReadonlySet<string>,
   seconds: number,
-  obstacles: readonly { x: number; z: number; radius: number }[] = [],
+  obstacles: readonly CollisionObstacle[] = [],
   speed = WALK_SPEED,
 ): Walker {
   const dt = Math.max(0, Math.min(seconds, 0.05));
+  if (!dt) return w;
   let side =
     Number(keys.has("d") || keys.has("arrowright")) -
     Number(keys.has("a") || keys.has("arrowleft"));
@@ -56,24 +59,15 @@ export function stepWalker(
   const blend = 1 - Math.exp(-14 * dt),
     vx = w.vx + (tx - w.vx) * blend,
     vz = w.vz + (tz - w.vz) * blend;
-  let x = Math.max(-WORLD_LIMIT, Math.min(WORLD_LIMIT, w.x + vx * dt)),
-    z = Math.max(-WORLD_LIMIT, Math.min(WORLD_LIMIT, w.z + vz * dt));
-  for (const o of obstacles) {
-    const dx = x - o.x,
-      dz = z - o.z,
-      d = Math.hypot(dx, dz);
-    if (d < o.radius) {
-      const nx = d ? dx / d : 1,
-        nz = d ? dz / d : 0;
-      x = o.x + nx * o.radius;
-      z = o.z + nz * o.radius;
-    }
+  const moved = moveAndSlide(w.x, w.z, vx * dt, vz * dt, [{x:0,z:0,radius:WALKER_RADIUS}], obstacles, WORLD_LIMIT);
+  let slideX = vx, slideZ = vz;
+  for (const n of moved.normals) {
+    const into = Math.min(0, slideX * n.nx + slideZ * n.nz);
+    slideX -= into * n.nx; slideZ -= into * n.nz;
   }
   return {
     ...w,
-    x: Math.max(-WORLD_LIMIT, Math.min(WORLD_LIMIT, x)),
-    z: Math.max(-WORLD_LIMIT, Math.min(WORLD_LIMIT, z)),
-    vx,
-    vz,
+    x: moved.x, z: moved.z,
+    vx: slideX, vz: slideZ,
   };
 }
