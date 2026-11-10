@@ -8,6 +8,8 @@ The astronaut used in Mars exploration is an original animated procedural model.
 
 The Mars art now includes a detailed pressure habitat and service stations, original ground and hardware textures, a continuous canyon landscape, and a rebuilt astronaut and Sage bay. See [graphics verification and screenshots](docs/GRAPHICS_UPDATE.md).
 
+The current Mars ground uses a rocky ochre sample from the supplied Mars One reference, with lighter textured stones. The solar station has three long tables, each carrying two cell-grid modules on 32° braced stands with anchored feet. The reference's white base modules are not imported. See [asset credits](ASSET_CREDITS.md) for the ground texture attribution; terrain heights, rover suspension, tracks and the solar activity remain active.
+
 ## Run and verify
 
 Use Node 22.18+ and pnpm 11.25.0. Run `pnpm install --frozen-lockfile`, then `pnpm dev` and open http://127.0.0.1:5173/. Run `pnpm test`, `pnpm typecheck`, and `pnpm build` for checks. Historical notes are in [docs/ARCHIVE.md](docs/ARCHIVE.md).

@@ -4,6 +4,7 @@ import { STATIONS } from "../../content/survival";
 import { createMarsTerrain } from "./marsTerrain";
 import { createColonyMaterials, colonyBuilder } from "./colonyMaterials";
 import { batchStaticMeshes } from "./batchStaticMeshes";
+import { createMarsSolarArray } from "./createMarsSolarArray";
 
 /** Detailed original Mars colony. It shares station IDs and navigation with the existing game. */
 export function createMarsColony(scene:T.Scene, surface?:T.Texture, panelSurface?:T.Texture) {
@@ -63,15 +64,7 @@ export function createMarsColony(scene:T.Scene, surface?:T.Texture, panelSurface
     const ring=b.add(g,new T.RingGeometry(2.3,2.34,48),m.alloy,0,.026,0);ring.rotation.x=-Math.PI/2;ring.castShadow=false;
     contact(g,7,6);
     if(station.id==="solar"){
-      for(let i=-1;i<=1;i++){
-        b.cylinder(g,.09,1.15,i*2,.6,0,m.alloy);
-        const panel=b.box(g,1.85,.13,2.8,i*2,1.35,0,new T.MeshStandardMaterial({color:0x1b344b,metalness:.55,roughness:.25}));panel.rotation.x=.31;panels.push(panel);
-        for(const x of [-.93,.93])b.box(panel,.045,.05,2.85,x,.065,0,m.alloy,false);
-        for(const z of [-1.41,1.41])b.box(panel,1.9,.05,.045,0,.065,z,m.alloy,false);
-        for(let k=0;k<10;k++)b.box(panel,1.78,.012,.012,0,.072,-1.26+k*.28,m.alloy,false);
-        for(const x of [-.6,0,.6])b.box(panel,.012,.015,2.65,x,.075,0,m.alloy,false);
-        b.pipe(g,[[i*2,1.2,-.7],[i*2,.3,-.8],[i*2+.7,.1,-1.8]],.035,m.graphite);
-      }
+      panels.push(...createMarsSolarArray(g,m));
     }else if(station.id==="oxygen"||station.id==="water"){
       b.cylinder(g,1.8,.22,0,.14,0,m.alloy);
       for(const x of [-.65,.65]){

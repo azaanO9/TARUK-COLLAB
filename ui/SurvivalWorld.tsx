@@ -170,7 +170,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const [regolithSurface,panelSurface] = props.planet === "mars" ? await Promise.all([
-        new T.TextureLoader().loadAsync(assetUrl("/art/mars-regolith-original.webp")).catch(() => undefined),
+        new T.TextureLoader().loadAsync(assetUrl("/art/mars-one-ground-atlas.jpg")).catch(() => undefined),
         new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
       ]) : [undefined,undefined];
       if (cancelled) {regolithSurface?.dispose();panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
@@ -903,7 +903,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         for (const panel of model.panels)
           (panel.material as MeshStandardMaterial).color.setHex(
-            effect === "dust" ? 0x555254 : (props.planet === "mars" ? p.solarClean : p.day > 0) ? 0x255680 : props.planet === "mars" ? 0x776c67 : 0x536071,
+            props.planet === "mars"
+              ? effect === "dust" ? 0x8a7560 : p.solarClean ? 0xffffff : 0xc3aa87
+              : effect === "dust" ? 0x555254 : p.day > 0 ? 0x255680 : 0x536071,
           );
         model.habitatWindow.emissiveIntensity =
           effect === "power" || effect === "dust" ? 0.05 : props.planet === "mars" && eclipse ? 1.1 : 0.7;

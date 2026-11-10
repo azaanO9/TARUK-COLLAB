@@ -1,5 +1,7 @@
 # Current Mars asset provenance
 
+- `public/art/mars-one-ground-atlas.jpg`: ground texture (image 5) extracted from the user-supplied **"Mars One" Mission - Base** GLB by [admone](https://sketchfab.com/admone), [source model](https://sketchfab.com/3d-models/mars-one-mission-base-83ced347037f47aba8473147d65df074), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), as recorded in the GLB's asset metadata. Adaptation: a ground-only region is sampled and mirrored across the existing traversable terrain, with runtime tint and bump shading. No reference buildings, white modules, or other model geometry are imported. The inclined solar tables and cell texture in `createMarsSolarArray.ts` are newly authored geometry inspired by the reference's long dark arrays.
+
 - `ui/world/createMarsColony.ts`, `colonyMaterials.ts`, `terrainNoise.ts`, `marsTerrain.ts`, `marsDetails.ts` and `createSageCompanion.ts`: original procedural geometry, materials, characters and effects. Rounded bevels use Three.js `RoundedBoxGeometry` under the existing Three.js MIT license.
 - `public/art/mars-regolith-original.webp`: original AI-generated regolith surface, made with the built-in image-generation tool for this project. Compressed to 768×768, 121,404 bytes. It is a surface texture, not a scene backdrop.
 - `public/art/mars-ivory-panel-original.webp`: original AI-generated painted-metal surface, made with the same tool. Compressed to 512×512, 2,744 bytes.
