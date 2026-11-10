@@ -3,6 +3,7 @@ import { STATIONS } from "../../content/survival.ts";
 import { terrainFbm, terrainNoise } from "./terrainNoise.ts";
 import { createMarsTrackSystem, TRACK_WORLD_HALF } from "./marsTrackDeformation.ts";
 import type { RoverVehicle } from "../../game/roverVehicle.ts";
+import { SAGE_DOCK } from "../../game/sageCompanion.ts";
 
 // One continuous surface is sampled by geometry, stones, boots and camera.
 const craters = [[24, -29, 7, 2.1], [38, -48, 12, 3.5], [62, -22, 9, 2.8], [-48, 24, 15, 4], [-55, -52, 20, 5.5], [51, 57, 22, 6]];
@@ -10,8 +11,10 @@ const smooth = (a: number, b: number, x: number) => { const t = T.MathUtils.clam
 export const random = (n: number) => T.MathUtils.euclideanModulo(Math.sin(n * 127.1 + 311.7) * 43758.5453, 1);
 
 function rawHeight(x: number, z: number) {
-  let h = Math.sin(x * .055 + z * .024) * Math.cos(z * .065) * 1.7
-    + Math.sin(x * .17 + Math.sin(z * .1)) * .4 + Math.sin(z * .38 + x * .22) * .13;
+  const warp = terrainFbm(x*.041+19,z*.041-8);
+  let h = (terrainFbm(x*.035,z*.035)-.5)*3.8
+    + Math.sin(x*.21+z*.08+warp*5)*(.16+terrainNoise(x*.08,z*.08)*.32)
+    + (terrainFbm(x*.24+warp,z*.24-warp)-.5)*.65;
   for (const [cx, cz, radius, depth] of craters) {
     const d = Math.hypot(x - cx, z - cz) / radius;
     h += -depth * Math.exp(-Math.pow(d * 1.6, 4)) + depth * .36 * Math.exp(-Math.pow((d - .94) / .16, 2));
@@ -20,10 +23,14 @@ function rawHeight(x: number, z: number) {
 }
 
 export function marsHeight(x: number, z: number) {
-  // Graded engineering pads keep all existing equipment and approach routes usable.
-  let blend = smooth(19, 30, Math.hypot(x, z + 6));
-  blend = Math.min(blend, smooth(7, 13, Math.hypot(x + 2, z + 30)));
-  for (const s of STATIONS) blend = Math.min(blend, smooth(4.5, 8.5, Math.hypot(x - s.x, z - s.z)));
+  // Only actual equipment pads are graded. Open spaces retain drifts and shallow swales.
+  let blend = smooth(1.5, 3.2, Math.hypot(x, z - 12));
+  blend = Math.min(blend, smooth(7.2, 10, Math.hypot(x + 2, z + 26)));
+  blend = Math.min(blend, smooth(2.8,4.5,Math.hypot(x-SAGE_DOCK.x,z-SAGE_DOCK.z)));
+  for (const s of STATIONS) {
+    const pad=s.id==="shelter"?4.4:s.id==="solar"||s.id==="rover"?3.6:s.id==="research"?3.5:2.4;
+    blend = Math.min(blend, smooth(pad,pad+2.1,Math.hypot(x-s.x,z-s.z)));
+  }
   return blend === 0 ? 0 : rawHeight(x, z) * blend;
 }
 
@@ -50,14 +57,22 @@ export function mudDepthAt(x: number, z: number): number {
   return Math.max(0, Math.min(1, mud));
 }
 
-function roverPadElevation(x: number, z: number): number {
+export function colonySurfaceElevation(x: number, z: number): number {
+  const floor=(cx:number,cz:number,hx:number,hz:number,height:number)=>{
+    const edge=Math.min(hx-Math.abs(x-cx),hz-Math.abs(z-cz));
+    return height*smooth(-.08,.08,edge);
+  };
+  let support=floor(SAGE_DOCK.x,SAGE_DOCK.z,1.63,1.45,.235);
+  const shelter=STATIONS.find(s=>s.id==="shelter")!;
+  support=Math.max(support,floor(shelter.x,shelter.z-.8,2.6,2.5,.12));
+  for(let i=0;i<4;i++)support=Math.max(support,floor(-2,-26+(5.9-i*.4)*1.27,1.25*1.27,.24*1.27,(.23+i*.14)*1.27));
   // Rover launch & service pad at (17, 10), dimensions 4.1 x 6.2, top y = 0.215
   const dx = Math.abs(x - 17);
   const dz = Math.abs(z - 10);
-  if (dx > 2.45 || dz > 3.5) return 0;
+  if (dx > 2.45 || dz > 3.5) return support;
   const rx = 1 - smooth(1.95, 2.45, dx);
   const rz = 1 - smooth(3.0, 3.5, dz);
-  return 0.215 * Math.min(rx, rz);
+  return Math.max(support,0.215 * Math.min(rx, rz));
 }
 
 type TraversableRock = { x: number; z: number; r: number; bump: number };
@@ -79,9 +94,15 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
     pixels.data[i + 3] = 255;
   }
   ctx.putImageData(pixels, 0, 0);
-  const map = surface ?? new T.CanvasTexture(canvas);
-  map.wrapS = map.wrapT = T.RepeatWrapping;
-  map.repeat.set(46, 46);
+  // Sample only a continuous ground region of the supplied model's terrain atlas.
+  // The atlas's black UV gaps and its other islands never enter the game surface.
+  if (surface?.image) {
+    ctx.drawImage(surface.image, 50, 50, 650, 600, 0, 0, 512, 512);
+    surface.dispose();
+  }
+  const map = new T.CanvasTexture(canvas);
+  map.wrapS = map.wrapT = T.MirroredRepeatWrapping;
+  map.repeat.set(38, 38);
   map.colorSpace = T.SRGBColorSpace;
   map.anisotropy = 4;
   const bump = map.clone();
@@ -89,7 +110,7 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
 
   const PLANE_SIZE = 420;
   const PLANE_HALF = PLANE_SIZE * 0.5;
-  const SEGMENTS = 256;
+  const SEGMENTS = 420; // one-metre cells resolve low drifts and match physical ground contact
   const GRID_ROW = SEGMENTS + 1;
   const CELL_SIZE = PLANE_SIZE / SEGMENTS;
 
@@ -131,9 +152,9 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
 
   const colors = new Float32Array(pos.count * 3);
   const color = new T.Color();
-  const rust = new T.Color(0xe0c7aa);
-  const ochre = new T.Color(0xf3dfc3);
-  const basalt = new T.Color(0x85796e);
+  const rust = new T.Color(0xf5e9d6);
+  const ochre = new T.Color(0xfff4df);
+  const basalt = new T.Color(0xb5a797);
   const darkMud = new T.Color(0x5e473a);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), slope = 1 - geometry.attributes.normal.getY(i);
@@ -153,7 +174,7 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   const groundMat = new T.MeshStandardMaterial({
     map,
     bumpMap: bump,
-    bumpScale: .13,
+    bumpScale: .075,
     vertexColors: true,
     roughness: .96,
   });
@@ -185,15 +206,31 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
       uniform sampler2D uTrackMap;
       uniform float uTrackBounds;
       varying vec3 vTrackWorldPos;
+      float soilHash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+      float soilNoise(vec2 p) {
+        vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+        return mix(mix(soilHash(i),soilHash(i+vec2(1,0)),f.x),mix(soilHash(i+vec2(0,1)),soilHash(i+vec2(1,1)),f.x),f.y);
+      }
     \n` + shader.fragmentShader;
 
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <map_fragment>",
-      `#include <map_fragment>
-      #ifdef USE_MAP
-      vec3 broadDust = texture2D(map, mat2(.79, -.61, .61, .79) * vMapUv * .173 + vec2(.21, .73)).rgb;
-      diffuseColor.rgb *= mix(vec3(.81), vec3(1.24), broadDust.r);
-      #endif
+      `// Continuous world-space soil: no mirrored image, baked rock shadows, or tile boundaries.
+      vec2 soilP=vTrackWorldPos.xz;
+      vec2 warp=vec2(soilNoise(soilP*.045),soilNoise(soilP*.045+27.3))*7.0;
+      float dustField=soilNoise((soilP+warp)*.09);
+      float gravelField=smoothstep(.42,.72,soilNoise(soilP*.16+warp));
+      float crust=soilNoise(soilP*.71+warp);
+      float grain=soilNoise(soilP*36.0);
+      float grains=smoothstep(.68,.89,soilNoise(soilP*13.0+warp));
+      float ripple=sin(dot(soilP,vec2(5.1,2.7))+soilNoise(soilP*.38)*6.0);
+      vec3 soilColor=mix(vec3(.27,.125,.057),vec3(.48,.285,.14),smoothstep(.18,.83,dustField));
+      soilColor=mix(soilColor,vec3(.245,.19,.14),gravelField*.40);
+      soilColor*=.86+crust*.25+(grain-.5)*(.10+gravelField*.28);
+      soilColor+=vec3(.16,.13,.09)*grains*gravelField;
+      soilColor*=1.0+ripple*.026*(1.0-gravelField);
+      diffuseColor.rgb*=soilColor;
+      float soilRelief=(grain-.5)*.003+grains*gravelField*.012+ripple*.006*(1.0-gravelField);
       vec2 fTrackUv = (vTrackWorldPos.xz + uTrackBounds) / (uTrackBounds * 2.0);
       vec4 fTrack = vec4(0.0);
       float fChevron = 0.0;
@@ -205,7 +242,7 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
           float across = dot(vTrackWorldPos.xz, vec2(-tDir.y, tDir.x));
           fChevron = sin(along * 26.0 + abs(fract(across * 1.45) - 0.5) * 6.0);
           float darkMud = clamp(fTrack.r * (0.68 + 0.14 * (-fChevron)), 0.0, 0.85);
-          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.42, 0.34, 0.28), darkMud);
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.72, 0.62, 0.52), darkMud);
         }
         if (fTrack.g > 0.04) {
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.12, 1.06, 0.98), fTrack.g * 0.32);
@@ -217,13 +254,14 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
       "#include <roughnessmap_fragment>",
       `#include <roughnessmap_fragment>
       if (fTrack.r > 0.03) {
-        roughnessFactor = mix(roughnessFactor, 0.42, clamp(fTrack.r * 0.78, 0.0, 0.78));
+        roughnessFactor = mix(roughnessFactor, 0.89, clamp(fTrack.r * 0.78, 0.0, 0.78));
       }`,
     );
 
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <normal_fragment_maps>",
-      `#include <normal_fragment_maps>
+      `// Coarse grit and fine dust have different relief; the albedo atlas is never a height map.
+      normal=perturbNormalArb(-vViewPosition,normal,vec2(dFdx(soilRelief),dFdy(soilRelief)),faceDirection);
       if (fTrack.r > 0.02 || fTrack.g > 0.02) {
         float eps = 1.0 / 1024.0;
         vec4 sL = texture2D(uTrackMap, fTrackUv - vec2(eps, 0.0));
@@ -242,12 +280,14 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
       }`,
     );
   };
-  groundMat.customProgramCacheKey = () => "tarukh-regolith-snowrunner-v2";
+  groundMat.customProgramCacheKey = () => "tarukh-continuous-soil-v3";
   const ground = new T.Mesh(geometry, groundMat);
   ground.receiveShadow = true;
   root.add(ground);
 
-  const rockMat = new T.MeshStandardMaterial({ color: 0xad8a70, map, bumpMap: bump, bumpScale: .15, roughness: 1 });
+  const rockMap = map.clone(); rockMap.repeat.set(1, 1);
+  const rockBump = rockMap.clone(); rockBump.colorSpace = T.NoColorSpace;
+  const rockMat = new T.MeshStandardMaterial({ color: 0xf0dfc2, map: rockMap, bumpMap: rockBump, bumpScale: .11, roughness: 1 });
   const makeRock = (detail: number, variant: number) => {
     const geo = new T.IcosahedronGeometry(1, detail), p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {
@@ -272,29 +312,36 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
     for (let i = 0; i < count; i++) {
       const seed = i + (big ? 9000 : 0), x = (random(seed * 7) - .5) * 240, z = (random(seed * 7 + 1) - .5) * 240;
       const near = STATIONS.some(s => Math.hypot(x - s.x, z - s.z) < 4.5) || Math.hypot(x, z - 12) < 5;
-      const size = near && big ? .07 : big ? .35 + random(seed + 3) * 1.15 : .035 + random(seed + 4) ** 3 * .24;
+      const gravelPatch=smooth(.28,.72,terrainNoise(x*.065,z*.065));
+      const size = near && big ? .07 : big ? .35 + random(seed + 3) * 1.15 : .025 + random(seed + 4) ** 3 * .29 * gravelPatch;
       const sx = size * (1 + random(seed + 14) * .6);
       const sy = size * (.55 + random(seed + 15) * .3);
       const sz = size * (.7 + random(seed + 16) * .6);
       const baseH = sampleMeshHeight(x, z);
+      const mesh = big ? large[i % 4] : small, index = big ? Math.floor(i / 4) : i;
+      if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+      const bounds=mesh.geometry.boundingBox!;
+      const burial=-bounds.min.y*sy*.55;
+      const rockTop=burial+bounds.max.y*sy;
+      const footprint=Math.max(sx,sz)*.94;
 
       if (Math.abs(x) < 92 && Math.abs(z) < 92) {
-        if (big && size > .65) {
+        if (big && rockTop > .55) {
           // True large boulders block both walker and rover
-          obstacles.push({ x, z, radius: size * 1.15 + .3, traversable: false });
+          obstacles.push({ x, z, radius: footprint, traversable: false });
         } else if (big && size > .25) {
           // Medium scattered rocks: walker walks around them, rover crawls cleanly over them
-          obstacles.push({ x, z, radius: size * 1.15 + .3, traversable: true });
-          const r = Math.max(sx, sz) * 0.9;
-          const bump = sy * 0.65 + size * 0.16;
+          if(rockTop>.22)obstacles.push({ x, z, radius: footprint, traversable: true });
+          const r = footprint;
+          const bump = rockTop;
           const k = hashKey(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL));
           let list = rockHash.get(k);
           if (!list) { list = []; rockHash.set(k, list); }
           list.push({ x, z, r, bump });
         } else if (size >= 0.08) {
           // Small scattered rocks: traversable wheel bumps for rocker-bogie articulation
-          const r = Math.max(sx, sz) * 0.9;
-          const bump = sy * 0.65 + size * 0.16;
+          const r = footprint;
+          const bump = rockTop;
           const k = hashKey(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL));
           let list = rockHash.get(k);
           if (!list) { list = []; rockHash.set(k, list); }
@@ -302,13 +349,12 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
         }
       }
 
-      dummy.position.set(x, baseH + size * .16, z);
+      dummy.position.set(x, baseH + burial, z);
       dummy.scale.set(sx, sy, sz);
-      dummy.rotation.set(seed, seed * .6, seed * .13);
+      dummy.rotation.set(0, seed * .6, 0);
       dummy.updateMatrix();
-      const mesh = big ? large[i % 4] : small, index = big ? Math.floor(i / 4) : i;
       mesh.setMatrixAt(index, dummy.matrix);
-      color.setHSL(.054 + random(seed) * .018, .13 + random(seed + 5) * .13, .25 + random(seed + 6) * .25);
+      color.setHSL(.085 + random(seed) * .025, .12 + random(seed + 5) * .12, .53 + random(seed + 6) * .24);
       mesh.setColorAt(index, color);
     }
   }
@@ -381,11 +427,11 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   const canyon = new T.Mesh(landscape, cliffMat);
   root.add(canyon);
 
-  const heightAt = (x: number, z: number) => sampleMeshHeight(x, z) + roverPadElevation(x, z);
+  const heightAt = (x: number, z: number) => sampleMeshHeight(x, z) + colonySurfaceElevation(x, z);
 
   // O(1) Wheel Surface Height: exact rendered mesh triangle + rover bay pad + traversable rock bumps
   const roverHeightAt = (x: number, z: number) => {
-    const base = sampleMeshHeight(x, z) + roverPadElevation(x, z);
+    const base = sampleMeshHeight(x, z) + colonySurfaceElevation(x, z);
     const cx = Math.floor(x / ROCK_CELL);
     const cz = Math.floor(z / ROCK_CELL);
     let maxRockBump = 0;
@@ -443,7 +489,7 @@ export function createMarsSky(scene: T.Scene) {
   return material;
 }
 
-export function createMarsFootprints(scene: T.Scene) {
+export function createMarsFootprints(scene: T.Scene, heightAt= marsHeight) {
   const c = document.createElement("canvas");
   c.width = 64;
   c.height = 128;
@@ -463,7 +509,7 @@ export function createMarsFootprints(scene: T.Scene) {
   return (x: number, z: number, yaw: number, grounded: boolean) => {
     if (!grounded || Math.hypot(x - lastX, z - lastZ) < .65) return;
     const side = index % 2 ? -.17 : .17, sx = x + Math.cos(yaw) * side, sz = z - Math.sin(yaw) * side;
-    dummy.position.set(sx, marsHeight(sx, sz) + .025, sz);
+    dummy.position.set(sx, heightAt(sx, sz) + .025, sz);
     dummy.rotation.set(0, yaw, 0);
     dummy.updateMatrix();
     stamps.setMatrixAt(index % 160, dummy.matrix);
