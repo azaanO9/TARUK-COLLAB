@@ -346,6 +346,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         jump = { height: 0, velocity: 0 },
         rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt),
         lastRoverNear = false,
+        wasCockpit = false,
         lastRoverSpeed = 0,
         cameraYaw = 0,
         characterYaw = 0,
@@ -625,7 +626,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             const isCruising = Math.abs(rover.speed) > 1.2;
             const timeSinceMouse = (performance.now() - lastMouseMoveTime) / 1000;
             if (isCruising && !dragging && timeSinceMouse > 0.8 && document.pointerLockElement !== element) {
-              const targetYaw = rover.speed >= 0 ? rover.yaw : rover.yaw + Math.PI;
+              // Reverse chase view can look behind; the driver stays facing the windshield.
+              const targetYaw = rover.speed < 0 && cameraSettings.current.thirdPerson
+                ? rover.yaw + Math.PI : rover.yaw;
               const diff = shortestAngleDiff(cameraYaw, targetYaw);
               cameraYaw += diff * (1 - Math.exp(-2.2 * dt));
             }
@@ -714,6 +717,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
         }
         const third = cameraSettings.current.thirdPerson;
+        const cockpitView = rover.driving && !third;
+        if (cockpitView && !wasCockpit) {
+          cameraYaw = rover.yaw;
+          pitch = -.04;
+        }
+        wasCockpit = cockpitView;
+        bigRover?.setCockpitView(cockpitView);
         if (rover.driving) {
           astronaut.visible = false;
           const roverGround = rover.chassisY ?? model.heightAt(rover.x, rover.z);
@@ -735,14 +745,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.6);
             camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
           } else {
-            // Authentic cockpit view inside the NASA Space Exploration Vehicle panoramic bubble canopy
-            const driverForward = 1.25;
-            const driverSide = -0.42;
-            const eyeX = rover.x - Math.sin(rover.yaw) * driverForward + Math.cos(rover.yaw) * driverSide;
-            const eyeY = cameraGround + 1.95;
-            const eyeZ = rover.z - Math.cos(rover.yaw) * driverForward - Math.sin(rover.yaw) * driverSide;
-            camera.position.set(eyeX, eyeY, eyeZ);
-            camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
+            bigRover?.positionCockpitCamera(camera, cameraYaw - rover.yaw, pitch);
           }
         } else {
           astronaut.visible = third;
