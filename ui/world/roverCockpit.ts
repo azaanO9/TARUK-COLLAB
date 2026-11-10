@@ -6,13 +6,27 @@ import { ROVER_WINDOW_CONTOURS } from "./roverWindowContours.ts";
 
 export const ROVER_DRIVER_EYE = new T.Vector3(-.34, 2.03, -.73);
 
+/** Outer edge of a planar frame, shared with the adjoining pressure wall. */
+function windowSurround(points: number[][]) {
+  const center = points.reduce((v, p) => v.add(new T.Vector3(...p as [number, number, number])), new T.Vector3()).divideScalar(points.length);
+  const a = new T.Vector3(...points[0] as [number, number, number]);
+  const normal = new T.Vector3(...points[Math.floor(points.length / 3)] as [number, number, number]).sub(a)
+    .cross(new T.Vector3(...points[Math.floor(points.length * 2 / 3)] as [number, number, number]).sub(a)).normalize();
+  return points.map(p => {
+    const dx = p[0] - center.x, dy = p[1] - center.y, length = Math.hypot(dx, dy);
+    const x = p[0] + dx / length * .026, y = p[1] + dy / length * .026;
+    return [x, y, a.z - (normal.x * (x - a.x) + normal.y * (y - a.y)) / normal.z];
+  });
+}
+
 /** Seven glazing contours measured in the exterior asset's coordinate system. */
 export function createRoverWindowLining() {
   const outline = Array.from({ length: 64 }, (_, i) => new T.Vector2(1.11 * Math.cos(i * Math.PI / 32), 1.76 + .81 * Math.sin(i * Math.PI / 32)));
   const shape = new T.Shape(outline);
-  for (const points of ROVER_WINDOW_CONTOURS) shape.holes.push(new T.Path(points.map(p => new T.Vector2(p[0], p[1])).reverse()));
+  const surrounds = ROVER_WINDOW_CONTOURS.map(windowSurround);
+  for (const points of surrounds) shape.holes.push(new T.Path(points.map(p => new T.Vector2(p[0], p[1])).reverse()));
   const geometry = new T.ShapeGeometry(shape), position = geometry.attributes.position;
-  const measured = ROVER_WINDOW_CONTOURS.flat();
+  const measured = surrounds.flat();
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i), y = position.getY(i);
     const edge = measured.find(p => Math.abs(x - p[0]) < .00001 && Math.abs(y - p[1]) < .00001);
@@ -46,20 +60,14 @@ export function createRoverCockpit() {
     object.position.copy(start).add(end).multiplyScalar(.5);
     object.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), delta.normalize()); return object;
   }
-  const lining = mesh("seven-window-pressure-lining", createRoverWindowLining(), graphite);
-  lining.updateMatrixWorld(true);
-  const trimProbe = new T.Raycaster(new T.Vector3(), new T.Vector3(0, 0, -1));
+  mesh("seven-window-pressure-lining", createRoverWindowLining(), graphite);
   for (const [index, points] of ROVER_WINDOW_CONTOURS.entries()) {
-    const cx = points.reduce((s, p) => s + p[0], 0) / points.length, cy = points.reduce((s, p) => s + p[1], 0) / points.length;
+    const outer = windowSurround(points);
     const vertices: number[] = [], indices: number[] = [];
     // Seals extend outwards, preserving the measured opening rather than covering it.
-    for (const p of points) {
-      const dx = p[0] - cx, dy = p[1] - cy, length = Math.hypot(dx, dy);
-      const outerX = p[0] + dx / length * .036, outerY = p[1] + dy / length * .036;
-      // Follow the lining's actual depth so curved wall panels cannot cover the trim.
-      trimProbe.ray.origin.set(outerX, outerY, 0);
-      const surface = trimProbe.intersectObject(lining, false)[0];
-      vertices.push(p[0], p[1], p[2] + .036, outerX, outerY, (surface?.point.z ?? p[2] + .025) + .011);
+    for (const [i, p] of points.entries()) {
+      // The wall ends at this same outer edge; the frame cannot intersect it.
+      vertices.push(p[0], p[1], p[2] + .026, outer[i][0], outer[i][1], outer[i][2] + .026);
     }
     for (let i = 0; i < points.length; i++) { const a = i * 2, b = (i + 1) % points.length * 2; indices.push(a, a + 1, b, b, a + 1, b + 1); }
     const seal = new T.BufferGeometry().setAttribute("position", new T.Float32BufferAttribute(vertices, 3)).setIndex(indices);
