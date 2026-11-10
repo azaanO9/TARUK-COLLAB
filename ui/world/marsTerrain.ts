@@ -24,14 +24,14 @@ export function marsHeight(x: number, z: number) {
 
 export function createMarsTerrain(root: T.Group) {
   const obstacles: { x: number; z: number; radius: number }[] = [];
-  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1024;
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 512;
   const ctx = canvas.getContext("2d")!;
-  const pixels = ctx.createImageData(1024, 1024);
-  for (let y = 0; y < 1024; y++) for (let x = 0; x < 1024; x++) {
-    const n = random(x + y * 1024), ripple = Math.sin(x * .075 + Math.sin(y * .012) * 5) * 4;
+  const pixels = ctx.createImageData(512, 512);
+  for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
+    const n = random(x + y * 512), ripple = Math.sin(x * .075 + Math.sin(y * .012) * 5) * 4;
     const v = n * 28 + Math.sin(x * .013) * Math.cos(y * .019) * 12 + ripple;
-    const i = (x + y * 1024) * 4;
-    pixels.data.set([132 + v, 86 + v * .72, 61 + v * .5, 255], i);
+    const i = (x + y * 512) * 4;
+    pixels.data[i] = 132 + v; pixels.data[i + 1] = 86 + v * .72; pixels.data[i + 2] = 61 + v * .5; pixels.data[i + 3] = 255;
   }
   ctx.putImageData(pixels, 0, 0);
   const map = new T.CanvasTexture(canvas); map.wrapS = map.wrapT = T.RepeatWrapping;
@@ -42,7 +42,8 @@ export function createMarsTerrain(root: T.Group) {
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), h = marsHeight(x, z); pos.setY(i, h);
     const variation = Math.sin(x * .021 + z * .037) * .06 + Math.sin(z * .13) * .025;
-    c.setHSL(.061 + variation * .13, .24 + variation, .64 + variation + h * .012);
+    const basalt = Math.max(0, Math.sin(x * .036 + Math.sin(z * .021) * 2) * Math.cos(z * .041) - .35);
+    c.setHSL(.052 + variation * .13 + basalt * .025, .27 + variation - basalt * .1, .63 + variation + h * .012 - basalt * .16);
     c.toArray(colors, i * 3);
   }
   geometry.setAttribute("color", new T.BufferAttribute(colors, 3)); geometry.computeVertexNormals();
@@ -60,13 +61,14 @@ export function createMarsTerrain(root: T.Group) {
   const rockMat = new T.MeshStandardMaterial({ color: 0xb78a69, roughness: .95, map, bumpMap: bump, bumpScale: .12 });
   for (const [count, large] of [[6500, false], [450, true]] as const) {
     const rocks = new T.InstancedMesh(rockGeometry, rockMat, count), dummy = new T.Object3D();
+    rocks.name = large ? "mars-large-rocks" : "mars-small-rocks";
     for (let i = 0; i < count; i++) {
       const seed = i + (large ? 9000 : 0), x = (random(seed * 7) - .5) * 240, z = (random(seed * 7 + 1) - .5) * 240;
       const nearStation = STATIONS.some(s => Math.hypot(x - s.x, z - s.z) < 4.5) || Math.hypot(x, z - 12) < 5;
       const size = nearStation && large ? .07 : large ? .35 + random(seed + 3) * 1.15 : .035 + random(seed + 4) ** 3 * .24;
       if (large && size > .25 && Math.abs(x) < 87 && Math.abs(z) < 87) obstacles.push({ x, z, radius: size * 1.15 + .3 });
       dummy.position.set(x, marsHeight(x, z) + size * .21, z);
-      dummy.scale.set(size * 1.3, size * .7, size); dummy.rotation.set(seed, seed * .6, seed * .13); dummy.updateMatrix();
+      dummy.scale.set(size * (1 + random(seed + 14) * .65), size * (.48 + random(seed + 15) * .5), size * (.7 + random(seed + 16) * .6)); dummy.rotation.set(seed, seed * .6, seed * .13); dummy.updateMatrix();
       rocks.setMatrixAt(i, dummy.matrix);
       rocks.setColorAt(i, c.setHSL(.05 + random(seed) * .035, .18 + random(seed + 5) * .2, .3 + random(seed + 6) * .24));
     }
@@ -97,8 +99,11 @@ export function createMarsSky(scene: T.Scene) {
     vertexShader: `varying vec3 direction; void main(){ direction=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `varying vec3 direction; uniform float night;
       void main(){ vec3 d=normalize(direction); float h=max(d.y,0.);
-        vec3 day=mix(vec3(.68,.42,.29),vec3(.23,.20,.19),pow(h,.42));
-        float sun=pow(max(dot(d,normalize(vec3(-.55,.28,-.8))),0.),140.);
+        vec3 day=mix(vec3(.79,.48,.32),vec3(.53,.39,.30),pow(h,.48));
+        float sunAngle=max(dot(d,normalize(vec3(-.55,.28,-.8))),0.);
+        float blueHalo=pow(sunAngle,32.) * .28;
+        float sun=pow(sunAngle,140.);
+        day=mix(day,vec3(.49,.56,.64),blueHalo);
         day+=vec3(.65,.48,.32)*sun;
         vec3 dark=mix(vec3(.12,.10,.14),vec3(.012,.024,.054),pow(h,.45));
         gl_FragColor=vec4(mix(day,dark,night),1.);

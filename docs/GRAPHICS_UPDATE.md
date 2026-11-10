@@ -35,3 +35,9 @@ From the project folder run `pnpm dev` and open `http://127.0.0.1:5173/`. Skip t
 ## Limits
 
 This is a procedural art pass, not photorealistic AAA asset production. The finite movement area remains 176 × 176 illustrative metres. Boulders use approximate circular collision, smaller pebbles are decoration. Feet follow surface height without skeletal inverse kinematics. The camera clears terrain but does not solve all building occlusion. Ultra costs more GPU time; target-device frame-rate measurements are still needed. Bootprints recycle after 160 steps and are not saved. The preserved landing remains illustrated 2D. Resources remain static teaching points and the rover remains inspectable.
+
+## Mars performance and atmosphere pass
+
+The Mars sky shader uses a warmer day gradient and a restrained blue halo near the sun. Night shows a small blue Earth and existing stars, with stronger habitat windows. Solar panels change their appearance after the solar activity; nearby station indicators brighten. Terrain reuses its existing mesh and collision sampling but adds subtle colour/rock-shape variation. The procedural terrain texture is 512 × 512. Existing instanced footprints remain capped at 160.
+
+The `?debug=1` Mars overlay reports frame time, draws, triangles, texture count, scale and tier. `ui/world/graphicsTiers.ts` defines the limits. Performance uses a 0.75 resolution cap, no shadows or post-processing, 1,800 small rocks and 60 dust particles. Auto retains its existing render features. High enables bloom; Ultra adds SSAO. Bloom and dust movement are calmed for reduced-motion. See [GRAPHICS_PLAN.md](GRAPHICS_PLAN.md) for sample numbers and remaining work. These are local measurements, not proof of phone performance.

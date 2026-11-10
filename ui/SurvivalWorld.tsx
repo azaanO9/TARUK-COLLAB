@@ -9,6 +9,7 @@ import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints, marsHeight } from "./world/marsTerrain";
 import { createMarsAstronaut } from "./world/marsDetails";
 import { createBigRover } from "./world/createBigRover";
+import { graphicsTier } from "./world/graphicsTiers";
 import {
   spawnRoverVehicle,
   stepRoverVehicle,
@@ -42,6 +43,7 @@ type Props = {
   onInspect: (id: string) => void;
   onView: (view: View) => void;
   onUnavailable: () => void;
+  solarClean?: boolean;
   initialQuality?: "auto" | "performance";
 };
 export type SurvivalWorldHandle = {
@@ -52,6 +54,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const host = useRef<HTMLDivElement>(null),
     current = useRef(props);
   const aim = useRef<HTMLDivElement>(null);
+  const debugPanel = useRef<HTMLPreElement>(null);
+  const [debug] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1");
   current.current = props;
   const controls = useRef(new Set<string>()),
     lockAction = useRef<() => void>(() => {});
@@ -108,7 +112,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       renderer.shadowMap.type = T.PCFSoftShadowMap;
       renderer.outputColorSpace = T.SRGBColorSpace;
       renderer.toneMapping = T.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = props.planet === "mars" ? 1.05 : 1.15;
+      renderer.toneMappingExposure = props.planet === "mars" ? 1.1 : 1.15;
       renderer.info.autoReset = false;
       renderer.domElement.setAttribute("aria-hidden", "true");
       element.insertBefore(renderer.domElement, element.firstChild);
@@ -144,6 +148,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const model = createSurvivalOutpost(scene, props.planet);
+      const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       setLoadingStage("Preparing explorers and equipment…");
       setLoadingProgress(70);
       await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -273,6 +278,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         new T.MeshStandardMaterial({ color: 0x5b9fba, roughness: 1 }),
       );
       earth.position.set(65, 40, -170);
+      if (props.planet === "mars") { earth.scale.setScalar(.16); (earth.material as import("three").MeshStandardMaterial).emissive.setHex(0x286c9a); }
       scene.add(earth);
       const stars = new Float32Array(600 * 3);
       for (let i = 0; i < 600; i++) {
@@ -288,6 +294,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       scene.add(starField);
       let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
       let occlusion: import("three/examples/jsm/postprocessing/GTAOPass.js").GTAOPass | null = null;
+      let bloom: import("three/examples/jsm/postprocessing/UnrealBloomPass.js").UnrealBloomPass | null = null;
       if (props.planet === "mars") {
         const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { GTAOPass }] = await Promise.all([
           import("three/examples/jsm/postprocessing/EffectComposer.js"),
@@ -302,7 +309,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         occlusion.updateGtaoMaterial({ radius: .55, thickness: .7, distanceFallOff: 1, samples: 8 });
         occlusion.blendIntensity = .65; occlusion.enabled = false;
         composer.addPass(occlusion);
-        composer.addPass(new UnrealBloomPass(new T.Vector2(512, 512), .15, .5, 1.25));
+        bloom = new UnrealBloomPass(new T.Vector2(512, 512), .15, .5, 1.25);
+        composer.addPass(bloom);
         composer.addPass(new OutputPass());
       }
       const keys = controls.current,
@@ -525,10 +533,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (beacon) { const destination = STATIONS.find(s => s.id === p.target); if (destination) beacon.position.set(destination.x, model.heightAt(destination.x,destination.z),destination.z); }
         if (cameraSettings.current.quality !== lastQuality) {
           lastQuality = cameraSettings.current.quality;
-          resolutionScale = Math.min(devicePixelRatio, lastQuality === "ultra" ? 2 : lastQuality === "high" ? 1.5 : lastQuality === "auto" ? 1.25 : 1);
+          const tier = graphicsTier(lastQuality);
+          resolutionScale = Math.min(devicePixelRatio, props.planet === "mars" ? tier.resolutionCap : 1.5);
           renderer.setPixelRatio(resolutionScale);
-          renderer.shadowMap.enabled = lastQuality !== "performance";
-          if (occlusion) occlusion.enabled = lastQuality === "ultra";
+          renderer.shadowMap.enabled = props.planet === "mars" ? tier.shadows : true;
+          if (occlusion) occlusion.enabled = tier.ssao;
+          if (bloom) bloom.enabled = tier.bloom && !reduced.matches;
+          if (smallRocks) smallRocks.count = tier.smallRocks;
+          if (dust) dust.geometry.setDrawRange(0, tier.particles);
           scene.traverse(o => { if (o instanceof T.Mesh) {
             for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true;
           } });
@@ -668,13 +680,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           ambient.groundColor.setHex(eclipse ? 0x312a36 : 0x77543e);
           light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
           scene.environmentIntensity = eclipse ? .12 : .38;
-          starField.visible = eclipse; earth.visible = false;
+          starField.visible = eclipse; earth.visible = eclipse;
         }
         if (props.planet === "mars" && lastMarsNight !== eclipse) {
           scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
-          scene.fog = new T.FogExp2(eclipse ? 0x23212a : 0xb28a70, eclipse ? 0.003 : 0.0038);
+          scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xc69e91, eclipse ? 0.003 : 0.0038);
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
-          if (dust) (dust.material as import("three").PointsMaterial).opacity = eclipse ? 0.12 : 0.35;
+          if (dust) (dust.material as import("three").PointsMaterial).opacity = reduced.matches ? 0.1 : eclipse ? 0.12 : 0.35;
           lastMarsNight = eclipse;
         }
         sun.visible = props.planet !== "mars" || !eclipse;
@@ -701,8 +713,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         // On Mars, nearby equipment remains operable even when the crosshair
         // falls just beside a narrow object, which helps young explorers.
         if (props.planet === "mars" && (!hover || range > 5.5)) {
-          const nearest = STATIONS.map((station) => ({ station, distance: Math.hypot(walker.x - station.x, walker.z - station.z) })).sort((a, b) => a.distance - b.distance)[0];
-          if (nearest.distance <= 5.5) { hover = nearest.station.id; range = nearest.distance; }
+          // Scan in place rather than allocating and sorting a fresh array during play.
+          for (const station of STATIONS) {
+            const distance = Math.hypot(walker.x - station.x, walker.z - station.z);
+            if (distance <= 5.5 && distance < range) { hover = station.id; range = distance; }
+          }
         }
         }
         const pulse =
@@ -712,9 +727,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         for (const station of STATIONS) {
           const m = model.indicators[station.id];
           const selected = station.id === p.target;
-          m.color.setHex(selected ? 0xeeb975 : 0x72b8ac);
-          m.emissive.setHex(selected ? 0x9f672b : 0x15594e);
-          m.emissiveIntensity = selected ? 0.6 : 0.3;
+          const nearby = props.planet === "mars" && station.id === hover && range <= 5.5;
+          m.color.setHex(nearby ? 0xffe2a4 : selected ? 0xeeb975 : 0x72b8ac);
+          m.emissive.setHex(nearby ? 0xb87f39 : selected ? 0x9f672b : 0x15594e);
+          m.emissiveIntensity = nearby ? 1 : selected ? 0.6 : 0.3;
         }
         const effect = p.failure ? p.effect : null;
         if (p.event === "flare" || p.event === "particles") {
@@ -724,10 +740,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         for (const panel of model.panels)
           (panel.material as MeshStandardMaterial).color.setHex(
-            effect === "dust" ? 0x555254 : p.day > 0 ? 0x255680 : 0x536071,
+            effect === "dust" ? 0x555254 : (props.planet === "mars" ? p.solarClean : p.day > 0) ? 0x255680 : props.planet === "mars" ? 0x776c67 : 0x536071,
           );
         model.habitatWindow.emissiveIntensity =
-          effect === "power" || effect === "dust" ? 0.05 : 0.7;
+          effect === "power" || effect === "dust" ? 0.05 : props.planet === "mars" && eclipse ? 1.1 : 0.7;
         for (const tank of model.tanks)
           (tank.material as MeshStandardMaterial).emissive.setHex(
             effect === "water" && tank.userData.system === "water"
@@ -790,18 +806,15 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.sageFollowing = String(current.current.sageFollowing ?? false);
           element.dataset.resolutionScale = resolutionScale.toFixed(2);
           const fps = metricFrames * 1000 / (time - metricStart);
+          if (debugPanel.current) debugPanel.current.textContent = `Frame: ${(1000 / fps).toFixed(1)} ms (${fps.toFixed(1)} fps)\nDraw calls: ${renderer.info.render.calls}\nTriangles: ${renderer.info.render.triangles}\nTextures: ${renderer.info.memory.textures}\nRender scale: ${resolutionScale.toFixed(2)}\nTier: ${lastQuality}`;
           if (lastQuality === "auto" && p.enabled && time - qualityStart > 3000) {
-            const next = Math.max(.7, Math.min(devicePixelRatio, 1.25, resolutionScale + (fps < 48 ? -.15 : fps > 58 ? .05 : 0)));
+            const next = Math.max(.7, Math.min(devicePixelRatio, 1.25, resolutionScale + (fps < 48 ? -.03 : fps > 58 ? .03 : 0)));
             if (Math.abs(next - resolutionScale) > .01) { resolutionScale = next; renderer.setPixelRatio(next); resize(); }
             qualityStart = time;
           }
           metricStart = time; metricFrames = 0;
         }
       }
-      frame = requestAnimationFrame(animate);
-      setLoadingStage("Launching exploration…");
-      setLoadingProgress(100);
-      setLoaded(true);
       dispose = () => {
         cancelAnimationFrame(frame);
         observer.disconnect();
@@ -830,7 +843,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         });
         renderer.domElement.remove();
       };
-      if (cancelled) dispose();
+      // Register cleanup before asynchronous shader compilation, including unmounts during warm-up.
+      if (props.planet === "mars") { try { await renderer.compileAsync(scene, camera); } catch { /* fall back to normal lazy compilation */ } }
+      if (cancelled) return;
+      frame = requestAnimationFrame(animate);
+      setLoadingStage("Launching exploration…");
+      setLoadingProgress(100);
+      setLoaded(true);
     }
     mount().catch(() => {
       setMessage(
@@ -861,6 +880,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. WASD to walk. Move the mouse to look. Space jumps. V switches view. E inspects.`}
       tabIndex={0}
     >
+      {debug && props.planet === "mars" && <pre ref={debugPanel} className="mars-debug" aria-label="Graphics performance diagnostics">Collecting graphics measurements…</pre>}
       {!loaded && (
         <div className="sv-loading" role="status">{loadingStage}<br/><progress aria-label="Scene preparation progress" max={100} value={loadingProgress}/><span> {loadingProgress}%</span></div>
       )}

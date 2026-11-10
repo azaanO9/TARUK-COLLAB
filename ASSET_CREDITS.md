@@ -9,3 +9,5 @@
 - `ui/world/createSageCompanion.ts`: original procedural companion model created for this project.
 
 - The team logo, generated landing illustration and horizon have resized WebP derivatives for delivery; the original PNGs remain in the repository. Mars exploration uses procedural geometry and does not load the NASA astronaut model.
+
+- The atmosphere, changed terrain colors, and reduced-resolution terrain texture are generated procedurally in the browser. No additional model, photograph, texture download, external rendering service, or runtime asset was added for this pass.
