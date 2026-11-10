@@ -2,8 +2,8 @@ import * as T from "three";
 import { ROVER_WHEEL_OFFSETS, ROVER_WHEEL_OUTER_RADIUS } from "../../game/roverVehicle.ts";
 
 export type RoverWheelAssembly = {
-  pivot: T.Group;
-  steering: T.Group;
+  pivot: T.Object3D;
+  steering: T.Object3D;
   wheelMesh: T.Object3D;
   baseX: number;
   baseY: number;
@@ -12,6 +12,24 @@ export type RoverWheelAssembly = {
   isFront: boolean;
   isLeft: boolean;
 };
+
+/** Bind the offline-prepared rig without scanning or copying CAD vertices in play. */
+export function bindPreparedRover(root: T.Object3D) {
+  const chassisMesh = root.getObjectByName("MMSEV_Chassis");
+  if (!(chassisMesh instanceof T.Mesh)) return null;
+  const wheels: RoverWheelAssembly[] = [];
+  for (let k = 0; k < ROVER_WHEEL_OFFSETS.length; k++) {
+    const pivot = root.getObjectByName(`suspension-${k}`);
+    const steering = root.getObjectByName(`steering-${k}`);
+    const wheelMesh = root.getObjectByName(`tire-${k}`);
+    const upright = root.getObjectByName(`upright-${k}`);
+    if (!pivot || !steering || !wheelMesh || !upright
+      || wheelMesh.parent !== steering || steering.parent !== pivot || upright.parent !== pivot) return null;
+    wheels.push({ pivot, steering, wheelMesh, baseX: pivot.position.x, baseY: pivot.position.y,
+      baseZ: pivot.position.z, suspensionOffset: 0, isFront: k < 2, isLeft: k % 2 === 0 });
+  }
+  return { chassisMesh, wheels };
+}
 
 /**
  * Builds a sub-geometry from selected triangle index lists, remapping vertices

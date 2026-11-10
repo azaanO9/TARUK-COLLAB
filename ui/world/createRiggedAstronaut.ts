@@ -32,6 +32,7 @@ export type AstronautBones = {
 };
 
 export type RiggedAstronautHandle = {
+  ready: Promise<void>;
   root: T.Group;
   isModelLoaded: boolean;
   modelType: "rigged-gltf" | "procedural-fallback";
@@ -245,6 +246,9 @@ export function createRiggedAstronaut(
   onLoaded?: () => void,
 ): RiggedAstronautHandle {
   const root = new T.Group();
+  let disposed = false;
+  let resolveReady!: () => void;
+  const ready = new Promise<void>(resolve => { resolveReady = resolve; });
   let bones: AstronautBones = {};
   const gaitState: MarsGaitState = createMarsGaitState();
   let baseModelX = 0;
@@ -256,6 +260,7 @@ export function createRiggedAstronaut(
   root.add(fallback.root);
 
   const handle: RiggedAstronautHandle = {
+    ready,
     root,
     isModelLoaded: false,
     modelType: "procedural-fallback",
@@ -419,6 +424,7 @@ export function createRiggedAstronaut(
       }
     },
     dispose() {
+      disposed = true;
       root.traverse((node) => {
         if ((node as T.Mesh).isMesh) {
           const mesh = node as T.Mesh;
@@ -440,10 +446,10 @@ export function createRiggedAstronaut(
   dracoLoader.setDecoderPath(assetUrl("/draco/"));
   loader.setDRACOLoader(dracoLoader);
 
-  loader.load(
-    modelUrl,
+  loader.loadAsync(modelUrl).then(
     (gltf) => {
       const model = gltf.scene;
+      if (disposed) { model.traverse(o => { if (o instanceof T.Mesh) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) { for (const value of Object.values(m)) if (value instanceof T.Texture) value.dispose(); m.dispose(); } } }); return; }
 
       // Enable shadows and configure sRGB color space
       configureMeshes(model);
@@ -489,14 +495,11 @@ export function createRiggedAstronaut(
         `[RiggedAstronaut] Loaded "${modelUrl}" successfully with ${boneCount} matched bones. Rig: ${/leg_?1/i.test(bones.leftUpLeg?.bone.name || "") ? "astro_bones" : "humanoid"}`,
       );
       onLoaded?.();
-    },
-    undefined,
-    (err) => {
+    }).catch((err) => {
       console.warn(
         `[RiggedAstronaut] Model "${modelUrl}" not found or failed to load (${(err as Error)?.message || "File not found"}). Using procedural Mars astronaut.`,
       );
-    },
-  );
+    }).finally(() => { dracoLoader.dispose(); resolveReady(); });
 
   return handle;
 }
