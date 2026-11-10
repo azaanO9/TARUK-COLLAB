@@ -12,3 +12,5 @@
 .junior-dialog button,.junior-dialog input,.junior-dialog select{font-size:16px}@media(max-width:800px){.junior-root .junior-shift,.junior-root .mars-sage,.junior-root .sv-rover-prompt{font-size:14px}}
 
 .mars-debug{position:absolute;z-index:9;right:8px;top:260px;margin:0;padding:8px;background:#101b25e8;color:#fff;font:12px/1.4 monospace;pointer-events:none}
+
+.junior-restart{min-height:44px;margin-left:10px;padding:10px 14px;color:#f8e5d1;background:#263b47;border:1px solid #ead3b7;cursor:pointer}.junior-root .sv-world-message{z-index:7;font-size:14px;line-height:1.4}

@@ -1,0 +1,7 @@
+import test from 'node:test'; import assert from 'node:assert/strict';
+import {createMission,missionReducer} from '../game/juniorMission.ts';
+import {parseMarsSave} from '../game/marsSave.ts';
+const example=()=>{let mission=createMission();mission=missionReducer(mission,{type:'TASK',id:'solar'});mission=missionReducer(mission,{type:'QUIZ',id:'solar',correct:true});return {version:1,mission,callsign:'Explorer 1',patch:'✦',controlMode:'pc'}};
+test('saved solar activity, XP, resources and cadet ID survive a JSON roundtrip',()=>{const save=example(),loaded=parseMarsSave(JSON.stringify(save));assert.deepEqual(loaded,save);assert.equal(loaded.mission.xp,125);assert.deepEqual(loaded.mission.found,['solar']);});
+test('invalid or unsupported saves are rejected safely',()=>{for(const raw of [null,'bad','{}',JSON.stringify({...example(),version:2}),JSON.stringify({...example(),mission:{...example().mission,sol:99}}),JSON.stringify({...example(),mission:{...example().mission,found:['unknown']}}),JSON.stringify({...example(),mission:{...example().mission,resources:{...example().mission.resources,power:-1}}})])assert.equal(parseMarsSave(raw),null)});
+test('restored progress advances without duplicate discovery or quiz awards',()=>{const restored=parseMarsSave(JSON.stringify(example())).mission;assert.deepEqual(missionReducer(restored,{type:'QUIZ',id:'solar',correct:true}),restored);assert.equal(missionReducer(restored,{type:'SHIFT',choice:'careful'}).sol,2)});

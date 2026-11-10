@@ -877,7 +877,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       ref={host}
       className="sv-world"
       role="application"
-      aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. WASD to walk. Move the mouse to look. Space jumps. V switches view. E inspects.`}
+      aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects.`}
       tabIndex={0}
     >
       {debug && props.planet === "mars" && <pre ref={debugPanel} className="mars-debug" aria-label="Graphics performance diagnostics">Collecting graphics measurements…</pre>}
@@ -896,7 +896,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             <button onClick={() => lockAction.current()}>
               {locked ? "Release mouse · Esc" : "Capture mouse for 360° look"}
             </button>
-            <span>Move mouse to look · V changes view</span>
+            <span>Drag to look, or capture the mouse · Q/R turn · V changes view</span>
             <label>
               Mouse sensitivity{" "}
               <input
@@ -1010,7 +1010,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           </div>}
         </>
       )}
-      {message && <p className="sv-world-message">{message}</p>}
+      {message && <p className="sv-world-message" role="status">{message}</p>}
     </div>
   );
 });
