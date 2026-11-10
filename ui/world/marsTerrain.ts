@@ -75,15 +75,17 @@ export function createMarsTerrain(root: T.Group) {
     rocks.receiveShadow = true; rocks.castShadow = large; root.add(rocks);
   }
   // Stratified escarpments break up the skyline without a cylindrical image seam.
-  const cliffMat = new T.MeshStandardMaterial({ color: 0x865d4a, roughness: 1, flatShading: false });
+  const cliffMat = new T.MeshStandardMaterial({ color: 0xa66f55, roughness: 1 });
   for (let i = 0; i < 70; i++) {
     const a = i * Math.PI * 2 / 70, r = 145 + random(i + 54) * 40, height = 9 + random(i + 22) ** 2 * 34;
-    const geo = new T.CylinderGeometry(2 + random(i) * 6, 18 + random(i + 4) * 18, height, 24, 24);
+    // Wide, flat-topped mesas create the layered canyon silhouette in the reference.
+    const baseRadius = 18 + random(i + 4) * 18;
+    const geo = new T.CylinderGeometry(baseRadius * (.58 + random(i) * .22), baseRadius, height, 20, 16);
     const p = geo.attributes.position;
     for (let j = 0; j < p.count; j++) {
       const x = p.getX(j), y = p.getY(j), z = p.getZ(j);
       const taper = 1 + Math.sin(y * 1.7) * .045 + Math.sin(x * .7 + z * .4) * .12 + Math.sin(x * 1.3 + z * 1.1 + y * .4) * .07;
-      p.setXYZ(j, x * taper, y + Math.sin(x * .5 + z * .3) * 1.5, z * taper);
+      p.setXYZ(j, x * taper, y + Math.sin(x * .5 + z * .3) * .55, z * taper);
     }
     geo.computeVertexNormals();
     const cliff = new T.Mesh(geo, cliffMat); cliff.position.set(Math.sin(a) * r, height * .36 - 3, Math.cos(a) * r);
@@ -99,7 +101,7 @@ export function createMarsSky(scene: T.Scene) {
     vertexShader: `varying vec3 direction; void main(){ direction=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `varying vec3 direction; uniform float night;
       void main(){ vec3 d=normalize(direction); float h=max(d.y,0.);
-        vec3 day=mix(vec3(.79,.48,.32),vec3(.53,.39,.30),pow(h,.48));
+        vec3 day=mix(vec3(.92,.52,.34),vec3(.60,.40,.35),pow(h,.52));
         float sunAngle=max(dot(d,normalize(vec3(-.55,.28,-.8))),0.);
         float blueHalo=pow(sunAngle,32.) * .28;
         float sun=pow(sunAngle,140.);
