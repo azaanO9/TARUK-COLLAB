@@ -167,5 +167,21 @@ export function createMarsColony(scene:T.Scene, surface?:T.Texture, panelSurface
   let saved=0;for(const station of targets)saved+=batchStaticMeshes(station,animated);
   saved+=batchStaticMeshes(root,new Set([...targets,...animated]));root.userData.staticDrawCallsSaved=saved;
   const obstacles=colonyCollision(STATIONS);obstacles.push(...terrain.obstacles);
-  return {root,targets,indicators,panels,tanks,foods,wheelMeshes,dish,obstacles,habitatWindow,heightAt:terrain.heightAt};
+  return {
+    root,
+    targets,
+    indicators,
+    panels,
+    tanks,
+    foods,
+    wheelMeshes,
+    dish,
+    obstacles,
+    habitatWindow,
+    heightAt:terrain.heightAt,
+    roverHeightAt:terrain.roverHeightAt,
+    mudAt:terrain.mudAt,
+    stampRoverTracks:terrain.stampRoverTracks,
+    disposeTracks:terrain.disposeTracks,
+  };
 }

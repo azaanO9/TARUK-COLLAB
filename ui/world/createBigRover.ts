@@ -490,7 +490,8 @@ export function createBigRover(
     const sinYaw = Math.sin(rover.yaw);
     const cosYaw = Math.cos(rover.yaw);
 
-    for (const w of activeWheels) {
+    for (let i = 0; i < activeWheels.length; i++) {
+      const w = activeWheels[i];
       // Rotate tire around axle with wheelRoll (spins forward when driving forward)
       w.wheelMesh.rotation.x = rover.wheelRoll;
 
@@ -499,8 +500,14 @@ export function createBigRover(
         w.pivot.rotation.y = rover.steerAngle;
       }
 
-      // Real suspension reacting to Mars terrain profile
-      if (heightAt) {
+      // Real 6-wheel suspension reacting to Mars surface profile & rocker-bogie compression
+      if (rover.wheelCompression && rover.wheelCompression[i] !== undefined) {
+        const targetOffset = rover.wheelCompression[i];
+        w.suspensionOffset +=
+          (targetOffset - w.suspensionOffset) * (1 - Math.exp(-22 * dt));
+        const travel = Math.max(-0.18, Math.min(0.18, w.suspensionOffset));
+        w.pivot.position.y = w.baseY + travel;
+      } else if (heightAt) {
         const worldWheelX = rover.x + cosYaw * w.baseX + sinYaw * w.baseZ;
         const worldWheelZ = rover.z - sinYaw * w.baseX + cosYaw * w.baseZ;
         const terrainH = heightAt(worldWheelX, worldWheelZ);
@@ -521,8 +528,12 @@ export function createBigRover(
     lensL.visible = isNight || rover.driving;
     lensR.visible = isNight || rover.driving;
 
-    // 4. Regolith tire dust plume behind rear wheels
+    // 4. Regolith & mud tire dust plume behind rear wheels
     const moving = Math.abs(rover.speed) > 0.8;
+    const mud = rover.mudDepth ?? 0;
+    dustMat.color.setHex(mud > 0.3 ? 0x6e4731 : 0xc87d4f);
+    dustMat.size = 0.35 + mud * 0.15;
+
     if (moving && dt > 0) {
       for (let k = 0; k < 2; k++) {
         const i = dustIndex;

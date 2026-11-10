@@ -32,3 +32,236 @@
 @media(max-width:800px){.junior-root .junior-header{left:10px;right:10px;top:10px;font-size:13px}.junior-header>b{padding:10px}.junior-header>strong{left:50%;min-width:145px;padding:10px;font-size:12px}.junior-header>button{font-size:12px;min-height:38px;padding:7px}.junior-root .junior-hud{left:10px;top:65px;width:135px;font-size:14px;padding:5px 9px}.junior-hud>div:not(.junior-rank){padding:2px 0}.junior-root .junior-compass{top:61px;left:auto;right:10px;transform:none;max-width:44vw;white-space:normal;font-size:12px;padding:9px}.mars-mission-tools{left:10px;bottom:175px;width:155px;padding:8px;font-size:12px}.mars-notebook-actions button{font-size:12px;flex:1}.mars-mission-tools small{display:none}.junior-root .mars-sage{right:10px;bottom:75px;max-width:185px;font-size:14px;padding:9px}.junior-root .sage-face{display:none}.junior-root .sage-options summary{font-size:12px}.junior-root .sv-look-controls{top:110px;max-width:165px}.junior-root .junior-shift{right:10px;left:auto;transform:none;bottom:14px;max-width:190px;font-size:12px;padding:10px}.junior-root .junior-hint{top:245px}}
 
 @media(max-width:800px){.junior-root .sage-options summary{min-height:44px;display:flex;align-items:center}.junior-root .mars-sage{max-height:35vh;overflow:auto}}
+
+/* === AAA GTA V Tactical Radar & Mars Survival HUD === */
+.junior-root .junior-certificate-button {
+  top: 78px;
+  bottom: auto;
+  left: 24px;
+  border-radius: 7px;
+  font: 700 12px Arial, sans-serif;
+}
+
+.gta-hud-cluster {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 3;
+  width: 228px;
+  display: grid;
+  gap: 6px;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.gta-rank-strip {
+  background: rgba(13, 21, 29, 0.9);
+  border: 1px solid rgba(185, 153, 116, 0.34);
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #e9dcc7;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+}
+
+.gta-rank-strip .junior-rank {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 6px;
+  font-size: 12px;
+}
+
+.gta-rank-strip progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 5px;
+  accent-color: #9acd32;
+}
+
+.gta-rank-strip .mars-notebook-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.gta-rank-strip .mars-notebook-actions button {
+  flex: 1;
+  min-height: 36px;
+  border: 1px solid rgba(185, 153, 116, 0.36);
+  background: #202d38;
+  color: #f2e4d0;
+  border-radius: 5px;
+  font: 600 12px Arial, sans-serif;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+
+.gta-rank-strip .mars-notebook-actions button:hover {
+  background: #2c3e4d;
+}
+
+.gta-radar-frame {
+  position: relative;
+  width: 224px;
+  height: 136px;
+  border: 2px solid rgba(255, 255, 255, 0.24);
+  border-radius: 7px;
+  overflow: hidden;
+  background: #0b141c;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.72), inset 0 0 18px rgba(0, 0, 0, 0.8);
+}
+
+.gta-radar-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.gta-radar-tag {
+  position: absolute;
+  top: 6px;
+  left: 7px;
+  background: rgba(11, 20, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  color: #cbd5e1;
+  font: 700 9px/1 monospace;
+  padding: 3px 5px;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
+.gta-mud-tag {
+  position: absolute;
+  bottom: 6px;
+  left: 7px;
+  background: rgba(180, 83, 9, 0.88);
+  border: 1px solid #fb923c;
+  border-radius: 3px;
+  color: #fff7ed;
+  font: 700 9px/1 monospace;
+  padding: 3px 5px;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+
+.gta-vitals-bars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  background: rgba(11, 19, 27, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 6px 7px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+}
+
+.gta-bar-col {
+  display: grid;
+  gap: 3px;
+}
+
+.gta-bar-track {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.gta-bar-fill {
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.gta-bar-fill.bar-oxygen {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+.gta-bar-fill.bar-suit {
+  background: linear-gradient(90deg, #0284c7, #38bdf8);
+}
+
+.gta-bar-fill.bar-power {
+  background: linear-gradient(90deg, #d97706, #facc15);
+}
+
+.gta-bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: 700 10px/1 monospace;
+  color: #cbd5e1;
+}
+
+.gta-bar-label i {
+  font-style: normal;
+  color: #94a3b8;
+}
+
+.gta-bar-label strong {
+  color: #f8fafc;
+}
+
+.gta-secondary-res {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(11, 19, 27, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font: 600 10px/1.2 monospace;
+  color: #cbd5e1;
+}
+
+.gta-secondary-res b {
+  color: #f6ebd8;
+}
+
+.gta-secondary-res small {
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+@media (max-width: 1050px) {
+  .gta-hud-cluster {
+    width: 196px;
+  }
+  .gta-radar-frame {
+    width: 196px;
+    height: 118px;
+  }
+}
+
+@media (max-width: 800px) {
+  .gta-hud-cluster {
+    left: 10px;
+    bottom: 12px;
+    width: 168px;
+    gap: 4px;
+  }
+  .gta-radar-frame {
+    width: 168px;
+    height: 98px;
+  }
+  .gta-rank-strip {
+    padding: 6px;
+  }
+  .gta-rank-strip .mars-notebook-actions button {
+    font-size: 11px;
+    min-height: 34px;
+  }
+  .gta-secondary-res small {
+    display: none;
+  }
+  .junior-root .junior-certificate-button {
+    top: 66px;
+    left: 10px;
+  }
+}
+
+@media (pointer: coarse) {
+  .gta-hud-cluster {
+    left: 10px;
+    bottom: 168px;
+  }
+}

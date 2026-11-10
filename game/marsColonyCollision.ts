@@ -1,7 +1,9 @@
 export const MARS_HABITAT = {x:-2,z:-26,scale:1.27,radius:6.75} as const;
 /** Circular navigation boundaries for the new visual footprints, including the open bunker doorway. */
 export function colonyCollision(stations:readonly {id:string;x:number;z:number}[]) {
- const obstacles=stations.filter(s=>s.id!=="shelter"&&s.id!=="lookout").map(s=>({x:s.x,z:s.z,radius:s.id==="solar"?2.2:s.id==="rover"?2:s.id==="research"?3:s.id==="food"?1.8:1.4}));
+ const obstacles: { x: number; z: number; radius: number; id?: string }[] = stations
+   .filter(s=>s.id!=="shelter"&&s.id!=="lookout")
+   .map(s=>({id:s.id,x:s.x,z:s.z,radius:s.id==="solar"?2.2:s.id==="rover"?2:s.id==="research"?3:s.id==="food"?1.8:1.4}));
  obstacles.push({x:MARS_HABITAT.x,z:MARS_HABITAT.z,radius:MARS_HABITAT.radius});
  const shelter=stations.find(s=>s.id==="shelter");
  if(shelter){

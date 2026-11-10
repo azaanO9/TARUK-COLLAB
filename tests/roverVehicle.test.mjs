@@ -6,6 +6,7 @@ import {
   enterRover,
   exitRover,
   stepRoverVehicle,
+  getRoverGear,
   ROVER_MAX_FORWARD,
   ROVER_MAX_REVERSE,
   ROVER_LIMIT,
@@ -97,4 +98,45 @@ test("finite bounds prevent leaving map", () => {
     rover = stepRoverVehicle(rover, new Set(["w"]), 0.05);
   }
   assert.ok(rover.z >= -ROVER_LIMIT);
+});
+
+test("getRoverGear reports D for forward, R for reverse, and N for neutral", () => {
+  assert.equal(getRoverGear(0), "N");
+  assert.equal(getRoverGear(0.05), "N");
+  assert.equal(getRoverGear(-0.08), "N");
+  assert.equal(getRoverGear(2.5), "D");
+  assert.equal(getRoverGear(-1.8), "R");
+});
+
+test("pitch and roll conform accurately without sinking on slopes", () => {
+  // Terrain rising along -Z (uphill forward when yaw = 0) and rising along +X (right side high)
+  const slopeHeight = (x, z) => -0.25 * z + 0.15 * x;
+  let rover = enterRover(spawnRoverVehicle(0, 0, 0, slopeHeight));
+  for (let i = 0; i < 40; i++) {
+    rover = stepRoverVehicle(rover, new Set(["w"]), 0.05, [], slopeHeight);
+  }
+  assert.ok(rover.pitch > 0.15, `expected positive nose-up pitch, got ${rover.pitch}`);
+  assert.ok(rover.roll > 0.08, `expected positive right-high roll, got ${rover.roll}`);
+  assert.ok(rover.chassisY > slopeHeight(rover.x, rover.z), "chassisY remains above terrain surface");
+});
+
+test("traversable rocks and rover pad do not block driving while suspension articulates", () => {
+  const obstacles = [
+    { id: "rover", x: 17, z: 10, radius: 2 },
+    { x: 17, z: 6, radius: 0.7, traversable: true },
+  ];
+  const rockBumpHeight = (x, z) => (Math.hypot(x - 17, z - 6) < 0.8 ? 0.3 : 0);
+  let rover = enterRover(spawnRoverVehicle(17, 10, 0, rockBumpHeight));
+  for (let i = 0; i < 45; i++) {
+    rover = stepRoverVehicle(rover, new Set(["w"]), 0.05, obstacles, rockBumpHeight);
+  }
+  assert.ok(rover.z < 5, `rover should drive seamlessly over its pad and traversable rocks, reached z=${rover.z}`);
+
+  // When front-left wheel rests on a local rock bump, left rocker articulates upward
+  const leftRock = (x, z) => (x < 0 && z < -1.0 ? 0.28 : 0);
+  let art = enterRover(spawnRoverVehicle(0, 0, 0, leftRock));
+  for (let i = 0; i < 20; i++) {
+    art = stepRoverVehicle(art, new Set(), 0.05, [], leftRock);
+  }
+  assert.ok(art.leftRockerAngle > 0.02, `expected positive left rocker articulation, got ${art.leftRockerAngle}`);
 });

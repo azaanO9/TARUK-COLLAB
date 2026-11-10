@@ -20,10 +20,12 @@ A full-scale, six-wheeled heavy exploration rover (`ui/world/createBigRover.ts`,
   - `Space`: Emergency handbrake with rapid stopping deceleration.
   - `V`: Switch between third-person chase camera and first-person interior cockpit view.
 - **Physical Integration**:
-  - Six all-terrain wheels with 3D treads and titanium alloy hubs rotate proportionally to driving speed.
+  - Six all-terrain wheels with 3D treads and titanium alloy hubs rotate proportionally to driving speed, with real-time rocker-bogie suspension linkages (`leftRockerAngle`, `rightRockerAngle`, `leftBogieAngle`, `rightBogieAngle`, `wheelCompression`) clamping all six wheels to triangle-exact terrain and traversable scattered rocks (`ui/world/marsTerrain.ts`).
   - Front wheel assemblies physically pivot on their steering yokes.
-  - Dynamic terrain conformity samples front/rear and left/right Mars elevation for smooth pitch and roll over dunes and crater slopes.
-  - Dual high-beam LED headlights with directional illumination; taillights intensify under braking and reverse.
+  - Dynamic terrain conformity samples all six wheel contact coordinates plus center belly clearance, with O(1) spatial-hash small-rock traversal and soft-mud drag/sinkage (`mudDepthAt`).
+  - SnowRunner-style dynamic tire rut and raised berm deformation (`ui/world/marsTrackDeformation.ts`) updates a 1024×1024 GPU track buffer via 48×48 sub-patch transfers without altering resource reserves.
+  - Dual shadow-casting spotlights with custom volumetric light cones (`createBigRover.ts`) illuminate night/eclipse exploration; taillights brighten under braking and reverse.
+  - Dedicated GTA V style bottom-left radar HUD (`MarsHud`) and transmission gear readout (`getRoverGear`: `'D'`, `'R'`, `'N'`).
   - Pure vehicle physics live in `game/roverVehicle.ts` and are verified in `tests/roverVehicle.test.mjs`. Driving has no supply penalties.
 
 The player can switch between first- and third-person cameras with V or the view button. Pointer movement over the world rotates the camera, with an adjustable sensitivity; pointer capture remains optional. The astronaut and landing sequence are presentation only and never alter survival state. The TARUKH opening precedes a skippable, reduced-motion-aware rough landing, then the player starts day one. Day seven presents an authored crater-route decision; existing retry and resource rules continue to apply.

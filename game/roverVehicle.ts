@@ -1,4 +1,4 @@
-/** Pure exploration rover vehicle physics and open-world kinematics. */
+/** Pure exploration rover vehicle physics, 6-wheel rocker-bogie suspension, and open-world kinematics. */
 export const ROVER_LIMIT = 85;
 export const ROVER_ENTER_RADIUS = 4.8;
 export const ROVER_MAX_FORWARD = 13.5; // ~48.6 km/h illustrative top speed
@@ -10,9 +10,30 @@ export const ROVER_COAST_DRAG = 3.4;   // rolling friction m/s^2
 export const ROVER_STEER_MAX = 0.52;   // ~30 degrees max front wheel turn
 export const ROVER_STEER_SPEED = 3.4;  // rad/s steering response
 export const ROVER_WHEEL_BASE = 3.2;   // meters between front and rear axles
-export const ROVER_TRACK_WIDTH = 2.4;  // meters between left and right wheel track
-export const ROVER_WHEEL_RADIUS = 0.58;// meters radius of heavy tire
-export const ROVER_COLLISION_RADIUS = 1.9; // bounding obstacle radius
+export const ROVER_TRACK_WIDTH = 2.9;  // meters between left and right wheel track
+export const ROVER_WHEEL_RADIUS = 0.58;// meters inner tire radius
+export const ROVER_WHEEL_OUTER_RADIUS = 0.63; // tire + tread rib outer radius
+export const ROVER_COLLISION_RADIUS = 1.9;    // bounding obstacle radius
+export const ROVER_CHASSIS_CLEARANCE = 0.015; // anti-Z-fighting surface clearance bias
+
+export const ROVER_WHEEL_OFFSETS: readonly (readonly [number, number])[] = [
+  [-1.45, -1.6], // 0: Front Left
+  [1.45, -1.6],  // 1: Front Right
+  [-1.45, 0.0],  // 2: Mid Left
+  [1.45, 0.0],   // 3: Mid Right
+  [-1.45, 1.6],  // 4: Rear Left
+  [1.45, 1.6],   // 5: Rear Right
+];
+
+export type RoverGear = "D" | "R" | "N";
+
+export type RoverObstacle = {
+  x: number;
+  z: number;
+  radius: number;
+  id?: string;
+  traversable?: boolean;
+};
 
 export type RoverVehicle = {
   x: number;
@@ -21,24 +42,168 @@ export type RoverVehicle = {
   speed: number;        // forward positive, reverse negative (m/s)
   steerAngle: number;   // radians, positive left, negative right
   wheelRoll: number;    // cumulative wheel rotation in radians
-  pitch: number;        // chassis terrain slope pitch in radians
-  roll: number;         // chassis terrain slope roll in radians
+  pitch: number;        // chassis terrain slope pitch in radians (positive = nose up)
+  roll: number;         // chassis terrain slope roll in radians (positive = right side up)
+  chassisY: number;     // anti-clipped world Y position of rover root
+  wheelContacts: [number, number, number, number, number, number];
+  wheelCompression: [number, number, number, number, number, number];
+  leftRockerAngle: number;
+  rightRockerAngle: number;
+  leftBogieAngle: number;
+  rightBogieAngle: number;
+  mudDepth: number;     // 0..1 current soft regolith/mud factor under rover
   driving: boolean;     // whether astronaut is seated inside driving
   handbrake: boolean;   // whether handbrake is active
 };
 
-export const spawnRoverVehicle = (x = 17, z = 10, yaw = 0): RoverVehicle => ({
-  x,
-  z,
-  yaw,
-  speed: 0,
-  steerAngle: 0,
-  wheelRoll: 0,
-  pitch: 0,
-  roll: 0,
-  driving: false,
-  handbrake: false,
-});
+export function getRoverGear(speed: number): RoverGear {
+  if (speed > 0.12) return "D";
+  if (speed < -0.12) return "R";
+  return "N";
+}
+
+const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+
+export function solveRockerBogieSuspension(
+  x: number,
+  z: number,
+  yaw: number,
+  prevChassisY: number,
+  prevPitch: number,
+  prevRoll: number,
+  prevCompression: readonly number[],
+  heightAt: (wx: number, wz: number) => number,
+  mudAt: (wx: number, wz: number) => number,
+  dt: number,
+) {
+  const cosY = Math.cos(yaw);
+  const sinY = Math.sin(yaw);
+
+  const contacts: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+  let mudSum = 0;
+
+  for (let i = 0; i < 6; i++) {
+    const [lx, lz] = ROVER_WHEEL_OFFSETS[i];
+    const wx = x + lx * cosY + lz * sinY;
+    const wz = z - lx * sinY + lz * cosY;
+    const mud = clamp(mudAt(wx, wz), 0, 1);
+    mudSum += mud;
+    // Tires press slightly into soft mud while hard regolith holds zero sinkage
+    const sink = mud * 0.075;
+    contacts[i] = heightAt(wx, wz) - sink;
+  }
+
+  const mudDepth = mudSum / 6;
+  const centerGround = heightAt(x, z) - mudDepth * 0.05;
+
+  const frontAvg = 0.5 * (contacts[0] + contacts[1]);
+  const rearAvg = 0.5 * (contacts[4] + contacts[5]);
+  const leftAvg = (contacts[0] + contacts[2] + contacts[4]) / 3;
+  const rightAvg = (contacts[1] + contacts[3] + contacts[5]) / 3;
+  const avgWheelY = (contacts[0] + contacts[1] + contacts[2] + contacts[3] + contacts[4] + contacts[5]) / 6;
+
+  // Corrected right-handed Euler("YXZ") signs:
+  // +pitch lifts -Z (front) UP; +roll lifts +X (right) UP.
+  const targetPitch = Math.atan2(frontAvg - rearAvg, ROVER_WHEEL_BASE);
+  const targetRoll = Math.atan2(rightAvg - leftAvg, ROVER_TRACK_WIDTH);
+
+  const orientBlend = dt > 0 ? 1 - Math.exp(-14 * dt) : 1;
+  const pitch = prevPitch + (targetPitch - prevPitch) * orientBlend;
+  const roll = prevRoll + (targetRoll - prevRoll) * orientBlend;
+
+  const sinP = Math.sin(pitch);
+  const cosP = Math.cos(pitch);
+  const sinR = Math.sin(roll);
+
+  // Prevent belly skid frame (bottom at +0.34m) from clipping crests,
+  // and prevent any individual wheel from exceeding maximum upward suspension travel (+0.32m).
+  const maxComp = 0.32;
+  let minChassisFromWheels = -Infinity;
+  for (let i = 0; i < 6; i++) {
+    const [lx, lz] = ROVER_WHEEL_OFFSETS[i];
+    const planeOffset = lx * sinR * cosP - lz * sinP;
+    const req = contacts[i] - planeOffset - maxComp;
+    if (req > minChassisFromWheels) minChassisFromWheels = req;
+  }
+  const bellyGuardY = centerGround - 0.14;
+  const targetChassisY = Math.max(avgWheelY, bellyGuardY, minChassisFromWheels) + ROVER_CHASSIS_CLEARANCE;
+
+  const heightBlend = dt > 0 ? 1 - Math.exp(-18 * dt) : 1;
+  // Never lag below the required ground support height when climbing slopes or rocks
+  const blendedY = prevChassisY + (targetChassisY - prevChassisY) * heightBlend;
+  const chassisY = Math.max(blendedY, targetChassisY);
+
+  const compression: [number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0];
+  const suspBlend = dt > 0 ? 1 - Math.exp(-22 * dt) : 1;
+  for (let i = 0; i < 6; i++) {
+    const [lx, lz] = ROVER_WHEEL_OFFSETS[i];
+    const nominalWheelBottomY = chassisY + lx * sinR * cosP - lz * sinP;
+    const rawDelta = clamp(contacts[i] - nominalWheelBottomY, -0.26, maxComp);
+    compression[i] = prevCompression[i] + (rawDelta - prevCompression[i]) * suspBlend;
+  }
+
+  // Bogie pivots between Mid (z=0.0) and Rear (z=1.6), Rocker connects Front (z=-1.6) to Bogie pivot (z=+0.8)
+  const leftBogieAngle = Math.atan2(compression[2] - compression[4], 1.6);
+  const rightBogieAngle = Math.atan2(compression[3] - compression[5], 1.6);
+  const leftBogieLift = 0.5 * (compression[2] + compression[4]);
+  const rightBogieLift = 0.5 * (compression[3] + compression[5]);
+  const leftRockerAngle = Math.atan2(compression[0] - leftBogieLift, 2.4);
+  const rightRockerAngle = Math.atan2(compression[1] - rightBogieLift, 2.4);
+
+  return {
+    chassisY,
+    pitch,
+    roll,
+    contacts,
+    compression,
+    leftRockerAngle,
+    rightRockerAngle,
+    leftBogieAngle,
+    rightBogieAngle,
+    mudDepth,
+  };
+}
+
+export const spawnRoverVehicle = (
+  x = 17,
+  z = 10,
+  yaw = 0,
+  heightAt: (wx: number, wz: number) => number = () => 0,
+): RoverVehicle => {
+  const initialY = heightAt(x, z) + ROVER_CHASSIS_CLEARANCE;
+  const settled = solveRockerBogieSuspension(
+    x,
+    z,
+    yaw,
+    initialY,
+    0,
+    0,
+    [0, 0, 0, 0, 0, 0],
+    heightAt,
+    () => 0,
+    0,
+  );
+  return {
+    x,
+    z,
+    yaw,
+    speed: 0,
+    steerAngle: 0,
+    wheelRoll: 0,
+    pitch: settled.pitch,
+    roll: settled.roll,
+    chassisY: settled.chassisY,
+    wheelContacts: settled.contacts,
+    wheelCompression: settled.compression,
+    leftRockerAngle: settled.leftRockerAngle,
+    rightRockerAngle: settled.rightRockerAngle,
+    leftBogieAngle: settled.leftBogieAngle,
+    rightBogieAngle: settled.rightBogieAngle,
+    mudDepth: 0,
+    driving: false,
+    handbrake: false,
+  };
+};
 
 export function canEnterRover(
   walker: { x: number; z: number },
@@ -62,8 +227,8 @@ export function exitRover(
   rover: RoverVehicle,
 ): { rover: RoverVehicle; exitPosition: { x: number; z: number } } {
   // Exit to the driver's side (left flank of the vehicle)
-  const exitX = rover.x - Math.cos(rover.yaw) * 2.3;
-  const exitZ = rover.z + Math.sin(rover.yaw) * 2.3;
+  const exitX = rover.x - Math.cos(rover.yaw) * 2.4;
+  const exitZ = rover.z + Math.sin(rover.yaw) * 2.4;
   return {
     rover: {
       ...rover,
@@ -82,20 +247,43 @@ export function stepRoverVehicle(
   rover: RoverVehicle,
   keys: ReadonlySet<string>,
   seconds: number,
-  obstacles: readonly { x: number; z: number; radius: number }[] = [],
+  obstacles: readonly RoverObstacle[] = [],
   heightAt: (x: number, z: number) => number = () => 0,
+  mudAt: (x: number, z: number) => number = () => 0,
 ): RoverVehicle {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (dt <= 0) return rover;
 
   if (!rover.driving) {
-    // When parked, friction holds the rover stationary
+    // When parked, friction holds the rover stationary and suspension settles on terrain
     const speed = Math.abs(rover.speed) < 0.05 ? 0 : rover.speed * Math.exp(-14 * dt);
+    const settled = solveRockerBogieSuspension(
+      rover.x,
+      rover.z,
+      rover.yaw,
+      rover.chassisY,
+      rover.pitch,
+      rover.roll,
+      rover.wheelCompression,
+      heightAt,
+      mudAt,
+      dt,
+    );
     return {
       ...rover,
       speed,
       handbrake: true,
       steerAngle: rover.steerAngle * Math.exp(-6 * dt),
+      chassisY: settled.chassisY,
+      pitch: settled.pitch,
+      roll: settled.roll,
+      wheelContacts: settled.contacts,
+      wheelCompression: settled.compression,
+      leftRockerAngle: settled.leftRockerAngle,
+      rightRockerAngle: settled.rightRockerAngle,
+      leftBogieAngle: settled.leftBogieAngle,
+      rightBogieAngle: settled.rightBogieAngle,
+      mudDepth: settled.mudDepth,
     };
   }
 
@@ -106,7 +294,12 @@ export function stepRoverVehicle(
   const handbrakeKey = keys.has(" ") || keys.has("space") || keys.has("handbrake");
 
   let speed = rover.speed;
-  let handbrake = handbrakeKey;
+  const handbrake = handbrakeKey;
+
+  // SnowRunner mud drag slows top cruise speed slightly in deep soft regolith while keeping torque high
+  const mudFactor = clamp(rover.mudDepth, 0, 1);
+  const effectiveMaxForward = ROVER_MAX_FORWARD * (1 - mudFactor * 0.28);
+  const effectiveCoastDrag = ROVER_COAST_DRAG * (1 + mudFactor * 1.15);
 
   // Steering angle rate of change
   const steerInput = Number(leftKey) - Number(rightKey);
@@ -129,24 +322,21 @@ export function stepRoverVehicle(
     }
   } else if (forwardKey && !reverseKey) {
     if (speed < 0) {
-      // Act as brake if moving backwards
       speed = Math.min(0, speed + ROVER_BRAKE * dt);
     } else {
-      speed = Math.min(ROVER_MAX_FORWARD, speed + ROVER_ACCELERATION * dt);
+      speed = Math.min(effectiveMaxForward, speed + ROVER_ACCELERATION * dt);
     }
   } else if (reverseKey && !forwardKey) {
     if (speed > 0) {
-      // Act as brake if moving forward
       speed = Math.max(0, speed - ROVER_BRAKE * dt);
     } else {
       speed = Math.max(-ROVER_MAX_REVERSE, speed - ROVER_ACCELERATION * 0.75 * dt);
     }
   } else {
-    // Rolling resistance when no pedals pressed
     if (speed > 0) {
-      speed = Math.max(0, speed - ROVER_COAST_DRAG * dt);
+      speed = Math.max(0, speed - effectiveCoastDrag * dt);
     } else if (speed < 0) {
-      speed = Math.min(0, speed + ROVER_COAST_DRAG * dt);
+      speed = Math.min(0, speed + effectiveCoastDrag * dt);
     }
   }
 
@@ -164,8 +354,9 @@ export function stepRoverVehicle(
   let x = rover.x - Math.sin(yaw) * speed * dt;
   let z = rover.z - Math.cos(yaw) * speed * dt;
 
-  // Obstacle collision deflection
+  // Obstacle collision deflection — ignore rover's own drive-on bay pad & small traversable rocks
   for (const o of obstacles) {
+    if (o.id === "rover" || o.traversable) continue;
     const dx = x - o.x;
     const dz = z - o.z;
     const minDist = o.radius + ROVER_COLLISION_RADIUS;
@@ -175,7 +366,7 @@ export function stepRoverVehicle(
       const nz = dz / d;
       x = o.x + nx * minDist;
       z = o.z + nz * minDist;
-      speed *= 0.35; // absorb impact
+      speed *= 0.45; // smooth glancing deflection instead of dead stop
     }
   }
 
@@ -189,31 +380,23 @@ export function stepRoverVehicle(
     speed = 0;
   }
 
-  // Wheel rolling rotation
-  const wheelRoll = rover.wheelRoll + (speed * dt) / ROVER_WHEEL_RADIUS;
+  // Wheel rolling rotation (subtle extra wheel spin in soft mud!)
+  const slipRatio = 1 + mudFactor * 0.25;
+  const wheelRoll = rover.wheelRoll + (speed * slipRatio * dt) / ROVER_WHEEL_OUTER_RADIUS;
 
-  // Pitch and roll conform to terrain slope
-  const halfWheelBase = ROVER_WHEEL_BASE * 0.5;
-  const frontX = x - Math.sin(yaw) * halfWheelBase;
-  const frontZ = z - Math.cos(yaw) * halfWheelBase;
-  const rearX = x + Math.sin(yaw) * halfWheelBase;
-  const rearZ = z + Math.cos(yaw) * halfWheelBase;
-  const frontY = heightAt(frontX, frontZ);
-  const rearY = heightAt(rearX, rearZ);
-  const targetPitch = Math.atan2(rearY - frontY, ROVER_WHEEL_BASE);
-
-  const halfTrack = ROVER_TRACK_WIDTH * 0.5;
-  const leftX = x - Math.cos(yaw) * halfTrack;
-  const leftZ = z + Math.sin(yaw) * halfTrack;
-  const rightX = x + Math.cos(yaw) * halfTrack;
-  const rightZ = z - Math.sin(yaw) * halfTrack;
-  const leftY = heightAt(leftX, leftZ);
-  const rightY = heightAt(rightX, rightZ);
-  const targetRoll = Math.atan2(leftY - rightY, ROVER_TRACK_WIDTH);
-
-  const blend = 1 - Math.exp(-12 * dt);
-  const pitch = rover.pitch + (targetPitch - rover.pitch) * blend;
-  const roll = rover.roll + (targetRoll - rover.roll) * blend;
+  // 6-wheel Rocker-Bogie terrain clamping & articulation
+  const suspension = solveRockerBogieSuspension(
+    x,
+    z,
+    yaw,
+    rover.chassisY,
+    rover.pitch,
+    rover.roll,
+    rover.wheelCompression,
+    heightAt,
+    mudAt,
+    dt,
+  );
 
   return {
     x,
@@ -222,10 +405,17 @@ export function stepRoverVehicle(
     speed,
     steerAngle,
     wheelRoll,
-    pitch,
-    roll,
+    pitch: suspension.pitch,
+    roll: suspension.roll,
+    chassisY: suspension.chassisY,
+    wheelContacts: suspension.contacts,
+    wheelCompression: suspension.compression,
+    leftRockerAngle: suspension.leftRockerAngle,
+    rightRockerAngle: suspension.rightRockerAngle,
+    leftBogieAngle: suspension.leftBogieAngle,
+    rightBogieAngle: suspension.rightBogieAngle,
+    mudDepth: suspension.mudDepth,
     driving: true,
     handbrake,
   };
 }
-
