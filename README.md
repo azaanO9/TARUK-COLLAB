@@ -8,7 +8,7 @@ The astronaut used in Mars exploration is an original animated procedural model.
 
 The Mars art now includes a detailed pressure habitat and service stations, original ground and hardware textures, a continuous canyon landscape, and a rebuilt astronaut and Sage bay. See [graphics verification and screenshots](docs/GRAPHICS_UPDATE.md).
 
-The current Mars ground uses a rocky ochre sample from the supplied Mars One reference, with lighter textured stones. The solar station has three long tables, each carrying two cell-grid modules on 32° braced stands with anchored feet. The reference's white base modules are not imported. See [asset credits](ASSET_CREDITS.md) for the ground texture attribution; terrain heights, rover suspension, tracks and the solar activity remain active.
+The Mars surface uses continuous world-space dust, gravel and crust shading with irregular drifts and depressions; only equipment pads are level. The supplied Mars One texture is retained on individual stones, rather than tiled across the ground. The solar station has three long tables, each carrying two cell-grid modules on 32° braced stands with anchored feet. The reference's white base modules are not imported. See [asset credits](ASSET_CREDITS.md) for the stone texture attribution. Walking uses swept capsule contacts and wall sliding; the rover uses its full oriented body footprint, collision-aware steering and safe exit checks. Terrain heights, rover suspension, dry tracks and the solar activity remain active.
 
 ## Run and verify
 

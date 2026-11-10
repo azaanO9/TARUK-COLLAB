@@ -19,3 +19,11 @@ test('long solar tables block their outer stands while leaving a reachable inspe
  }
 });
 
+test('empty rover bay is walkable while its service console remains solid',()=>{
+ const bay=colonyCollision([{id:'rover',x:17,z:10}]);
+ let w={x:17,z:15,vx:0,vz:0,yaw:0};
+ for(let i=0;i<100;i++)w=stepWalker(w,new Set(['w']),1/60,bay);
+ assert.ok(w.z<9,'drive-on pad must not act like an invisible parked vehicle');
+ assert.ok(bay.some(o=>o.id==='rover-service-post'));
+});
+

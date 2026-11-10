@@ -1,4 +1,5 @@
 /** Pure exploration rover vehicle physics, 6-wheel rocker-bogie suspension, and open-world kinematics. */
+import { boxObstacle, moveAndSlide, overlapBody, overlapDisc, type CollisionObstacle } from "./collision.ts";
 export const ROVER_LIMIT = 85;
 export const ROVER_ENTER_RADIUS = 4.8;
 export const ROVER_MAX_FORWARD = 13.5; // ~48.6 km/h illustrative top speed
@@ -13,7 +14,8 @@ export const ROVER_WHEEL_BASE = 2.849;   // meters between front and rear axles
 export const ROVER_TRACK_WIDTH = 2.85;  // meters between left and right wheel track
 export const ROVER_WHEEL_RADIUS = 0.3206;// meters inner tire radius
 export const ROVER_WHEEL_OUTER_RADIUS = 0.3206; // tire + tread rib outer radius
-export const ROVER_COLLISION_RADIUS = 1.9;    // bounding obstacle radius
+export const ROVER_COLLISION_RADIUS = Math.hypot(1.69, 2.475);
+export const roverFootprint = (x:number,z:number,yaw:number) => boxObstacle(x,z,1.69,2.475,"parked-rover",yaw);
 export const ROVER_CHASSIS_CLEARANCE = 0.015; // anti-Z-fighting surface clearance bias
 
 export const ROVER_WHEEL_OFFSETS: readonly (readonly [number, number])[] = [
@@ -27,13 +29,7 @@ export const ROVER_WHEEL_OFFSETS: readonly (readonly [number, number])[] = [
 
 export type RoverGear = "D" | "R" | "N";
 
-export type RoverObstacle = {
-  x: number;
-  z: number;
-  radius: number;
-  id?: string;
-  traversable?: boolean;
-};
+export type RoverObstacle = CollisionObstacle;
 
 export type RoverVehicle = {
   x: number;
@@ -230,10 +226,17 @@ export function enterRover(rover: RoverVehicle): RoverVehicle {
 
 export function exitRover(
   rover: RoverVehicle,
-): { rover: RoverVehicle; exitPosition: { x: number; z: number } } {
+  obstacles: readonly RoverObstacle[] = [],
+): { rover: RoverVehicle; exitPosition: { x: number; z: number } | null } {
   // Exit to the driver's side (left flank of the vehicle)
-  const exitX = rover.x - Math.cos(rover.yaw) * 2.4;
-  const exitZ = rover.z + Math.sin(rover.yaw) * 2.4;
+  let exitPosition: {x:number;z:number}|null=null;
+  for(const [side,end] of [[-2.4,0],[2.4,0],[-2.4,1.5],[2.4,1.5],[0,3.2],[0,-3.2]]){
+    const x=rover.x+Math.cos(rover.yaw)*side+Math.sin(rover.yaw)*end;
+    const z=rover.z-Math.sin(rover.yaw)*side+Math.cos(rover.yaw)*end;
+    if(Math.abs(x)>ROVER_LIMIT||Math.abs(z)>ROVER_LIMIT)continue;
+    if(!obstacles.some(o=>o.id!=="rover"&&overlapDisc(x,z,.36,o))){exitPosition={x,z};break;}
+  }
+  if(!exitPosition)return {rover,exitPosition:null};
   return {
     rover: {
       ...rover,
@@ -241,10 +244,7 @@ export function exitRover(
       speed: 0,
       handbrake: true,
     },
-    exitPosition: {
-      x: Math.max(-ROVER_LIMIT, Math.min(ROVER_LIMIT, exitX)),
-      z: Math.max(-ROVER_LIMIT, Math.min(ROVER_LIMIT, exitZ)),
-    },
+    exitPosition,
   };
 }
 
@@ -355,25 +355,22 @@ export function stepRoverVehicle(
     while (yaw < -Math.PI) yaw += Math.PI * 2;
   }
 
-  // Displacement
-  let x = rover.x - Math.sin(yaw) * speed * dt;
-  let z = rover.z - Math.cos(yaw) * speed * dt;
-
-  // Obstacle collision deflection — ignore rover's own drive-on bay pad & small traversable rocks
-  for (const o of obstacles) {
-    if (o.id === "rover" || o.traversable) continue;
-    const dx = x - o.x;
-    const dz = z - o.z;
-    const minDist = o.radius + ROVER_COLLISION_RADIUS;
-    const d = Math.hypot(dx, dz);
-    if (d < minDist && d > 0.0001) {
-      const nx = dx / d;
-      const nz = dz / d;
-      x = o.x + nx * minDist;
-      z = o.z + nz * minDist;
-      speed *= 0.45; // smooth glancing deflection instead of dead stop
-    }
+  const solid = obstacles.filter(o=>o.id!=="rover"&&!o.traversable);
+  // Reject rotation into nearby hardware instead of letting the rear swing through it.
+  const turn=Math.atan2(Math.sin(yaw-rover.yaw),Math.cos(yaw-rover.yaw));
+  let safeYaw=rover.yaw;
+  const turns=Math.max(1,Math.ceil(Math.abs(turn)/.015));
+  for(let i=1;i<=turns;i++){
+    const candidate=rover.yaw+turn*i/turns, shape=roverFootprint(0,0,candidate);
+    if(solid.some(o=>overlapBody(rover.x,rover.z,shape,o)))break;
+    safeYaw=candidate;
   }
+  yaw=safeYaw;
+  const shape=roverFootprint(0,0,yaw);
+  const moved=moveAndSlide(rover.x,rover.z,-Math.sin(yaw)*speed*dt,-Math.cos(yaw)*speed*dt,[shape],solid,ROVER_LIMIT);
+  let x=moved.x,z=moved.z;
+  const travelled=(x-rover.x)*-Math.sin(yaw)+(z-rover.z)*-Math.cos(yaw);
+  if(moved.normals.length) speed=Math.sign(speed)*Math.min(Math.abs(speed),Math.max(0,travelled*Math.sign(speed)/dt));
 
   // Boundary limits
   if (x < -ROVER_LIMIT || x > ROVER_LIMIT) {
@@ -387,7 +384,7 @@ export function stepRoverVehicle(
 
   // Wheel rolling rotation (subtle extra wheel spin in soft mud!)
   const slipRatio = 1 + mudFactor * 0.25;
-  const wheelRoll = rover.wheelRoll + (speed * slipRatio * dt) / ROVER_WHEEL_OUTER_RADIUS;
+  const wheelRoll = rover.wheelRoll + travelled * slipRatio / ROVER_WHEEL_OUTER_RADIUS;
 
   // 6-wheel Rocker-Bogie terrain clamping & articulation
   const suspension = solveRockerBogieSuspension(
