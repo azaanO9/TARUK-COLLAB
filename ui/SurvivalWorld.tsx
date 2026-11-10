@@ -305,6 +305,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         lastRoverSpeed = 0,
         pitch = -0.04,
         dragging = false,
+        lookPointer: number | null = null,
         px = 0,
         py = 0,
         frame = 0,
@@ -364,7 +365,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         );
         element.focus();
         if (!current.current.enabled) return;
+        if (dragging) return;
         dragging = true;
+        lookPointer = e.pointerId;
         px = e.clientX;
         py = e.clientY;
         if (e.pointerType === "mouse" && e.target === renderer.domElement && document.pointerLockElement !== element && !captureDenied) lockAction.current();
@@ -389,7 +392,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           );
         } else if (
           current.current.enabled &&
-          dragging
+          dragging && e.pointerId === lookPointer
         ) {
           walker.yaw -=
             (e.clientX - px) * 0.0023 * cameraSettings.current.sensitivity;
@@ -398,8 +401,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           py = e.clientY;
         }
       };
-      const up = () => {
-        dragging = false;
+      const up = (e: PointerEvent) => {
+        if (e.pointerId === lookPointer) { dragging = false; lookPointer = null; }
       };
       const keydown = (e: KeyboardEvent) => {
         if (!current.current.enabled || document.activeElement !== element)
@@ -456,6 +459,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const blur = () => {
         keys.clear();
         dragging = false;
+        lookPointer = null;
       };
       const lockChange = () => {
         const captured = document.pointerLockElement === element;
@@ -928,10 +932,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                   aria-label={label}
                   onPointerDown={(e) => {
                     e.preventDefault();
+                    e.currentTarget.setPointerCapture(e.pointerId);
                     touch(key, true);
                   }}
                   onPointerUp={() => touch(key, false)}
                   onPointerCancel={() => touch(key, false)}
+                  onLostPointerCapture={() => touch(key, false)}
                 >
                   {text}
                 </button>
