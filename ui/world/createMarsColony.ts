@@ -5,9 +5,10 @@ import { createMarsTerrain } from "./marsTerrain";
 import { createColonyMaterials, colonyBuilder } from "./colonyMaterials";
 import { batchStaticMeshes } from "./batchStaticMeshes";
 import { createMarsSolarArray } from "./createMarsSolarArray";
+import type { MarsSurfaceTextures } from "./marsSurfaceTextures";
 
 /** Detailed original Mars colony. It shares station IDs and navigation with the existing game. */
-export function createMarsColony(scene:T.Scene, surface?:T.Texture, panelSurface?:T.Texture) {
+export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture) {
   const root=new T.Group();scene.add(root);
   const terrain=createMarsTerrain(root, surface), m=createColonyMaterials(panelSurface), b=colonyBuilder(m);
   const targets:T.Group[]=[], indicators:Record<string,T.MeshStandardMaterial>={}, panels:T.Mesh[]=[], tanks:T.Mesh[]=[], foods:T.Mesh[]=[], wheelMeshes:T.Mesh[]=[];

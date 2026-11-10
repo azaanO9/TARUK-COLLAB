@@ -1,0 +1,74 @@
+[
+  {
+    "asset": "sandy_gravel_02",
+    "kind": "Diffuse",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/sandy_gravel_02/sandy_gravel_02_diff_2k.jpg",
+    "md5": "0ae7373189752d85642f589c12093ec2",
+    "actualMD5": "0ae7373189752d85642f589c12093ec2",
+    "local": "sandy_gravel_02-Diffuse.jpg"
+  },
+  {
+    "asset": "sandy_gravel_02",
+    "kind": "Displacement",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/sandy_gravel_02/sandy_gravel_02_disp_2k.jpg",
+    "md5": "80a407836815156ed536f1ece7f042a1",
+    "actualMD5": "80a407836815156ed536f1ece7f042a1",
+    "local": "sandy_gravel_02-Displacement.jpg"
+  },
+  {
+    "asset": "sandy_gravel_02",
+    "kind": "Rough",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/sandy_gravel_02/sandy_gravel_02_rough_2k.jpg",
+    "md5": "753a7d079971702788c0b2501de65b1a",
+    "actualMD5": "753a7d079971702788c0b2501de65b1a",
+    "local": "sandy_gravel_02-Rough.jpg"
+  },
+  {
+    "asset": "dry_ground_rocks",
+    "kind": "Diffuse",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/dry_ground_rocks/dry_ground_rocks_diff_2k.jpg",
+    "md5": "3106a1157ea4c6823b78494988ac0269",
+    "actualMD5": "3106a1157ea4c6823b78494988ac0269",
+    "local": "dry_ground_rocks-Diffuse.jpg"
+  },
+  {
+    "asset": "dry_ground_rocks",
+    "kind": "Displacement",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/dry_ground_rocks/dry_ground_rocks_disp_2k.jpg",
+    "md5": "a9c72cb0108f1ac54b611798cddc1422",
+    "actualMD5": "a9c72cb0108f1ac54b611798cddc1422",
+    "local": "dry_ground_rocks-Displacement.jpg"
+  },
+  {
+    "asset": "dry_ground_rocks",
+    "kind": "Rough",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/dry_ground_rocks/dry_ground_rocks_rough_2k.jpg",
+    "md5": "5a461a436095cbe54cbd1de156bdc164",
+    "actualMD5": "5a461a436095cbe54cbd1de156bdc164",
+    "local": "dry_ground_rocks-Rough.jpg"
+  },
+  {
+    "asset": "dark_rock",
+    "kind": "Diffuse",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/dark_rock/dark_rock_diff_2k.jpg",
+    "md5": "980167324d1d407197227619a80cfb71",
+    "actualMD5": "980167324d1d407197227619a80cfb71",
+    "local": "dark_rock-Diffuse.jpg"
+  },
+  {
+    "asset": "dark_rock",
+    "kind": "Displacement",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/dark_rock/dark_rock_disp_2k.jpg",
+    "md5": "cc8215577da08ea453fbff28bf48e35c",
+    "actualMD5": "cc8215577da08ea453fbff28bf48e35c",
+    "local": "dark_rock-Displacement.jpg"
+  },
+  {
+    "asset": "dark_rock",
+    "kind": "Rough",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/2k/dark_rock/dark_rock_rough_2k.jpg",
+    "md5": "375269be32375407880ab60ac0154ea5",
+    "actualMD5": "375269be32375407880ab60ac0154ea5",
+    "local": "dark_rock-Rough.jpg"
+  }
+]
