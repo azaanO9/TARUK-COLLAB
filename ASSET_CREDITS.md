@@ -1,5 +1,7 @@
 # Current Mars asset provenance
 
+- `ui/world/roverWindowContours.ts`: measured glazing outlines derived from the NASA MMSEV asset below. `ui/world/roverCockpit.ts` is an original procedural game interior, visually inspired by the supplied cockpit reference. No reference-image pixels are distributed and the controls are not presented as an authentic NASA cabin reconstruction.
+
 - `public/models/space-exploration-vehicle-ready.glb`: delivery derivative of the credited NASA MMSEV below. `scripts/prepare-rover.mjs` bakes the existing coordinate transform and six tire/upright partitions offline, removes unused PNG fallback copies, and writes Draco-compressed geometry with the original WebP textures. Every one of the 413,198 source triangles is retained. Download size is 8,004,036 bytes versus 22,431,576 bytes for the archived source; no simplification changes the vehicle's silhouette or collision footprint. Attribution and NASA's usage terms are unchanged.
 - `public/art/mars-surface/sandy-gravel-*`: [Sandy Gravel 02](https://polyhaven.com/a/sandy_gravel_02), Dario Barresi / Poly Haven.
 - `public/art/mars-surface/dry-rocky-soil-*`: [Dry Ground Rocks](https://polyhaven.com/a/dry_ground_rocks), Rob Tuytel / Poly Haven.

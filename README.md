@@ -14,6 +14,8 @@ The solar station has three long tables, each carrying two cell-grid modules on 
 
 Loading uses the offline-prepared NASA rover (8.0 MB instead of 22.4 MB), parallel model/texture downloads, and lossless WebP terrain relief maps. Models finish loading and both rover camera views are warmed before exploration. The cockpit light stays in the scene with its intensity switched, avoiding a new scene-wide lighting shader variant when changing cameras. Auto/Performance skip optional postprocessing allocation; High/Ultra load those effects on demand. Auto resolution uses sustained performance samples rather than resizing buffers every few seconds. Graphics diagnostics expose startup time and the last rover-camera frame's CPU submission time/new shader-program count; these measurements depend on hardware, cache and connection and are not FPS guarantees.
 
+The rover cockpit has an original graphite cabin, ivory console surrounds, recessed live instruments, a steering stick, throttle, seats, harnesses and cabin lighting. Its seven front openings use contours measured from the NASA MMSEV glazing, including the lower windows and central divider. The seat and default look angle fit that window arrangement. Static interior fittings are batched by material and camera warmup remains enabled. This is an artistic game interior, not a reconstruction of NASA's actual cabin controls. See [cockpit fitting and validation](docs/ROVER_COCKPIT.md).
+
 ## Run and verify
 
 Use Node 22.18+ and pnpm 11.25.0. Run `pnpm install --frozen-lockfile`, then `pnpm dev` and open http://127.0.0.1:5173/. Run `pnpm test`, `pnpm typecheck`, and `pnpm build` for checks. Historical notes are in [docs/ARCHIVE.md](docs/ARCHIVE.md).
