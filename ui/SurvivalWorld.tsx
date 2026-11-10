@@ -9,6 +9,7 @@ import { boxObstacle } from "../game/collision";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints } from "./world/marsTerrain";
+import { loadMarsSurfaceTextures, disposeMarsSurfaceTextures } from "./world/marsSurfaceTextures";
 import { createRiggedAstronaut } from "./world/createRiggedAstronaut";
 import { createBigRover } from "./world/createBigRover";
 import { graphicsTier } from "./world/graphicsTiers";
@@ -172,10 +173,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const [regolithSurface,panelSurface] = props.planet === "mars" ? await Promise.all([
-        new T.TextureLoader().loadAsync(assetUrl("/art/mars-one-ground-atlas.jpg")).catch(() => undefined),
+        loadMarsSurfaceTextures(),
         new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
       ]) : [undefined,undefined];
-      if (cancelled) {regolithSurface?.dispose();panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
+      if (cancelled) {disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       setLoadingStage("Preparing explorers and equipment…");
@@ -1005,6 +1006,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         bigRover?.dispose();
         marsAstronaut?.dispose();
         model.disposeTracks?.();
+        disposeMarsSurfaceTextures(regolithSurface);
         scene.traverse((o) => {
           const m = o as Mesh;
           m.geometry?.dispose();

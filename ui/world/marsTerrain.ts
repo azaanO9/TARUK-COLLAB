@@ -4,6 +4,7 @@ import { terrainFbm, terrainNoise } from "./terrainNoise.ts";
 import { createMarsTrackSystem, TRACK_WORLD_HALF } from "./marsTrackDeformation.ts";
 import type { RoverVehicle } from "../../game/roverVehicle.ts";
 import { SAGE_DOCK } from "../../game/sageCompanion.ts";
+import { fallbackMarsSurfaceTextures, stochasticSurfaceGLSL, type MarsSurfaceTextures } from "./marsSurfaceTextures.ts";
 
 // One continuous surface is sampled by geometry, stones, boots and camera.
 const craters = [[24, -29, 7, 2.1], [38, -48, 12, 3.5], [62, -22, 9, 2.8], [-48, 24, 15, 4], [-55, -52, 20, 5.5], [51, 57, 22, 6]];
@@ -77,36 +78,9 @@ export function colonySurfaceElevation(x: number, z: number): number {
 
 type TraversableRock = { x: number; z: number; r: number; bump: number };
 
-export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
+export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures) {
   const obstacles: { x: number; z: number; radius: number; traversable?: boolean }[] = [];
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 512;
-  const ctx = canvas.getContext("2d")!;
-  const pixels = ctx.createImageData(512, 512);
-  for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
-    const i = (y * 512 + x) * 4;
-    const grain = random(x + y * 512) * 22 - 11;
-    const dune = Math.sin(x * .22 + Math.sin(y * .018) * 3 + Math.sin(y * .071)) * 4;
-    const mottling = terrainFbm(x * .024, y * .024) * 23;
-    pixels.data[i] = 165 + grain + dune + mottling;
-    pixels.data[i + 1] = 108 + grain * .7 + dune * .7 + mottling * .8;
-    pixels.data[i + 2] = 72 + grain * .45 + dune * .45 + mottling * .6;
-    pixels.data[i + 3] = 255;
-  }
-  ctx.putImageData(pixels, 0, 0);
-  // Sample only a continuous ground region of the supplied model's terrain atlas.
-  // The atlas's black UV gaps and its other islands never enter the game surface.
-  if (surface?.image) {
-    ctx.drawImage(surface.image, 50, 50, 650, 600, 0, 0, 512, 512);
-    surface.dispose();
-  }
-  const map = new T.CanvasTexture(canvas);
-  map.wrapS = map.wrapT = T.MirroredRepeatWrapping;
-  map.repeat.set(38, 38);
-  map.colorSpace = T.SRGBColorSpace;
-  map.anisotropy = 4;
-  const bump = map.clone();
-  bump.colorSpace = T.NoColorSpace;
+  const surfaces = suppliedSurfaces ?? fallbackMarsSurfaceTextures();
 
   const PLANE_SIZE = 420;
   const PLANE_HALF = PLANE_SIZE * 0.5;
@@ -152,10 +126,10 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
 
   const colors = new Float32Array(pos.count * 3);
   const color = new T.Color();
-  const rust = new T.Color(0xf5e9d6);
-  const ochre = new T.Color(0xfff4df);
-  const basalt = new T.Color(0xb5a797);
-  const darkMud = new T.Color(0x5e473a);
+  const rust = new T.Color(0xffe2cc);
+  const ochre = new T.Color(0xfff1dd);
+  const basalt = new T.Color(0xc2b4a4);
+  const darkMud = new T.Color(0xa99582);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), slope = 1 - geometry.attributes.normal.getY(i);
     const patch = terrainFbm(x * .037, z * .037);
@@ -172,9 +146,9 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   const trackSystem = createMarsTrackSystem();
 
   const groundMat = new T.MeshStandardMaterial({
-    map,
-    bumpMap: bump,
-    bumpScale: .075,
+    map: surfaces.sand.color,
+    bumpMap: surfaces.sand.relief,
+    bumpScale: .035,
     vertexColors: true,
     roughness: .96,
   });
@@ -183,6 +157,8 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   groundMat.onBeforeCompile = shader => {
     shader.uniforms.uTrackMap = { value: trackSystem.texture };
     shader.uniforms.uTrackBounds = { value: TRACK_WORLD_HALF };
+    shader.uniforms.uGravelColor = { value: surfaces.gravel.color };
+    shader.uniforms.uGravelRelief = { value: surfaces.gravel.relief };
 
     shader.vertexShader = `
       uniform sampler2D uTrackMap;
@@ -205,32 +181,33 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
     shader.fragmentShader = `
       uniform sampler2D uTrackMap;
       uniform float uTrackBounds;
+      uniform sampler2D uGravelColor;
+      uniform sampler2D uGravelRelief;
       varying vec3 vTrackWorldPos;
-      float soilHash(vec2 p) { return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-      float soilNoise(vec2 p) {
-        vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
-        return mix(mix(soilHash(i),soilHash(i+vec2(1,0)),f.x),mix(soilHash(i+vec2(0,1)),soilHash(i+vec2(1,1)),f.x),f.y);
-      }
+      ${stochasticSurfaceGLSL}
     \n` + shader.fragmentShader;
 
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <map_fragment>",
-      `// Continuous world-space soil: no mirrored image, baked rock shadows, or tile boundaries.
+      `// Scanned soil, randomized in world space with smooth non-repeating transitions.
       vec2 soilP=vTrackWorldPos.xz;
       vec2 warp=vec2(soilNoise(soilP*.045),soilNoise(soilP*.045+27.3))*7.0;
       float dustField=soilNoise((soilP+warp)*.09);
-      float gravelField=smoothstep(.42,.72,soilNoise(soilP*.16+warp));
-      float crust=soilNoise(soilP*.71+warp);
+      float gravelField=smoothstep(.34,.70,soilNoise(soilP*.085+warp));
       float grain=soilNoise(soilP*36.0);
-      float grains=smoothstep(.68,.89,soilNoise(soilP*13.0+warp));
       float ripple=sin(dot(soilP,vec2(5.1,2.7))+soilNoise(soilP*.38)*6.0);
-      vec3 soilColor=mix(vec3(.27,.125,.057),vec3(.48,.285,.14),smoothstep(.18,.83,dustField));
-      soilColor=mix(soilColor,vec3(.245,.19,.14),gravelField*.40);
-      soilColor*=.86+crust*.25+(grain-.5)*(.10+gravelField*.28);
-      soilColor+=vec3(.16,.13,.09)*grains*gravelField;
-      soilColor*=1.0+ripple*.026*(1.0-gravelField);
+      // Source footprints are approximately 2.53m and 4m; preserve believable grain size.
+      SoilSample dustScan=soilSample(map,bumpMap,soilP/2.53);
+      SoilSample gravelScan=soilSample(uGravelColor,uGravelRelief,soilP/4.0+19.7);
+      vec3 scannedColor=mix(dustScan.color,gravelScan.color,gravelField);
+      // Desaturate green/yellow Earth-scan traces, then grade into an iron-dust palette.
+      float luminance=dot(scannedColor,vec3(.2126,.7152,.0722));
+      vec3 soilColor=mix(vec3(luminance),scannedColor,.42)*vec3(1.23,.91,.72);
+      soilColor*=mix(.83,1.14,dustField);
       diffuseColor.rgb*=soilColor;
-      float soilRelief=(grain-.5)*.003+grains*gravelField*.012+ripple*.006*(1.0-gravelField);
+      float soilRoughness=mix(dustScan.relief.g,gravelScan.relief.g,gravelField);
+      float soilRelief=mix(dustScan.relief.r*.028,gravelScan.relief.r*.075,gravelField)
+        +(grain-.5)*.0015+ripple*.003*(1.0-gravelField);
       vec2 fTrackUv = (vTrackWorldPos.xz + uTrackBounds) / (uTrackBounds * 2.0);
       vec4 fTrack = vec4(0.0);
       float fChevron = 0.0;
@@ -253,6 +230,7 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <roughnessmap_fragment>",
       `#include <roughnessmap_fragment>
+      roughnessFactor=clamp(.82+soilRoughness*.18,.88,1.0);
       if (fTrack.r > 0.03) {
         roughnessFactor = mix(roughnessFactor, 0.89, clamp(fTrack.r * 0.78, 0.0, 0.78));
       }`,
@@ -280,14 +258,22 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
       }`,
     );
   };
-  groundMat.customProgramCacheKey = () => "tarukh-continuous-soil-v3";
+  groundMat.customProgramCacheKey = () => "tarukh-scanned-stochastic-soil-v1";
   const ground = new T.Mesh(geometry, groundMat);
   ground.receiveShadow = true;
   root.add(ground);
 
-  const rockMap = map.clone(); rockMap.repeat.set(1, 1);
-  const rockBump = rockMap.clone(); rockBump.colorSpace = T.NoColorSpace;
-  const rockMat = new T.MeshStandardMaterial({ color: 0xf0dfc2, map: rockMap, bumpMap: rockBump, bumpScale: .11, roughness: 1 });
+  const rockMat = new T.MeshStandardMaterial({ map: surfaces.rock.color, bumpMap: surfaces.rock.relief, roughnessMap: surfaces.rock.relief, bumpScale: .055, roughness: 1 });
+  rockMat.onBeforeCompile = shader => {
+    shader.fragmentShader=shader.fragmentShader.replace("#include <map_fragment>", `
+      vec3 scan=texture2D(map,vMapUv).rgb;
+      float rockDetail=dot(scan,vec3(.2126,.7152,.0722));
+      // Exposed dark stone with a warm dust coating, sharing the soil palette.
+      diffuseColor.rgb*=mix(vec3(.07,.043,.029),vec3(.38,.245,.145),smoothstep(.008,.085,rockDetail));
+    `).replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+      roughnessFactor=max(.88,roughnessFactor);`);
+  };
+  rockMat.customProgramCacheKey=()=>"tarukh-dust-coated-scan-rock-v1";
   const makeRock = (detail: number, variant: number) => {
     const geo = new T.IcosahedronGeometry(1, detail), p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {
@@ -354,7 +340,9 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
       dummy.rotation.set(0, seed * .6, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(index, dummy.matrix);
-      color.setHSL(.085 + random(seed) * .025, .12 + random(seed + 5) * .12, .53 + random(seed + 6) * .24);
+      const dustCoat=terrainNoise(x*.065,z*.065);
+      color.setRGB(.62+random(seed)*.38,.65+random(seed+5)*.25,.67+random(seed+6)*.22);
+      color.lerp(new T.Color(1,.90,.77),dustCoat*.55);
       mesh.setColorAt(index, color);
     }
   }
@@ -362,26 +350,9 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   root.add(small);
   for (const rocks of large) { rocks.castShadow = rocks.receiveShadow = true; root.add(rocks); }
 
-  // Two depth layers of deeply eroded mesas. Vertex colours survive static batching.
-  const cliffCanvas = document.createElement("canvas");
-  cliffCanvas.width = cliffCanvas.height = 512;
-  const cliffCtx = cliffCanvas.getContext("2d")!, cliffPixels = cliffCtx.createImageData(512, 512);
-  for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
-    const i = (y * 512 + x) * 4;
-    const bands = Math.sin(y * .16 + terrainNoise(x * .02, y * .009) * 2) * 12 + Math.sin(y * .65) * 4;
-    const fissure = Math.max(0, Math.sin(x * .17 + Math.sin(y * .015)) - .7) * 40;
-    const grit = random(x + y * 512) * 24;
-    const value = 210 + bands - fissure + grit;
-    cliffPixels.data[i] = value; cliffPixels.data[i + 1] = value; cliffPixels.data[i + 2] = value; cliffPixels.data[i + 3] = 255;
-  }
-  cliffCtx.putImageData(cliffPixels, 0, 0);
-  const cliffMap = new T.CanvasTexture(cliffCanvas);
-  cliffMap.wrapS = cliffMap.wrapT = T.RepeatWrapping;
-  cliffMap.repeat.set(4, 2);
-  cliffMap.colorSpace = T.SRGBColorSpace;
-
-  const cliffMat = new T.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, map: cliffMap });
-  const close = new T.Color(0xac6f49), lightStrata = new T.Color(0xca9566), dustHaze = new T.Color(0xba8c73);
+  // Scanned fracture detail on all cliff faces; one dust/stone palette throughout.
+  const cliffMat = new T.MeshStandardMaterial({ vertexColors: true, map: surfaces.rock.color, bumpMap: surfaces.rock.relief, bumpScale: .1, roughness: .98 });
+  const close = new T.Color(0x93715a), lightStrata = new T.Color(0xc39874), dustHaze = new T.Color(0xba9277);
   const landscape = new T.PlaneGeometry(720, 720, 240, 240);
   landscape.rotateX(-Math.PI / 2);
   const lp = landscape.attributes.position, landColors = new Float32Array(lp.count * 3);
@@ -408,22 +379,32 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
     color.toArray(landColors, i * 3);
   }
   landscape.setAttribute("color", new T.BufferAttribute(landColors, 3));
-  cliffMap.repeat.set(1, 1);
   cliffMat.onBeforeCompile = shader => {
     shader.vertexShader = "varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n" + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
       vCanyonPosition=(modelMatrix*vec4(position,1.)).xyz;
       vCanyonNormal=normalize(mat3(modelMatrix)*normal);`);
-    shader.fragmentShader = "varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n" + shader.fragmentShader;
+    shader.fragmentShader = "varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n" + stochasticSurfaceGLSL + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", `#ifdef USE_MAP
-      vec3 blend=abs(normalize(vCanyonNormal));blend/=max(.001,blend.x+blend.y+blend.z);
-      vec3 cliffGrain=texture2D(map,vCanyonPosition.yz*.065).rgb*blend.x;
-      cliffGrain+=texture2D(map,vCanyonPosition.xz*.065).rgb*blend.y;
-      cliffGrain+=texture2D(map,vCanyonPosition.xy*.065).rgb*blend.z;
-      diffuseColor.rgb*=mix(vec3(.83),vec3(1.12),cliffGrain);
+      vec3 blend=pow(abs(normalize(vCanyonNormal)),vec3(4));blend/=max(.001,blend.x+blend.y+blend.z);
+      vec3 cliffP=vCanyonPosition*.18;
+      cliffP+=vec3(soilNoise(vCanyonPosition.xz*.027),soilNoise(vCanyonPosition.xy*.031),soilNoise(vCanyonPosition.yz*.029))*.32;
+      vec3 cliffGrain=texture2D(map,cliffP.yz).rgb*blend.x;
+      cliffGrain+=texture2D(map,cliffP.xz).rgb*blend.y;
+      cliffGrain+=texture2D(map,cliffP.xy).rgb*blend.z;
+      float detail=dot(cliffGrain,vec3(.2126,.7152,.0722));
+      float bands=sin(vCanyonPosition.y*.9+soilNoise(vCanyonPosition.xz*.08)*2.4);
+      float dust=soilNoise(vCanyonPosition.xz*.025);
+      diffuseColor.rgb*=clamp(.55+detail*10.0,.55,1.2)*(.96+bands*.04)*mix(.85,1.12,dust);
+      float cliffRelief=texture2D(bumpMap,cliffP.yz).r*blend.x;
+      cliffRelief+=texture2D(bumpMap,cliffP.xz).r*blend.y;
+      cliffRelief+=texture2D(bumpMap,cliffP.xy).r*blend.z;
+      cliffRelief=cliffRelief*.12+bands*.025;
       #endif`);
+    shader.fragmentShader=shader.fragmentShader.replace("#include <normal_fragment_maps>",
+      "normal=perturbNormalArb(-vViewPosition,normal,vec2(dFdx(cliffRelief),dFdy(cliffRelief)),faceDirection);");
   };
-  cliffMat.customProgramCacheKey = () => "tarukh-canyon-world-grain-v1";
+  cliffMat.customProgramCacheKey = () => "tarukh-canyon-scanned-fractures-v1";
   const canyon = new T.Mesh(landscape, cliffMat);
   root.add(canyon);
 
