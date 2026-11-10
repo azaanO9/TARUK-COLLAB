@@ -143,6 +143,19 @@ function partitionRoverMesh(
       }
     }
 
+    // Exclude upper suspension module (the brown steering housing and twin white canisters in the green circle):
+    // They sit directly above the wheel axle (dy > 0.15m), within radial reach r < 0.44m, and inboard of the outer face (|cx| < 1.45m).
+    // Keeping them on the chassis ensures they stay stationary and do not tumble or rotate with the wheel.
+    if (assigned >= 0) {
+      const c = wheelCenters[assigned];
+      const dy = cy - c.y;
+      const dz = cz - c.z;
+      const r_yz = Math.hypot(dy, dz);
+      if (dy > 0.15 && r_yz < 0.44 && Math.abs(cx) < 1.45) {
+        assigned = -1;
+      }
+    }
+
     if (assigned >= 0) {
       wheelTriangles[assigned].push(i0, i1, i2);
     } else {
