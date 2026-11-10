@@ -28,6 +28,20 @@ A full-scale, six-wheeled heavy exploration rover (`ui/world/createBigRover.ts`,
 
 The player can switch between first- and third-person cameras with V or the view button. Pointer movement over the world rotates the camera, with an adjustable sensitivity; pointer capture remains optional. The astronaut and landing sequence are presentation only and never alter survival state. The TARUKH opening precedes a skippable, reduced-motion-aware rough landing, then the player starts day one. Day seven presents an authored crater-route decision; existing retry and resource rules continue to apply.
 
+### Rigged astronaut & procedural Mars gait engine
+- `ui/world/createRiggedAstronaut.ts` loads rigged `.glb`/`.gltf` character models using modern Three.js `GLTFLoader` with `DRACOLoader` support (`/draco/`).
+  - Target model location: `/models/astronaut.glb` (with seamless automatic fallback to the procedural EVA astronaut if the downloaded asset is not yet placed in `public/models/`).
+  - Normalizes geometry scale and grounds boot soles automatically at $y = 0$.
+  - Sets `castShadow = true` and `receiveShadow = true` across all child meshes and ensures color space fidelity (`outputColorSpace = THREE.SRGBColorSpace`).
+  - Resolves internal bone hierarchies dynamically (supports Mixamo, standard glTF Biped, Blender Rigify, and 3ds Max Biped naming schemes).
+- `game/marsGait.ts` implements pure low-gravity (~0.38g) biomechanical locomotion:
+  - **Bounding / Floatiness**: Extended stride period ($~1.2\text{ Hz}$ base cadence) with pronounced vertical hip bounce ($~0.085\text{m}$ amplitude) following a ballistic hang-time curve.
+  - **Foot Plant**: Legs reach forward during the stride swing to absorb forward momentum before touchdown.
+  - **Counter-Balance**: Arms swing in opposition to legs with natural EVA space-suit lateral abduction ($~12^\circ - 14^\circ$ roll).
+  - **Grounding**: Ankle dorsiflexion during forward swing and planar alignment on plant prevents clipping through terrain or appearing weightless.
+  - **Airborne & Idle**: Smooth exponential blending into low-gravity floating poses during jumps, and subtle chest breathing with micro-sway while stationary.
+  - Pure gait calculations are verified in `tests/riggedAstronaut.test.mjs`.
+
 `createSurvival()` and `survivalReducer` in `game/survivalEngine.ts` own state. `currentDay`, `offeredPlans`, `readyToPlan`, and `changeReserves` are pure helpers. State tracks phase (`arrival`, `explore`, `result`, `failed`, `ending`), zero-based day, food/water/power/oxygen reserves, daily checkpoint, current radiation-risk index, discovered station IDs, attempts, current result, follow-up response, science and a stable choice seed.
 
 | Action | Contract |

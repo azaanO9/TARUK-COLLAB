@@ -7,7 +7,7 @@ import { MARS_PHYSICS } from "../game/marsConfig";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints, marsHeight } from "./world/marsTerrain";
-import { createMarsAstronaut } from "./world/marsDetails";
+import { createRiggedAstronaut } from "./world/createRiggedAstronaut";
 import { createBigRover } from "./world/createBigRover";
 import { graphicsTier } from "./world/graphicsTiers";
 import {
@@ -271,7 +271,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       part(new T.BoxGeometry(0.24, 0.1, 0.26), accent, -0.5, 1.23, 0);
       part(new T.BoxGeometry(0.24, 0.1, 0.26), accent, 0.5, 1.23, 0);
       scene.add(astronaut);
-      const marsAstronaut = props.planet === "mars" ? createMarsAstronaut() : null;
+      const marsAstronaut = props.planet === "mars" ? createRiggedAstronaut("/models/astronaut.glb") : null;
       if (marsAstronaut) { astronaut.clear(); astronaut.add(marsAstronaut.root); }
       const sun = new T.Mesh(
         new T.SphereGeometry(4, 24, 16),
@@ -645,11 +645,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           gaitPhase += speed * dt * 2.4;
           gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
           const stride = reduced.matches ? 0 : Math.sin(gaitPhase) * .38 * gaitBlend;
-          marsAstronaut?.animate(stride, jump.height > .1);
-          leftLeg.rotation.x = stride;
-          rightLeg.rotation.x = -stride;
-          leftArm.rotation.x = -stride * 0.65;
-          rightArm.rotation.x = stride * 0.65;
+          if (marsAstronaut) {
+            marsAstronaut.update(dt, speed, jump.height > 0.08, jump.height);
+          } else {
+            leftLeg.rotation.x = stride;
+            rightLeg.rotation.x = -stride;
+            leftArm.rotation.x = -stride * 0.65;
+            rightArm.rotation.x = stride * 0.65;
+          }
           const back = third ? (props.planet === "mars" ? 5.8 : 4.3) : 0;
           const shoulder = third ? (props.planet === "mars" ? .22 : .8) : 0;
           cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
@@ -842,6 +845,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
         environment?.dispose();
         bigRover?.dispose();
+        marsAstronaut?.dispose();
         scene.traverse((o) => {
           const m = o as Mesh;
           m.geometry?.dispose();
