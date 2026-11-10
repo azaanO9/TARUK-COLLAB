@@ -4,7 +4,11 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { ROVER_WHEEL_OFFSETS, ROVER_WHEEL_OUTER_RADIUS, type RoverVehicle } from "../../game/roverVehicle";
 import { partitionRoverMesh, type RoverWheelAssembly } from "./roverWheelAssembly";
 
+import { createRoverCockpit, positionRoverCockpitCamera } from "./roverCockpit";
+
 export type BigRoverHandle = {
+  setCockpitView: (enabled: boolean) => void;
+  positionCockpitCamera: (camera: T.Camera, yaw: number, pitch: number) => void;
   root: T.Group;
   headlightL: T.SpotLight;
   headlightR: T.SpotLight;
@@ -31,7 +35,10 @@ export function createBigRover(
   const root = new T.Group();
   root.name = "BigRover";
 
-  let loadedModel: T.Object3D | null = null;
+  let cockpitView = false;
+  let exteriorBody: T.Object3D | null = null;
+  const cockpit = createRoverCockpit();
+  root.add(cockpit.root);
   let isModelLoaded = false;
   let activeWheels: RoverWheelAssembly[] = [];
 
@@ -55,6 +62,7 @@ export function createBigRover(
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
   fallback.add(bodyMesh);
+  exteriorBody = bodyMesh;
 
   // 6 wheels on fallback chassis with working suspension pivots
   const fallbackWheels: RoverWheelAssembly[] = [];
@@ -251,6 +259,8 @@ export function createBigRover(
       const partitioned = partitionRoverMesh(targetMesh);
       if (partitioned) {
         assembledGroup.add(partitioned.chassisMesh);
+        exteriorBody = partitioned.chassisMesh;
+        exteriorBody.visible = !cockpitView;
         for (const w of partitioned.wheels) {
           assembledGroup.add(w.pivot);
         }
@@ -273,7 +283,7 @@ export function createBigRover(
       // Swap out procedural fallback with the authentic NASA SEV assembly
       root.remove(fallback);
       root.add(assembledGroup);
-      loadedModel = assembledGroup;
+
       isModelLoaded = true;
 
       console.info(
@@ -301,6 +311,8 @@ export function createBigRover(
     // 1. Position & orientation of chassis in world coordinates
     root.position.set(rover.x, groundY, rover.z);
     root.rotation.set(rover.pitch, rover.yaw, rover.roll, "YXZ");
+
+    if (cockpitView) cockpit.update(rover);
 
     // 2. Rotate tires with vehicle roll, steer front wheels, and calculate independent suspension travel
     const sinYaw = Math.sin(rover.yaw);
@@ -381,6 +393,7 @@ export function createBigRover(
   // 6. DISPOSE FUNCTION
   // ==========================================
   function dispose() {
+    cockpit.texture.dispose();
     dracoLoader.dispose();
     root.traverse((o) => {
       if (o instanceof T.Mesh || o instanceof T.Points) {
@@ -398,6 +411,14 @@ export function createBigRover(
   }
 
   return {
+    setCockpitView(enabled) {
+      cockpitView = enabled;
+      cockpit.root.visible = enabled;
+      if (exteriorBody) exteriorBody.visible = !enabled;
+    },
+    positionCockpitCamera(camera, yaw, pitch) {
+      positionRoverCockpitCamera(camera, root, yaw, pitch);
+    },
     root,
     headlightL,
     headlightR,
