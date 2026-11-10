@@ -36,7 +36,7 @@ export default function LunarLanding({
       <div className="landing-ridge" />
       <div className="landing-dust" />
       <div className="landing-ship" aria-hidden="true">
-        {planet === "mars" ? <img src="/art/mars-lander.png" alt="" /> :
+        {planet === "mars" ? <img src="/art/mars-lander.webp" alt="" /> :
         <svg viewBox="0 0 240 270">
           <path
             d="M120 12C80 48 61 96 66 175L43 212H197L174 175C179 96 160 48 120 12Z"

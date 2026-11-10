@@ -42,6 +42,7 @@ type Props = {
   onInspect: (id: string) => void;
   onView: (view: View) => void;
   onUnavailable: () => void;
+  initialQuality?: "auto" | "performance";
 };
 export type SurvivalWorldHandle = {
   captureMouse: () => void;
@@ -66,12 +67,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     }),
     [],
   );
-  const [loaded, setLoaded] = useState(false),
+  const [loadingStage, setLoadingStage] = useState("Loading mission equipment…"),
+    [loadingProgress, setLoadingProgress] = useState(10),
+    [loaded, setLoaded] = useState(false),
     [locked, setLocked] = useState(false),
     [message, setMessage] = useState(""),
     [thirdPerson, setThirdPerson] = useState(true),
     [sensitivity, setSensitivity] = useState(1),
-    [quality, setQuality] = useState(props.planet === "mars" ? "auto" : "high");
+    [quality, setQuality] = useState(props.initialQuality ?? (props.planet === "mars" ? "auto" : "high"));
   const cameraSettings = useRef({ thirdPerson, sensitivity, quality });
   cameraSettings.current = { thirdPerson, sensitivity, quality };
   useEffect(() => {
@@ -91,9 +94,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         import("./world/createSurvivalOutpost"),
       ]);
       if (cancelled || !host.current) return;
+      setLoadingStage("Building the outpost…");
+      setLoadingProgress(35);
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      if (cancelled || !host.current) return;
       const element = host.current;
       const renderer = new T.WebGLRenderer({
-        antialias: true,
+        antialias: props.initialQuality !== "performance",
         powerPreference: "high-performance",
       });
       renderer.setPixelRatio(Math.min(devicePixelRatio, props.planet === "mars" ? 1.25 : 1.7));
@@ -137,6 +144,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const model = createSurvivalOutpost(scene, props.planet);
+      setLoadingStage("Preparing explorers and equipment…");
+      setLoadingProgress(70);
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
       const beacon = props.planet === "mars" ? new T.Group() : null;
       if (beacon) {
         const beam = new T.Mesh(new T.CylinderGeometry(.12, .4, 8, 16, 1, true), new T.MeshBasicMaterial({color:0x8ef7e1, transparent:true, opacity:.3, depthWrite:false, side:T.DoubleSide}));
@@ -337,7 +347,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           setRoverDriving(false);
         }
       };
-      let lastQuality = cameraSettings.current.quality;
+      let lastQuality = ""; // Apply the initial quality, including low-graphics retries, on the first frame.
       let metricStart = 0, metricFrames = 0;
       let lastAimCheck = 0, resolutionScale = Math.min(devicePixelRatio, 1.25), qualityStart = 0;
       let gaitPhase = 0, gaitBlend = 0, cameraGround = 0;
@@ -789,6 +799,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       }
       frame = requestAnimationFrame(animate);
+      setLoadingStage("Launching exploration…");
+      setLoadingProgress(100);
       setLoaded(true);
       dispose = () => {
         cancelAnimationFrame(frame);
@@ -850,7 +862,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       tabIndex={0}
     >
       {!loaded && (
-        <div className="sv-loading">PREPARING EXPEDITION…</div>
+        <div className="sv-loading" role="status">{loadingStage}<br/><progress aria-label="Scene preparation progress" max={100} value={loadingProgress}/><span> {loadingProgress}%</span></div>
       )}
       {props.enabled && (
         <>

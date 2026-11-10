@@ -2,7 +2,7 @@
 export const TEAM_BRANDING = {
   teamName: "TARUKH",
   gameTitle: "Six Shifts",
-  logoPath: "/team/tarukh-logo.png" as string | null,
+  logoPath: "/team/tarukh-logo.webp" as string | null,
   logoIncludesName: true,
   teamLogoSupplied: true,
 };

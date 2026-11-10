@@ -7,3 +7,5 @@
 - Mars terrain, habitat, rover and equipment currently reuse original procedural prototype geometry; these are temporary replaceable assets. Search NASA 3D Resources for “Mars habitat”, “Mars rover”, and Poly Haven for “rocky terrain” with suitable licenses. No unverified license is claimed.
 - `public/art/mars-horizon.png` and `public/art/mars-lander.png`: original generated artwork for this prototype; fictional illustration, not NASA imagery. The landing uses an animated 2D illustration; the playable outpost, Sage and drifting dust use real-time 3D.
 - `ui/world/createSageCompanion.ts`: original procedural companion model created for this project.
+
+- The team logo, generated landing illustration and horizon have resized WebP derivatives for delivery; the original PNGs remain in the repository. Mars exploration uses procedural geometry and does not load the NASA astronaut model.

@@ -12,7 +12,7 @@
   color: #f6eee2;
 }
 .landing-mars {
-  background: linear-gradient(#5a30254a, #49231888), url('/art/mars-horizon.png') center bottom / cover no-repeat, #9d674f;
+  background: linear-gradient(#5a30254a, #49231888), url('/art/mars-horizon.webp') center bottom / cover no-repeat, #9d674f;
 }
 .landing-mars .landing-earth, .landing-mars .landing-stars, .landing-mars .landing-ridge { display: none; }
 .landing-mars .landing-dust { background: #d69a70c9; }
