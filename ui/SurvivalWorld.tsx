@@ -1029,13 +1029,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           renderer.shadowMap.enabled=true;
           scene.traverse(o=>{if(o instanceof T.Mesh){if(Array.isArray(o.material))o.material.forEach(material=>material.needsUpdate=true);else o.material.needsUpdate=true;}});
           await renderer.compileAsync(scene,camera);if(cancelled)return;renderer.render(scene,camera);
-          // Optional post effects are warmed on desktop; phones keep Auto's smaller allocation.
-          if(composer && cameraSettings.current.quality !== "performance" && !window.matchMedia("(pointer: coarse)").matches && window.innerWidth>800){
-            if(occlusion)occlusion.enabled=true;if(bloom)bloom.enabled=!reduced.matches;composer.render();
-          }
+          // Warm only effects used by the selected tier. Auto renders directly and
+          // must not depend on a successful optional GTAO/composer pass at startup.
           const preset=graphicsTier(cameraSettings.current.quality);
+          if(composer && (cameraSettings.current.quality === "high" || cameraSettings.current.quality === "ultra")){
+            if(occlusion)occlusion.enabled=preset.ssao;if(bloom)bloom.enabled=preset.bloom&&!reduced.matches;composer.render();
+          }
           renderer.shadowMap.enabled=preset.shadows;if(occlusion)occlusion.enabled=preset.ssao;if(bloom)bloom.enabled=preset.bloom&&!reduced.matches;
         }catch{/* A missing optional GPU feature must not prevent the basic scene from rendering. */}
+        finally {
+          scene.overrideMaterial = null;
+          renderer.setRenderTarget(null);
+        }
       }
       if (cancelled) return;
       frame = requestAnimationFrame(animate);
