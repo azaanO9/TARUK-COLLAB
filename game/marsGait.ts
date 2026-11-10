@@ -67,18 +67,18 @@ export function createMarsGaitState(): MarsGaitState {
 
 export type MarsGaitOptions = {
   gravityFactor?: number;      // 0.38 for Mars
-  bounceAmplitude?: number;    // Vertical bounce height in metres (~0.08m)
-  strideReach?: number;        // Forward leg extension in radians (~0.52 rad)
-  armSwingAmplitude?: number;  // Arm counter-swing in radians (~0.36 rad)
-  suitAbduction?: number;      // Base outward arm angle in radians (~0.22 rad)
+  bounceAmplitude?: number;    // Vertical bounce height in metres (~0.11m)
+  strideReach?: number;        // Forward leg extension in radians (~0.65 rad)
+  armSwingAmplitude?: number;  // Arm counter-swing in radians (~0.48 rad)
+  suitAbduction?: number;      // Base outward arm angle in radians (~0.24 rad)
 };
 
 const DEFAULT_OPTIONS: Required<MarsGaitOptions> = {
   gravityFactor: 0.38,
-  bounceAmplitude: 0.085,
-  strideReach: 0.52,
-  armSwingAmplitude: 0.36,
-  suitAbduction: 0.22,
+  bounceAmplitude: 0.11,
+  strideReach: 0.65,
+  armSwingAmplitude: 0.48,
+  suitAbduction: 0.24,
 };
 
 /**
@@ -103,8 +103,8 @@ export function stepMarsGait(
   state.time += safeDt;
 
   // 1. Blend towards walking when moving, decay to idle when stopped
-  const targetBlend = speed > 0.25 && !isAirborne ? Math.min(speed / 2.8, 1) : 0;
-  const blendRate = targetBlend > state.blend ? 9 : 6;
+  const targetBlend = speed > 0.15 && !isAirborne ? Math.min(speed / 1.8, 1) : 0;
+  const blendRate = targetBlend > state.blend ? 11 : 7;
   state.blend += (targetBlend - state.blend) * (1 - Math.exp(-blendRate * safeDt));
 
   // 2. Blend airborne state for low-gravity float
@@ -113,9 +113,9 @@ export function stepMarsGait(
 
   // 3. Cadence & Phase Accumulation
   // Under 0.38g, natural pendulum stride is slower than Earth:
-  // Base frequency ~ 1.2 Hz, scaling gently with speed
-  const cadence = (1.4 + Math.min(speed / 4.0, 1.2) * 1.5) * Math.sqrt(opts.gravityFactor / 0.38);
-  if (state.blend > 0.01) {
+  // Base frequency ~ 1.25 Hz, scaling gently with speed
+  const cadence = (1.2 + Math.min(speed / 4.0, 1.2) * 1.5) * Math.sqrt(opts.gravityFactor / 0.38);
+  if (state.blend > 0.005) {
     state.phase = (state.phase + cadence * safeDt * Math.PI) % (Math.PI * 2);
   }
 
@@ -132,18 +132,18 @@ export function stepMarsGait(
 
   // 5. Pelvic Dynamics (Yaw & Roll)
   // Stance hip lifts slightly (roll); pelvis rotates forward with the swing leg (yaw)
-  const hipYaw = Math.sin(p) * 0.08 * groundBlend;
-  const hipRoll = Math.cos(p) * 0.05 * groundBlend;
-  const hipPitch = (0.04 + 0.03 * groundBlend) * (1 - ab);
+  const hipYaw = Math.sin(p) * 0.10 * groundBlend;
+  const hipRoll = Math.cos(p) * 0.06 * groundBlend;
+  const hipPitch = (0.04 + 0.04 * groundBlend) * (1 - ab);
 
   // 6. Spine Counter-Balance & Idle Breathing
   // Spine twists opposite to hips to keep shoulders/helmet forward
-  const breathe = Math.sin(state.time * 1.8) * 0.016 * (1 - groundBlend);
-  const idleSway = Math.sin(state.time * 0.8) * 0.012 * (1 - groundBlend);
+  const breathe = Math.sin(state.time * 1.8) * 0.02 * (1 - groundBlend);
+  const idleSway = Math.sin(state.time * 0.8) * 0.015 * (1 - groundBlend);
 
   const spineYaw = -hipYaw * 0.75;
   const spineRoll = -hipRoll * 0.65 + idleSway;
-  const spinePitch = 0.02 * groundBlend + breathe - ab * 0.05;
+  const spinePitch = 0.03 * groundBlend + breathe - ab * 0.05;
 
   // 7. Leg Dynamics (Forward Foot Plant & Low-Gravity Grounding)
   // Left leg: phase p; Right leg: phase p + PI
@@ -156,18 +156,18 @@ export function stepMarsGait(
 
     // Forward reach: extended forward during swing to absorb forward momentum in 0.38g
     // Forward swing is positive pitch; backward push-off is negative pitch
-    const swingReach = s > 0 ? s * opts.strideReach * 1.05 : s * opts.strideReach * 0.75;
+    const swingReach = s > 0 ? s * opts.strideReach * 1.1 : s * opts.strideReach * 0.8;
     const thighPitch = swingReach * groundBlend;
 
     // Knee flexion: bends during swing (s > 0) to clear terrain,
     // extends before touchdown, cushions into stance
-    const swingKnee = Math.max(0, s) * 0.62;
-    const plantKnee = Math.max(0, -c) * 0.14; // soft landing absorption
+    const swingKnee = Math.max(0, s) * 0.85;
+    const plantKnee = Math.max(0, -c) * 0.16; // soft landing absorption
     const kneePitch = (swingKnee + plantKnee) * groundBlend;
 
     // Ankle: dorsiflexes (toes up) during swing to avoid stubbing;
     // flattens during stance for firm grounding without clipping
-    const ankleSwing = s > 0 ? -s * 0.22 : Math.max(-0.06, s * 0.15);
+    const ankleSwing = s > 0 ? -s * 0.26 : Math.max(-0.06, s * 0.16);
     const anklePitch = ankleSwing * groundBlend;
 
     return { thighPitch, kneePitch, anklePitch };
@@ -187,13 +187,13 @@ export function stepMarsGait(
 
     // Natural EVA space-suit lateral abduction (suit pressure holds arms slightly outward)
     const baseAbduct = opts.suitAbduction;
-    const armRoll = (baseAbduct + Math.abs(c) * 0.06 * groundBlend) * (isLeft ? 1 : -1);
+    const armRoll = (baseAbduct + Math.abs(c) * 0.08 * groundBlend) * (isLeft ? 1 : -1);
 
     // Subtle arm yaw twist
-    const armYaw = c * 0.06 * groundBlend * (isLeft ? 1 : -1);
+    const armYaw = c * 0.08 * groundBlend * (isLeft ? 1 : -1);
 
     // Elbow: natural bent space-suit posture + extra flex during forward pump
-    const forearmPitch = (0.35 + Math.max(0, -s) * 0.22) * groundBlend + (1 - groundBlend) * 0.25;
+    const forearmPitch = (0.38 + Math.max(0, -s) * 0.28) * groundBlend + (1 - groundBlend) * 0.25;
 
     return { armPitch, armRoll, armYaw, forearmPitch };
   };
@@ -204,10 +204,10 @@ export function stepMarsGait(
   // 9. Airborne / Low-Gravity Jump Blend
   // In low gravity, legs hang relaxed with soft knee bend; arms raise for balance
   if (ab > 0.01) {
-    const floatThigh = -0.15 * ab;
-    const floatKnee = 0.28 * ab;
-    const floatArmPitch = -0.38 * ab;
-    const floatArmRollExtra = 0.18 * ab;
+    const floatThigh = -0.18 * ab;
+    const floatKnee = 0.32 * ab;
+    const floatArmPitch = -0.42 * ab;
+    const floatArmRollExtra = 0.22 * ab;
 
     leftLeg.thighPitch = leftLeg.thighPitch * (1 - ab) + floatThigh;
     rightLeg.thighPitch = rightLeg.thighPitch * (1 - ab) + floatThigh;
@@ -229,11 +229,11 @@ export function stepMarsGait(
     spineRoll,
     spineYaw,
     leftThighPitch: leftLeg.thighPitch,
-    leftThighRoll: -0.04 * groundBlend,
+    leftThighRoll: -0.05 * groundBlend,
     leftKneePitch: leftLeg.kneePitch,
     leftAnklePitch: leftLeg.anklePitch,
     rightThighPitch: rightLeg.thighPitch,
-    rightThighRoll: 0.04 * groundBlend,
+    rightThighRoll: 0.05 * groundBlend,
     rightKneePitch: rightLeg.kneePitch,
     rightAnklePitch: rightLeg.anklePitch,
     leftArmPitch: leftArm.armPitch,
@@ -246,4 +246,3 @@ export function stepMarsGait(
     rightForearmPitch: rightArm.forearmPitch,
   };
 }
-

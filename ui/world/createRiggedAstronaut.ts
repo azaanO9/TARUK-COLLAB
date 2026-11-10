@@ -205,7 +205,6 @@ const _euler = new T.Euler();
 function applyAxisRotations(
   boneRec: BoneRecord | undefined,
   rotations: { axis: T.Vector3; angle: number }[],
-  dt: number,
 ): void {
   if (!boneRec) return;
   _targetQuat.copy(boneRec.restRotation);
@@ -215,7 +214,7 @@ function applyAxisRotations(
       _targetQuat.multiply(_deltaQuat);
     }
   }
-  boneRec.bone.quaternion.slerp(_targetQuat, 1 - Math.exp(-24 * dt));
+  boneRec.bone.quaternion.copy(_targetQuat);
 }
 
 function applyGenericRotation(
@@ -223,13 +222,12 @@ function applyGenericRotation(
   pitch: number,
   yaw: number,
   roll: number,
-  dt: number,
 ): void {
   if (!boneRec) return;
   _euler.set(pitch, yaw, roll, "YXZ");
   _deltaQuat.setFromEuler(_euler);
   _targetQuat.copy(boneRec.restRotation).multiply(_deltaQuat);
-  boneRec.bone.quaternion.slerp(_targetQuat, 1 - Math.exp(-24 * dt));
+  boneRec.bone.quaternion.copy(_targetQuat);
 }
 
 /**
@@ -249,7 +247,6 @@ export function createRiggedAstronaut(
   const gaitState: MarsGaitState = createMarsGaitState();
   let baseModelY = 0;
   let modelRef: T.Object3D | null = null;
-  let mixer: T.AnimationMixer | null = null;
 
   // Initialize with procedural astronaut fallback immediately so the scene is never empty
   const fallback = createMarsAstronaut();
@@ -264,26 +261,21 @@ export function createRiggedAstronaut(
 
       if (handle.isModelLoaded && bones.leftUpLeg && modelRef) {
         // 1. Vertical bounce on Mars: lift the astronaut root smoothly in world space
+        // Gives authentic low-gravity ballistic float during strides
         modelRef.position.y = baseModelY + pose.hipOffsetY;
 
-        // 2. Play subtle idle breathing/finger animation when available
-        if (mixer) {
-          mixer.update(dt);
-        }
-
-        // 3. Detect rig type: FBX-style rig (e.g. Sketchfab astro_bones with leg_1) vs standard Mixamo/humanoid
+        // 2. Detect rig type: FBX-style rig (e.g. Sketchfab astro_bones with leg_1) vs standard Mixamo/humanoid
         const isAstroRig = /leg_?1/i.test(bones.leftUpLeg.bone.name);
 
         if (isAstroRig) {
           // Precise kinematics for the Sketchfab astronaut rig:
-          // Thighs: local X is forward swing (negative tilts towards visor)
+          // Thighs: local X is forward swing (negative tilts towards front visor)
           applyAxisRotations(
             bones.leftUpLeg,
             [
               { axis: AXIS_X, angle: -pose.leftThighPitch },
               { axis: AXIS_Z, angle: pose.leftThighRoll },
             ],
-            dt,
           );
           applyAxisRotations(
             bones.rightUpLeg,
@@ -291,31 +283,26 @@ export function createRiggedAstronaut(
               { axis: AXIS_X, angle: -pose.rightThighPitch },
               { axis: AXIS_Z, angle: pose.rightThighRoll },
             ],
-            dt,
           );
 
           // Knees: local X is flexion (positive bends foot backward towards backpack)
           applyAxisRotations(
             bones.leftLeg,
-            [{ axis: AXIS_X, angle: pose.leftKneePitch * 1.3 }],
-            dt,
+            [{ axis: AXIS_X, angle: pose.leftKneePitch }],
           );
           applyAxisRotations(
             bones.rightLeg,
-            [{ axis: AXIS_X, angle: pose.rightKneePitch * 1.3 }],
-            dt,
+            [{ axis: AXIS_X, angle: pose.rightKneePitch }],
           );
 
-          // Feet: local X is dorsiflexion (positive tilts toes up)
+          // Feet: local X is dorsiflexion (negative tilts toes up)
           applyAxisRotations(
             bones.leftFoot,
-            [{ axis: AXIS_X, angle: pose.leftAnklePitch }],
-            dt,
+            [{ axis: AXIS_X, angle: -pose.leftAnklePitch }],
           );
           applyAxisRotations(
             bones.rightFoot,
-            [{ axis: AXIS_X, angle: pose.rightAnklePitch }],
-            dt,
+            [{ axis: AXIS_X, angle: -pose.rightAnklePitch }],
           );
 
           // Arms: local Z is forward/back swing, local X is lateral abduction
@@ -326,7 +313,6 @@ export function createRiggedAstronaut(
               { axis: AXIS_Z, angle: -pose.leftArmPitch },
               { axis: AXIS_X, angle: -pose.leftArmRoll },
             ],
-            dt,
           );
           // Right arm: positive Z swings forward towards visor
           applyAxisRotations(
@@ -335,22 +321,19 @@ export function createRiggedAstronaut(
               { axis: AXIS_Z, angle: pose.rightArmPitch },
               { axis: AXIS_X, angle: pose.rightArmRoll },
             ],
-            dt,
           );
 
           // Forearms: local X flexes elbow forward
           applyAxisRotations(
             bones.leftForeArm,
             [{ axis: AXIS_X, angle: pose.leftForearmPitch }],
-            dt,
           );
           applyAxisRotations(
             bones.rightForeArm,
             [{ axis: AXIS_X, angle: pose.rightForearmPitch }],
-            dt,
           );
 
-          // Spine: counter-balance twist
+          // Spine: counter-balance twist & breathing
           applyAxisRotations(
             bones.spine,
             [
@@ -358,7 +341,6 @@ export function createRiggedAstronaut(
               { axis: AXIS_Y, angle: pose.spineYaw },
               { axis: AXIS_Z, angle: pose.spineRoll },
             ],
-            dt,
           );
         } else {
           // Standard humanoid / Mixamo bone orientation fallback
@@ -367,46 +349,41 @@ export function createRiggedAstronaut(
             pose.leftThighPitch,
             0,
             pose.leftThighRoll,
-            dt,
           );
           applyGenericRotation(
             bones.rightUpLeg,
             pose.rightThighPitch,
             0,
             pose.rightThighRoll,
-            dt,
           );
 
-          applyGenericRotation(bones.leftLeg, pose.leftKneePitch, 0, 0, dt);
-          applyGenericRotation(bones.rightLeg, pose.rightKneePitch, 0, 0, dt);
+          applyGenericRotation(bones.leftLeg, pose.leftKneePitch, 0, 0);
+          applyGenericRotation(bones.rightLeg, pose.rightKneePitch, 0, 0);
 
-          applyGenericRotation(bones.leftFoot, pose.leftAnklePitch, 0, 0, dt);
-          applyGenericRotation(bones.rightFoot, pose.rightAnklePitch, 0, 0, dt);
+          applyGenericRotation(bones.leftFoot, pose.leftAnklePitch, 0, 0);
+          applyGenericRotation(bones.rightFoot, pose.rightAnklePitch, 0, 0);
 
           applyGenericRotation(
             bones.leftArm,
             pose.leftArmPitch,
             pose.leftArmYaw,
             pose.leftArmRoll,
-            dt,
           );
           applyGenericRotation(
             bones.rightArm,
             pose.rightArmPitch,
             pose.rightArmYaw,
             pose.rightArmRoll,
-            dt,
           );
 
-          applyGenericRotation(bones.leftForeArm, pose.leftForearmPitch, 0, 0, dt);
-          applyGenericRotation(bones.rightForeArm, pose.rightForearmPitch, 0, 0, dt);
+          applyGenericRotation(bones.leftForeArm, pose.leftForearmPitch, 0, 0);
+          applyGenericRotation(bones.rightForeArm, pose.rightForearmPitch, 0, 0);
 
           applyGenericRotation(
             bones.spine,
             pose.spinePitch,
             pose.spineYaw,
             pose.spineRoll,
-            dt,
           );
         }
       } else {
@@ -416,7 +393,6 @@ export function createRiggedAstronaut(
       }
     },
     dispose() {
-      mixer?.stopAllAction();
       root.traverse((node) => {
         if ((node as T.Mesh).isMesh) {
           const mesh = node as T.Mesh;
@@ -469,13 +445,6 @@ export function createRiggedAstronaut(
       model.position.y -= scaledBox.min.y;
       baseModelY = model.position.y;
       modelRef = model;
-
-      // Setup animation mixer for idle clip if available
-      if (gltf.animations && gltf.animations.length > 0) {
-        mixer = new T.AnimationMixer(model);
-        const action = mixer.clipAction(gltf.animations[0]);
-        action.play();
-      }
 
       // Search and resolve internal bone structures
       const resolved = resolveBones(model);
