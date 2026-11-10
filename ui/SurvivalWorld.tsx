@@ -416,13 +416,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           (-(e.clientY - rect.top) / rect.height) * 2 + 1,
         );
         if (!current.current.enabled) return;
+        const isThird = cameraSettings.current.thirdPerson;
+        const minPitch = isThird ? -1.1 : -1.35;
+        const maxPitch = isThird ? 0.85 : 1.35;
         if (document.pointerLockElement === element) {
           cameraYaw -=
             e.movementX * 0.0023 * cameraSettings.current.sensitivity;
           pitch = Math.max(
-            -1.2,
+            minPitch,
             Math.min(
-              1.2,
+              maxPitch,
               pitch - e.movementY * 0.0023 * cameraSettings.current.sensitivity,
             ),
           );
@@ -432,7 +435,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         ) {
           cameraYaw -=
             (e.clientX - px) * 0.0023 * cameraSettings.current.sensitivity;
-          pitch = Math.max(-1.2, Math.min(1.2, pitch - (e.clientY - py) * 0.0023 * cameraSettings.current.sensitivity));
+          pitch = Math.max(
+            minPitch,
+            Math.min(
+              maxPitch,
+              pitch - (e.clientY - py) * 0.0023 * cameraSettings.current.sensitivity,
+            ),
+          );
           px = e.clientX;
           py = e.clientY;
         }
@@ -633,15 +642,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           cameraGround += (roverGround - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
             const vehicleBack = 7.5;
-            const vehicleHeight = 3.3;
+            const roverTargetY = cameraGround + 1.85;
+            const horizBack = Math.cos(pitch) * vehicleBack;
+            const vertBack = -Math.sin(pitch) * vehicleBack;
             camera.position.set(
-              rover.x + Math.sin(rover.yaw) * vehicleBack,
-              cameraGround + vehicleHeight,
-              rover.z + Math.cos(rover.yaw) * vehicleBack,
+              rover.x + Math.sin(rover.yaw) * horizBack,
+              roverTargetY + vertBack,
+              rover.z + Math.cos(rover.yaw) * horizBack,
             );
-            if (props.planet === "mars") {
-              camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + 0.6);
-            }
+            const groundUnderCam = props.planet === "mars"
+              ? marsHeight(camera.position.x, camera.position.z)
+              : model.heightAt(camera.position.x, camera.position.z);
+            camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.6);
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
           } else {
             const eyeX = rover.x - Math.cos(rover.yaw) * 0.46 - Math.sin(rover.yaw) * 0.45;
@@ -682,15 +694,31 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             leftArm.rotation.x = -stride * 0.65;
             rightArm.rotation.x = stride * 0.65;
           }
-          const back = third ? (props.planet === "mars" ? 5.8 : 4.3) : 0;
-          const shoulder = third ? (props.planet === "mars" ? .22 : .8) : 0;
+          const back = props.planet === "mars" ? 5.2 : 4.3;
+          const shoulder = props.planet === "mars" ? 0.28 : 0.6;
           cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
-          camera.position.set(
-            walker.x + Math.sin(cameraYaw) * back + Math.cos(cameraYaw) * shoulder,
-            cameraGround + (third ? (props.planet === "mars" ? 2.8 : 3.1) : 1.7) + jump.height,
-            walker.z + Math.cos(cameraYaw) * back - Math.sin(cameraYaw) * shoulder,
-          );
-          if (props.planet === "mars" && third) camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + .45);
+          if (third) {
+            // GTA 5 style spherical camera boom:
+            // Target pivot on astronaut upper chest/shoulders
+            const targetY = cameraGround + jump.height + (props.planet === "mars" ? 1.45 : 1.55);
+            const horizBack = Math.cos(pitch) * back;
+            const vertBack = -Math.sin(pitch) * back;
+            camera.position.set(
+              walker.x + Math.sin(cameraYaw) * horizBack + Math.cos(cameraYaw) * shoulder,
+              targetY + vertBack,
+              walker.z + Math.cos(cameraYaw) * horizBack - Math.sin(cameraYaw) * shoulder,
+            );
+            const groundUnderCam = props.planet === "mars"
+              ? marsHeight(camera.position.x, camera.position.z)
+              : model.heightAt(camera.position.x, camera.position.z);
+            camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.45);
+          } else {
+            camera.position.set(
+              walker.x,
+              cameraGround + 1.7 + jump.height,
+              walker.z,
+            );
+          }
           camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
         }
         if (sage) {
