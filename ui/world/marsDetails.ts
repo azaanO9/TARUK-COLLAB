@@ -93,6 +93,12 @@ export function createMarsAstronaut() {
   box(root, .6, .1, .43, dark, 0, .92, 0);
   box(root, .52, .58, .28, metal, 0, 1.24, .3);
   box(root, .48, .1, .3, orange, 0, 1.5, .3);
+  // Backpack silhouette and illuminated life-support display, visible in third person.
+  const status = new T.MeshStandardMaterial({color:0xbef9e4,emissive:0x54d4ba,emissiveIntensity:1.2});
+  box(root, .34, .38, .035, dark, 0, 1.23, .46);
+  box(root, .23, .22, .02, metal, 0, 1.25, .49);
+  for(let i=0;i<3;i++) box(root, .14, .018, .012, status, 0, 1.19 + i*.05, .505);
+  for(const x of [-.25,.25]) box(root, .06, .45, .08, orange, x, 1.23, .46);
   for (const x of [-.18, .18]) box(root, .055, .53, .03, dark, x, 1.2, -.23);
   box(root, .29, .22, .09, dark, 0, 1.24, -.27);
   for (let i = 0; i < 3; i++) box(root, .045, .025, .01, orange, -.08 + i * .08, 1.27, -.32);

@@ -1,4 +1,5 @@
 import * as T from "three";
+import { batchStaticMeshes } from "./batchStaticMeshes";
 import { SAGE_DOCK } from "../../game/sageCompanion";
 
 /** An open-front home for Sage, with a landing pad and a lit nameplate. */
@@ -20,12 +21,22 @@ export function createSageDock() {
   box(3.7,.1,.18,0,2.45,1.62,copper);
   for (const x of [-1.35,1.35]) { box(.12,2.1,.12,x,1.15,1.5,frame); box(.08,.8,.08,x,1.6,1.58,light); }
   for (const x of [-1.2,0,1.2]) box(.65,.035,.06,x,.18,-1.27,light);
+  // Insulated panels, seams, utility cabinets and warm overhead lighting.
+  const seam = new T.MeshStandardMaterial({color:0x66757a,metalness:.45,roughness:.65});
+  const warm = new T.MeshStandardMaterial({color:0xffe2b0,emissive:0xf8b56c,emissiveIntensity:1.4});
+  box(2.1,.05,.13,0,2.22,1.42,warm);
+  for(const y of [.55,1.15,1.75]) box(3.05,.025,.025,0,y,-1.28,seam);
+  for(const x of [-1,-.5,0,.5,1]) box(.025,1.8,.025,x,1.13,-1.28,seam);
+  for(const x of [-1.48,1.48]) for(const y of [.55,1.15,1.75]) box(.025,.025,2.65,x,y,0,seam);
+  for(const x of [-1.12,1.12]) { box(.58,.48,.55,x,.38,-.84,frame); box(.48,.35,.04,x,.4,-.54,shell); box(.17,.035,.02,x,.47,-.51,copper); }
+  for(const x of [-1.4,1.4]) box(.055,2.05,.08,x,1.2,1.58,frame);
   const pad = new T.Mesh(new T.RingGeometry(.55,.7,32), new T.MeshBasicMaterial({color:0x77dece,side:T.DoubleSide}));
   pad.rotation.x=-Math.PI/2; pad.position.y=.17; dock.add(pad);
   const canvas=document.createElement("canvas");canvas.width=512;canvas.height=128;
   const ctx=canvas.getContext("2d"); if(ctx){ctx.fillStyle="#23343a";ctx.fillRect(0,0,512,128);ctx.fillStyle="#c6f9ec";ctx.font="bold 54px sans-serif";ctx.textAlign="center";ctx.fillText("SAGE / HOME",256,82);}
   const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
   const sign=new T.Mesh(new T.PlaneGeometry(2.1,.52),new T.MeshStandardMaterial({map:texture,emissive:0x22584f,emissiveIntensity:.5})); sign.position.set(0,2.02,1.67);dock.add(sign);
+  batchStaticMeshes(dock, new Set());
   return dock;
 }
 
