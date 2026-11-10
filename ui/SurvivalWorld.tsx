@@ -603,7 +603,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 keys,
                 step,
                 dynamicObstacles,
-                props.planet === "mars" && keys.has("shift") ? MARS_PHYSICS.sprintSpeed : undefined,
+                props.planet === "mars"
+                  ? (keys.has("shift") ? MARS_PHYSICS.sprintSpeed : MARS_PHYSICS.walkSpeed)
+                  : undefined,
               );
               jump = stepJump(
                 jump,

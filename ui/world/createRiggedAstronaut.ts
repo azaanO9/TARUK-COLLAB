@@ -334,13 +334,13 @@ export function createRiggedAstronaut(
             [{ axis: AXIS_X, angle: pose.rightForearmPitch }],
           );
 
-          // Pelvis / Hips: roll & twist over stance leg
+          // Pelvis / Hips: subtle weight transfer roll & twist over stance leg
           applyAxisRotations(
             bones.hips,
             [
-              { axis: AXIS_X, angle: -pose.hipPitch },
-              { axis: AXIS_Y, angle: -pose.hipYaw },
-              { axis: AXIS_Z, angle: -pose.hipRoll },
+              { axis: AXIS_X, angle: -pose.hipPitch * 0.2 },
+              { axis: AXIS_Y, angle: -pose.hipYaw * 0.25 },
+              { axis: AXIS_Z, angle: -pose.hipRoll * 0.25 },
             ],
           );
 
