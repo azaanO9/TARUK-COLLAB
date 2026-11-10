@@ -1385,21 +1385,68 @@
 }
 .sv-rover-hud {
   position: absolute;
-  bottom: 24px;
+  bottom: 84px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
-  background: rgba(18, 30, 42, 0.94);
-  border: 1px solid #eab28588;
-  border-radius: 8px;
+  background: rgba(11, 19, 27, 0.94);
+  border: 1px solid rgba(154, 205, 50, 0.45);
+  border-radius: 10px;
   padding: 10px 18px;
   display: flex;
   align-items: center;
-  gap: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
-  font-family: monospace;
+  gap: 18px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  font-family: "Segoe UI", Arial, sans-serif;
   pointer-events: auto;
+}
+.sv-rover-gearbox {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 2px 10px;
+  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  padding-right: 16px;
+}
+.sv-gear-rail {
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 700 10px/1 monospace;
+  color: rgba(255, 255, 255, 0.35);
+}
+.sv-gear-rail span {
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-align: center;
+}
+.sv-gear-rail span.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+.sv-rover-gearbox[data-gear="D"] .sv-gear-active,
+.sv-rover-gearbox[data-gear="D"] .sv-gear-rail span.active {
+  color: #a3e635;
+}
+.sv-rover-gearbox[data-gear="R"] .sv-gear-active,
+.sv-rover-gearbox[data-gear="R"] .sv-gear-rail span.active {
+  color: #ff6b4a;
+}
+.sv-rover-gearbox[data-gear="N"] .sv-gear-active,
+.sv-rover-gearbox[data-gear="N"] .sv-gear-rail span.active {
+  color: #38bdf8;
+}
+.sv-gear-active {
+  font: 800 28px/0.95 monospace;
+  letter-spacing: 0.02em;
+}
+.sv-rover-gearbox small {
+  font: 700 9px/1 monospace;
+  letter-spacing: 0.1em;
+  color: #cbd5e1;
 }
 .sv-rover-speedometer {
   display: grid;
@@ -1407,43 +1454,45 @@
   grid-template-rows: auto auto;
   align-items: baseline;
   gap: 2px 6px;
-  border-right: 1px solid #ffffff33;
-  padding-right: 18px;
+  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  padding-right: 16px;
 }
 .sv-rover-speedometer strong {
-  font-size: 26px;
-  font-weight: 800;
-  color: #56ebdb;
-  line-height: 1;
+  font: 800 26px/1 monospace;
+  color: #f8fafc;
 }
 .sv-rover-speedometer span {
-  font-size: 11px;
-  color: #bec7c5;
-  font-weight: 700;
+  font: 700 11px/1 monospace;
+  color: #94a3b8;
 }
 .sv-rover-speedometer small {
   grid-column: 1 / -1;
-  font-size: 9px;
-  color: #eab285;
+  font: 700 9px/1.2 monospace;
+  color: #9acd32;
   letter-spacing: 0.08em;
+}
+.sv-rover-speedometer small.mud-alert {
+  color: #fb923c;
 }
 .sv-rover-hints {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   font-size: 11px;
-  color: #e2e8f0;
+  color: #cbd5e1;
+  white-space: nowrap;
 }
 .sv-rover-hints b {
-  color: #f7ca9e;
-  background: #233444;
-  padding: 2px 5px;
+  color: #c8fa4b;
+  background: #1a2a36;
+  padding: 2px 6px;
   border-radius: 3px;
   margin-right: 4px;
+  font-family: monospace;
 }
 .sv-rover-exit-btn {
-  background: #2a3d4c;
-  color: #fce7d2;
-  border: 1px solid #eab285;
+  background: #1f313e;
+  color: #f1f5f9;
+  border: 1px solid rgba(154, 205, 50, 0.7);
   border-radius: 5px;
   padding: 7px 14px;
   font: 700 11px monospace;
@@ -1452,9 +1501,10 @@
   gap: 7px;
   cursor: pointer;
   transition: background 0.15s ease;
+  white-space: nowrap;
 }
 .sv-rover-exit-btn:hover {
-  background: #3e586d;
+  background: #2f495c;
 }
 .sv-rover-touch-controls {
   position: absolute;
@@ -1470,24 +1520,29 @@
 }
 .sv-rover-touch-controls button {
   background: #1e3342eb;
-  color: #f7ca9e;
+  color: #c8fa4b;
   border: 1px solid #ffffff55;
   padding: 12px 18px;
   font: 700 12px monospace;
   border-radius: 6px;
 }
+@media (max-width: 1120px) {
+  .sv-rover-hints {
+    display: none;
+  }
+}
 @media (max-width: 800px) {
   .sv-rover-hud {
-    bottom: 12px;
+    bottom: 72px;
     padding: 8px 12px;
     gap: 12px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
   }
   .sv-rover-hints {
     display: none;
   }
   .sv-rover-prompt {
-    bottom: 80px;
+    bottom: 84px;
   }
 }

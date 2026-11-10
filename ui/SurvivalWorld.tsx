@@ -16,6 +16,8 @@ import {
   canEnterRover,
   enterRover,
   exitRover,
+  getRoverGear,
+  type RoverGear,
 } from "../game/roverVehicle";
 import type { Effect } from "../game/survivalTypes";
 export type View = {
@@ -26,6 +28,13 @@ export type View = {
   distance: number;
   locked: boolean;
   jumpHeight: number;
+  roverX?: number;
+  roverZ?: number;
+  roverYaw?: number;
+  roverDriving?: boolean;
+  roverSpeed?: number;
+  roverGear?: RoverGear;
+  mudDepth?: number;
 };
 type Props = {
   enabled: boolean;
@@ -62,7 +71,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const toggleRoverAction = useRef<() => void>(() => {});
   const [roverDriving, setRoverDriving] = useState(false),
     [roverNear, setRoverNear] = useState(false),
-    [roverSpeed, setRoverSpeed] = useState(0);
+    [roverSpeed, setRoverSpeed] = useState(0),
+    [roverGear, setRoverGear] = useState<RoverGear>("N"),
+    [roverMud, setRoverMud] = useState(false),
+    [roverHandbrake, setRoverHandbrake] = useState(false);
   useImperativeHandle(
     ref,
     () => ({
@@ -324,9 +336,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         ray = new T.Raycaster();
       let walker = spawnWalker(),
         jump = { height: 0, velocity: 0 },
-        rover = spawnRoverVehicle(17, 10, 0),
+        rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt),
         lastRoverNear = false,
         lastRoverSpeed = 0,
+        lastRoverGear: RoverGear = "N",
+        lastRoverMud = false,
+        lastRoverHandbrake = false,
         pitch = -0.04,
         dragging = false,
         lookPointer: number | null = null,
@@ -543,6 +558,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           resolutionScale = Math.min(devicePixelRatio, props.planet === "mars" ? tier.resolutionCap : 1.5);
           renderer.setPixelRatio(resolutionScale);
           renderer.shadowMap.enabled = props.planet === "mars" ? tier.shadows : true;
+          if (bigRover) {
+            bigRover.headlightL.castShadow = tier.shadows;
+            bigRover.headlightR.castShadow = tier.shadows;
+          }
           if (occlusion) occlusion.enabled = tier.ssao;
           if (bloom) bloom.enabled = tier.bloom && !reduced.matches;
           if (smallRocks) smallRocks.count = tier.smallRocks;
@@ -563,13 +582,24 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 keys,
                 step,
                 model.obstacles,
-                (rx, rz) => model.heightAt(rx, rz),
+                model.roverHeightAt,
+                model.mudAt,
               );
             }
             walker.x = rover.x;
             walker.z = rover.z;
             walker.yaw = rover.yaw;
           } else {
+            if (bigRover && Math.abs(rover.speed) > 0.01) {
+              rover = stepRoverVehicle(
+                rover,
+                keys,
+                dt,
+                model.obstacles,
+                model.roverHeightAt,
+                model.mudAt,
+              );
+            }
             const dynamicObstacles = bigRover
               ? [...model.obstacles, { x: rover.x, z: rover.z, radius: 2.2 }]
               : model.obstacles;
@@ -594,8 +624,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
         }
         if (bigRover) {
-          const roverGround = model.heightAt(rover.x, rover.z);
-          bigRover.update(rover, roverGround, dt, p.event === "night" || p.event === "eclipse");
+          bigRover.update(rover, rover.chassisY, dt, p.event === "night" || p.event === "eclipse");
+          if (rover.driving || Math.abs(rover.speed) > 0.1) {
+            model.stampRoverTracks?.(renderer, rover);
+          }
         }
         if (props.planet === "mars") {
           const nearNow = !rover.driving && canEnterRover(walker, rover);
@@ -609,28 +641,42 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               lastRoverSpeed = spd;
               setRoverSpeed(spd);
             }
+            const gearNow = getRoverGear(rover.speed);
+            if (gearNow !== lastRoverGear) {
+              lastRoverGear = gearNow;
+              setRoverGear(gearNow);
+            }
+            const mudNow = rover.mudDepth > 0.32;
+            if (mudNow !== lastRoverMud) {
+              lastRoverMud = mudNow;
+              setRoverMud(mudNow);
+            }
+            if (rover.handbrake !== lastRoverHandbrake) {
+              lastRoverHandbrake = rover.handbrake;
+              setRoverHandbrake(rover.handbrake);
+            }
           }
         }
         const third = cameraSettings.current.thirdPerson;
         if (rover.driving) {
           astronaut.visible = false;
-          const roverGround = model.heightAt(rover.x, rover.z);
+          const roverGround = rover.chassisY;
           cameraGround += (roverGround - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
-            const vehicleBack = 7.5;
-            const vehicleHeight = 3.3;
+            const vehicleBack = 7.6;
+            const vehicleHeight = 3.45;
             camera.position.set(
               rover.x + Math.sin(rover.yaw) * vehicleBack,
               cameraGround + vehicleHeight,
               rover.z + Math.cos(rover.yaw) * vehicleBack,
             );
             if (props.planet === "mars") {
-              camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + 0.6);
+              camera.position.y = Math.max(camera.position.y, marsHeight(camera.position.x, camera.position.z) + 0.65);
             }
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
           } else {
             const eyeX = rover.x - Math.cos(rover.yaw) * 0.46 - Math.sin(rover.yaw) * 0.45;
-            const eyeY = cameraGround + 1.82;
+            const eyeY = cameraGround + 1.94;
             const eyeZ = rover.z + Math.sin(rover.yaw) * 0.46 - Math.cos(rover.yaw) * 0.45;
             camera.position.set(eyeX, eyeY, eyeZ);
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
@@ -785,8 +831,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             jump = { height: 0, velocity: 0 };
             pitch = -0.04;
             mouse.set(0, 0);
-            rover = spawnRoverVehicle(17, 10, 0);
+            rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
             setRoverDriving(false);
+            setRoverGear("N");
           }
           previousDay = p.day;
           keys.clear();
@@ -801,6 +848,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             distance: range,
             locked: document.pointerLockElement === element,
             jumpHeight: jump.height,
+            roverX: rover.x,
+            roverZ: rover.z,
+            roverYaw: rover.yaw,
+            roverDriving: rover.driving,
+            roverSpeed: Math.round(Math.abs(rover.speed) * 3.6),
+            roverGear: getRoverGear(rover.speed),
+            mudDepth: rover.mudDepth,
           });
         }
         renderer.info.reset();
@@ -842,6 +896,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
         environment?.dispose();
         bigRover?.dispose();
+        model.disposeTracks?.();
         scene.traverse((o) => {
           const m = o as Mesh;
           m.geometry?.dispose();
@@ -956,10 +1011,21 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           )}
           {roverDriving && (
             <div className="sv-rover-hud" role="region" aria-label="Rover Vehicle HUD">
+              <div className="sv-rover-gearbox" data-gear={roverGear} aria-label={`Transmission gear ${roverGear}`}>
+                <div className="sv-gear-rail" aria-hidden="true">
+                  {(["R", "N", "D"] as const).map((g) => (
+                    <span key={g} className={roverGear === g ? "active" : ""}>{g}</span>
+                  ))}
+                </div>
+                <strong className="sv-gear-active">{roverGear}</strong>
+                <small>{roverGear === "D" ? "DRIVE" : roverGear === "R" ? "REVERSE" : "NEUTRAL"}</small>
+              </div>
               <div className="sv-rover-speedometer">
                 <strong>{roverSpeed}</strong>
                 <span>KM/H</span>
-                <small>{roverSpeed > 0 ? "DRIVE (D)" : "STOPPED"}</small>
+                <small className={roverMud ? "mud-alert" : ""}>
+                  {roverHandbrake ? "PARK BRAKE" : roverMud ? "SOFT MUD · TRACKS" : "6x6 ROCKER-BOGIE"}
+                </small>
               </div>
               <div className="sv-rover-hints">
                 <span><b>W / S</b> Drive / Reverse</span>
