@@ -1,5 +1,5 @@
 import vinext from "vinext";
-import { defineConfig } from "vite";
+import { defineConfig, type UserConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { readExecutionProfile } from "./scripts/execution-profile.mjs";
 import { configureToolEnvironment } from "./scripts/tool-environment.mjs";
@@ -43,7 +43,7 @@ export default defineConfig(async ({ command }) => {
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
-  return {
+  const config: UserConfig = {
     server: {
       host: true,
       allowedHosts: true,
@@ -91,4 +91,5 @@ export default defineConfig(async ({ command }) => {
       }),
     ],
   };
+  return config;
 });
