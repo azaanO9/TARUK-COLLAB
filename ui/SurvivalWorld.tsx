@@ -748,7 +748,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const cockpitView = rover.driving && !third;
         if (cockpitView && !wasCockpit) {
           cameraYaw = rover.yaw;
-          pitch = -.04;
+          pitch = -.14;
         }
         wasCockpit = cockpitView;
         bigRover?.setCockpitView(cockpitView);
@@ -1170,7 +1170,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             </div>
           )}
           {roverDriving && (
-            <div className="sv-rover-hud" role="region" aria-label="Rover Vehicle HUD">
+            <div className={`sv-rover-hud${!thirdPerson ? " sv-rover-hud-cockpit" : ""}`} role="region" aria-label="Rover Vehicle HUD">
               <div className="sv-rover-gearbox" data-gear={roverGear} aria-label={`Transmission gear ${roverGear}`}>
                 <div className="sv-gear-rail" aria-hidden="true">
                   {(["R", "N", "D"] as const).map((g) => (
@@ -1184,7 +1184,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 <strong>{roverSpeed}</strong>
                 <span>KM/H</span>
                 <small className={roverMud ? "mud-alert" : ""}>
-                  {roverHandbrake ? "PARK BRAKE" : roverMud ? "SOFT MUD · TRACKS" : "6x6 ROCKER-BOGIE"}
+                  {roverHandbrake ? "PARK BRAKE" : roverMud ? "SOFT MUD · TRACKS" : "6x6 INDEPENDENT"}
                 </small>
               </div>
               <div className="sv-rover-hints">
