@@ -79,9 +79,15 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
     pixels.data[i + 3] = 255;
   }
   ctx.putImageData(pixels, 0, 0);
-  const map = surface ?? new T.CanvasTexture(canvas);
-  map.wrapS = map.wrapT = T.RepeatWrapping;
-  map.repeat.set(46, 46);
+  // Sample only a continuous ground region of the supplied model's terrain atlas.
+  // The atlas's black UV gaps and its other islands never enter the game surface.
+  if (surface?.image) {
+    ctx.drawImage(surface.image, 50, 50, 650, 600, 0, 0, 512, 512);
+    surface.dispose();
+  }
+  const map = new T.CanvasTexture(canvas);
+  map.wrapS = map.wrapT = T.MirroredRepeatWrapping;
+  map.repeat.set(38, 38);
   map.colorSpace = T.SRGBColorSpace;
   map.anisotropy = 4;
   const bump = map.clone();
@@ -131,9 +137,9 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
 
   const colors = new Float32Array(pos.count * 3);
   const color = new T.Color();
-  const rust = new T.Color(0xe0c7aa);
-  const ochre = new T.Color(0xf3dfc3);
-  const basalt = new T.Color(0x85796e);
+  const rust = new T.Color(0xf2dfbf);
+  const ochre = new T.Color(0xffedce);
+  const basalt = new T.Color(0xa99b85);
   const darkMud = new T.Color(0x5e473a);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), slope = 1 - geometry.attributes.normal.getY(i);
@@ -153,7 +159,7 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   const groundMat = new T.MeshStandardMaterial({
     map,
     bumpMap: bump,
-    bumpScale: .13,
+    bumpScale: .075,
     vertexColors: true,
     roughness: .96,
   });
@@ -247,7 +253,9 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
   ground.receiveShadow = true;
   root.add(ground);
 
-  const rockMat = new T.MeshStandardMaterial({ color: 0xad8a70, map, bumpMap: bump, bumpScale: .15, roughness: 1 });
+  const rockMap = map.clone(); rockMap.repeat.set(1, 1);
+  const rockBump = rockMap.clone(); rockBump.colorSpace = T.NoColorSpace;
+  const rockMat = new T.MeshStandardMaterial({ color: 0xf0dfc2, map: rockMap, bumpMap: rockBump, bumpScale: .11, roughness: 1 });
   const makeRock = (detail: number, variant: number) => {
     const geo = new T.IcosahedronGeometry(1, detail), p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {
@@ -308,7 +316,7 @@ export function createMarsTerrain(root: T.Group, surface?: T.Texture) {
       dummy.updateMatrix();
       const mesh = big ? large[i % 4] : small, index = big ? Math.floor(i / 4) : i;
       mesh.setMatrixAt(index, dummy.matrix);
-      color.setHSL(.054 + random(seed) * .018, .13 + random(seed + 5) * .13, .25 + random(seed + 6) * .25);
+      color.setHSL(.085 + random(seed) * .025, .12 + random(seed + 5) * .12, .53 + random(seed + 6) * .24);
       mesh.setColorAt(index, color);
     }
   }
