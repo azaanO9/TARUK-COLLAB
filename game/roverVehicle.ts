@@ -9,20 +9,20 @@ export const ROVER_HANDBRAKE = 24.0;   // m/s^2 emergency stop
 export const ROVER_COAST_DRAG = 3.4;   // rolling friction m/s^2
 export const ROVER_STEER_MAX = 0.52;   // ~30 degrees max front wheel turn
 export const ROVER_STEER_SPEED = 3.4;  // rad/s steering response
-export const ROVER_WHEEL_BASE = 3.2;   // meters between front and rear axles
-export const ROVER_TRACK_WIDTH = 2.9;  // meters between left and right wheel track
-export const ROVER_WHEEL_RADIUS = 0.58;// meters inner tire radius
-export const ROVER_WHEEL_OUTER_RADIUS = 0.63; // tire + tread rib outer radius
+export const ROVER_WHEEL_BASE = 2.849;   // meters between front and rear axles
+export const ROVER_TRACK_WIDTH = 2.85;  // meters between left and right wheel track
+export const ROVER_WHEEL_RADIUS = 0.3206;// meters inner tire radius
+export const ROVER_WHEEL_OUTER_RADIUS = 0.3206; // tire + tread rib outer radius
 export const ROVER_COLLISION_RADIUS = 1.9;    // bounding obstacle radius
 export const ROVER_CHASSIS_CLEARANCE = 0.015; // anti-Z-fighting surface clearance bias
 
 export const ROVER_WHEEL_OFFSETS: readonly (readonly [number, number])[] = [
-  [-1.45, -1.6], // 0: Front Left
-  [1.45, -1.6],  // 1: Front Right
-  [-1.45, 0.0],  // 2: Mid Left
-  [1.45, 0.0],   // 3: Mid Right
-  [-1.45, 1.6],  // 4: Rear Left
-  [1.45, 1.6],   // 5: Rear Right
+  [-1.425, -1.0313], // 0: Front Left
+  [1.425, -1.0313],  // 1: Front Right
+  [-1.425, 0.3934],  // 2: Mid Left
+  [1.425, 0.3934],   // 3: Mid Right
+  [-1.425, 1.8179],  // 4: Rear Left
+  [1.425, 1.8179],   // 5: Rear Right
 ];
 
 export type RoverGear = "D" | "R" | "N";
@@ -100,7 +100,6 @@ export function solveRockerBogieSuspension(
   const rearAvg = 0.5 * (contacts[4] + contacts[5]);
   const leftAvg = (contacts[0] + contacts[2] + contacts[4]) / 3;
   const rightAvg = (contacts[1] + contacts[3] + contacts[5]) / 3;
-  const avgWheelY = (contacts[0] + contacts[1] + contacts[2] + contacts[3] + contacts[4] + contacts[5]) / 6;
 
   // Corrected right-handed Euler("YXZ") signs:
   // +pitch lifts -Z (front) UP; +roll lifts +X (right) UP.
@@ -114,19 +113,22 @@ export function solveRockerBogieSuspension(
   const sinP = Math.sin(pitch);
   const cosP = Math.cos(pitch);
   const sinR = Math.sin(roll);
+  const verticalScale = cosP * Math.cos(roll);
 
   // Prevent belly skid frame (bottom at +0.34m) from clipping crests,
   // and prevent any individual wheel from exceeding maximum upward suspension travel (+0.32m).
   const maxComp = 0.32;
   let minChassisFromWheels = -Infinity;
+  let supportHeight = 0;
   for (let i = 0; i < 6; i++) {
     const [lx, lz] = ROVER_WHEEL_OFFSETS[i];
     const planeOffset = lx * sinR * cosP - lz * sinP;
-    const req = contacts[i] - planeOffset - maxComp;
+    supportHeight += (contacts[i] - planeOffset + ROVER_WHEEL_OUTER_RADIUS * (1 - verticalScale)) / 6;
+    const req = contacts[i] - planeOffset + ROVER_WHEEL_OUTER_RADIUS * (1 - verticalScale) - maxComp * verticalScale;
     if (req > minChassisFromWheels) minChassisFromWheels = req;
   }
   const bellyGuardY = centerGround - 0.14;
-  const targetChassisY = Math.max(avgWheelY, bellyGuardY, minChassisFromWheels) + ROVER_CHASSIS_CLEARANCE;
+  const targetChassisY = Math.max(supportHeight, bellyGuardY, minChassisFromWheels) + ROVER_CHASSIS_CLEARANCE;
 
   const heightBlend = dt > 0 ? 1 - Math.exp(-18 * dt) : 1;
   // Never lag below the required ground support height when climbing slopes or rocks
@@ -137,9 +139,12 @@ export function solveRockerBogieSuspension(
   const suspBlend = dt > 0 ? 1 - Math.exp(-22 * dt) : 1;
   for (let i = 0; i < 6; i++) {
     const [lx, lz] = ROVER_WHEEL_OFFSETS[i];
-    const nominalWheelBottomY = chassisY + lx * sinR * cosP - lz * sinP;
-    const rawDelta = clamp(contacts[i] - nominalWheelBottomY, -0.26, maxComp);
-    compression[i] = prevCompression[i] + (rawDelta - prevCompression[i]) * suspBlend;
+    const nominalWheelBottomY = chassisY + lx * sinR * cosP - lz * sinP
+      + ROVER_WHEEL_OUTER_RADIUS * (verticalScale - 1);
+    const rawDelta = clamp((contacts[i] - nominalWheelBottomY) / Math.max(.1, verticalScale), -0.26, maxComp);
+    const previous = prevCompression[i] ?? 0;
+    const damped = previous + (rawDelta - previous) * suspBlend;
+    compression[i] = Math.max(rawDelta, damped);
   }
 
   // Bogie pivots between Mid (z=0.0) and Rear (z=1.6), Rocker connects Front (z=-1.6) to Bogie pivot (z=+0.8)
