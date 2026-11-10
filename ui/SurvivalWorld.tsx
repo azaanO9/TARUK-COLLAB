@@ -621,7 +621,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         if (bigRover) {
           const roverGround = model.heightAt(rover.x, rover.z);
-          bigRover.update(rover, roverGround, dt, p.event === "night" || p.event === "eclipse");
+          bigRover.update(
+            rover,
+            roverGround,
+            dt,
+            p.event === "night" || p.event === "eclipse",
+            model.heightAt,
+          );
         }
         if (props.planet === "mars") {
           const nearNow = !rover.driving && canEnterRover(walker, rover);
@@ -643,8 +649,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const roverGround = model.heightAt(rover.x, rover.z);
           cameraGround += (roverGround - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
-            const vehicleBack = 7.8;
-            const roverTargetY = cameraGround + 2.1;
+            const vehicleBack = 6.2;
+            const roverTargetY = cameraGround + 1.65;
             const horizBack = Math.cos(pitch) * vehicleBack;
             const vertBack = -Math.sin(pitch) * vehicleBack;
             camera.position.set(
@@ -659,10 +665,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
           } else {
             // Authentic cockpit view inside the NASA Space Exploration Vehicle panoramic bubble canopy
-            const driverForward = 1.25;
-            const driverSide = -0.42;
+            const driverForward = 0.95;
+            const driverSide = -0.36;
             const eyeX = rover.x - Math.sin(rover.yaw) * driverForward + Math.cos(rover.yaw) * driverSide;
-            const eyeY = cameraGround + 2.15;
+            const eyeY = cameraGround + 1.68;
             const eyeZ = rover.z - Math.cos(rover.yaw) * driverForward - Math.sin(rover.yaw) * driverSide;
             camera.position.set(eyeX, eyeY, eyeZ);
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
