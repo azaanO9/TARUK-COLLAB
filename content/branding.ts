@@ -1,8 +1,9 @@
+import { assetUrl } from "../lib/assetUrl";
 /** User-supplied team mark. Keep its embedded name and the game title distinct. */
 export const TEAM_BRANDING = {
   teamName: "TARUKH",
   gameTitle: "Six Shifts",
-  logoPath: "/team/tarukh-logo.webp" as string | null,
+  logoPath: assetUrl("/team/tarukh-logo.webp") as string | null,
   logoIncludesName: true,
   teamLogoSupplied: true,
 };
