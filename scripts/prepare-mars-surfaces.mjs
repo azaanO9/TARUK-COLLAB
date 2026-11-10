@@ -17,7 +17,7 @@ for (const [id, name] of [["sandy_gravel_02", "sandy-gravel"], ["dry_ground_rock
   const rough = await sharp(path.join(source, `${id}-Rough.jpg`)).resize(1024,1024).removeAlpha().greyscale().raw().toBuffer();
   const packed = Buffer.alloc(height.length * 3);
   for (let i = 0; i < height.length; i++) { packed[i * 3] = height[i]; packed[i * 3 + 1] = rough[i]; packed[i * 3 + 2] = 255; }
-  await sharp(packed, { raw: { width: 1024, height: 1024, channels: 3 } }).png({ compressionLevel: 9 }).toFile(`${output}/${name}-relief.png`);
+  await sharp(packed, { raw: { width: 1024, height: 1024, channels: 3 } }).webp({ lossless: true, effort: 6 }).toFile(`${output}/${name}-relief.webp`);
 }
 // Keep verified source URLs/hashes alongside the distributable derivatives.
 await writeFile(`${output}/sources.json`, await readFile(path.join(source, "manifest.json")));

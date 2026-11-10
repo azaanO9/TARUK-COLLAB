@@ -3,11 +3,12 @@ import { assetUrl } from "../../lib/assetUrl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { ROVER_WHEEL_OFFSETS, ROVER_WHEEL_OUTER_RADIUS, type RoverVehicle } from "../../game/roverVehicle";
-import { partitionRoverMesh, type RoverWheelAssembly } from "./roverWheelAssembly";
+import { bindPreparedRover, type RoverWheelAssembly } from "./roverWheelAssembly";
 
 import { createRoverCockpit, positionRoverCockpitCamera } from "./roverCockpit";
 
 export type BigRoverHandle = {
+  ready: Promise<void>;
   setCockpitView: (enabled: boolean) => void;
   positionCockpitCamera: (camera: T.Camera, yaw: number, pitch: number) => void;
   root: T.Group;
@@ -28,10 +29,10 @@ export type BigRoverHandle = {
  * Creates the authentic NASA Multi-Mission Space Exploration Vehicle (MMSEV)
  * with working forward headlights, regolith tire dust spray, real independent
  * surface suspension, and rolling tires synchronized with vehicle speed.
- * Automatically loads /models/space-exploration-vehicle.glb with DRACOLoader.
+ * Loads the offline-prepared NASA derivative with DRACOLoader.
  */
 export function createBigRover(
-  modelUrl = assetUrl("/models/space-exploration-vehicle.glb"),
+  modelUrl = assetUrl("/models/space-exploration-vehicle-ready.glb"),
 ): BigRoverHandle {
   const root = new T.Group();
   root.name = "BigRover";
@@ -39,7 +40,10 @@ export function createBigRover(
   let cockpitView = false;
   let exteriorBody: T.Object3D | null = null;
   const cockpit = createRoverCockpit();
-  root.add(cockpit.root);
+  root.add(cockpit.root, cockpit.cabinLight);
+  let disposed = false;
+  let resolveReady!: () => void;
+  const ready = new Promise<void>(resolve => { resolveReady = resolve; });
   let isModelLoaded = false;
   let activeWheels: RoverWheelAssembly[] = [];
 
@@ -175,10 +179,10 @@ export function createBigRover(
   dracoLoader.setDecoderPath(assetUrl("/draco/"));
   loader.setDRACOLoader(dracoLoader);
 
-  loader.load(
-    modelUrl,
+  loader.loadAsync(modelUrl).then(
     (gltf) => {
       const model = gltf.scene;
+      if (disposed) { model.traverse(o => { if (o instanceof T.Mesh) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) { for (const value of Object.values(m)) if (value instanceof T.Texture) value.dispose(); m.dispose(); } } }); return; }
 
       // Configure double-sided materials and shadows
       model.traverse((o) => {
@@ -202,75 +206,16 @@ export function createBigRover(
         }
       });
 
-      // Find the primary MMSEV mesh
-      let primaryMesh: T.Mesh | null = null;
-      model.traverse((o) => {
-        if (!primaryMesh && (o as T.Mesh).isMesh) {
-          primaryMesh = o as T.Mesh;
-        }
-      });
-
-      if (!primaryMesh) {
-        console.warn("[BigRover] No mesh found in GLTF model.");
+      // Geometry and wheel/upright separation are baked offline, never during play.
+      const partitioned = bindPreparedRover(model);
+      if (!partitioned) {
+        console.warn('[BigRover] Invalid prepared rig; retaining fallback.');
         return;
       }
-      const targetMesh = primaryMesh as T.Mesh;
-
-      // Ground-truth Basis Mapping for NASA MMSEV:
-      // The authentic CAD mesh has:
-      // - Raw X: Left (-2.02) to Right (+2.02) -> Three.js X
-      // - Raw Y: Rear (-3.35) to Front (+2.56) -> Three.js -Z
-      // - Raw Z: Roof (-1.73) to Wheels (+2.24) -> Three.js -Y
-      //
-      // Scale proportionally: target length 4.95m (width 3.38m, height 3.32m)
-      const scale = 4.95 / 5.91002; // ~0.83756
-      const bottomY = -2.24213 * scale; // lowest point of wheels in -Z * scale
-      const centerZ = 0.39988 * scale;  // vehicle midpoint in -Y * scale
-
-      // Transformation matrix directly into vehicle world space:
-      // x' = x * scale
-      // y' = -z * scale - bottomY   (places soles of tires exactly on ground y = 0)
-      // z' = -y * scale - centerZ   (front canopy at -Z, rear suitports at +Z)
-      const M = new T.Matrix4().set(
-        scale,     0,      0,        0,
-            0,     0, -scale, -bottomY,
-            0, -scale,     0, -centerZ,
-            0,     0,      0,        1,
-      );
-
-      // Apply matrix directly to the geometry vertices
-      targetMesh.geometry.applyMatrix4(M);
-
-      // Invert triangle index winding because det(M) < 0 (left-to-right hand conversion)
-      const idx = targetMesh.geometry.index;
-      if (idx) {
-        for (let i = 0; i < idx.count; i += 3) {
-          const tmp = idx.getX(i + 1);
-          idx.setX(i + 1, idx.getX(i + 2));
-          idx.setX(i + 2, tmp);
-        }
-        idx.needsUpdate = true;
-      }
-      targetMesh.geometry.computeVertexNormals();
-
-      const assembledGroup = new T.Group();
-      assembledGroup.name = "MMSEV_Assembled";
-
-      // Segment geometry into chassis and 6 independent rotating wheels
-      const partitioned = partitionRoverMesh(targetMesh);
-      if (partitioned) {
-        assembledGroup.add(partitioned.chassisMesh);
-        exteriorBody = partitioned.chassisMesh;
-        exteriorBody.visible = !cockpitView;
-        for (const w of partitioned.wheels) {
-          assembledGroup.add(w.pivot);
-        }
-        activeWheels = partitioned.wheels;
-      } else {
-        console.warn("[BigRover] Wheel partition failed; retaining the animated fallback.");
-        return;
-      }
-
+      const assembledGroup = model;
+      exteriorBody = partitioned.chassisMesh;
+      exteriorBody.visible = !cockpitView;
+      activeWheels = partitioned.wheels;
       // Re-anchor high-power headlights to the scaled front bumper
       const frontZ = -2.48;
       const headlightY = 1.55;
@@ -283,6 +228,8 @@ export function createBigRover(
 
       // Swap out procedural fallback with the authentic NASA SEV assembly
       root.remove(fallback);
+      fallback.traverse(o => { if (o instanceof T.Mesh) o.geometry.dispose(); });
+      chassisMat.dispose(); tireMat.dispose();
       root.add(assembledGroup);
 
       isModelLoaded = true;
@@ -290,14 +237,11 @@ export function createBigRover(
       console.info(
         `[BigRover] Loaded NASA Space Exploration Vehicle successfully (3.38m wide x 4.95m long x 3.32m high). Forward heading aligned (-Z), tires placed at ground level (Y = 0), and 6 independent rotating wheels with active surface suspension initialized.`,
       );
-    },
-    undefined,
-    (err) => {
+    }).catch((err) => {
       console.warn(
         `[BigRover] Could not load "${modelUrl}" (${(err as Error)?.message || "File not found"}). Using procedural rover fallback.`,
       );
-    },
-  );
+    }).finally(() => { dracoLoader.dispose(); resolveReady(); });
 
   // ==========================================
   // 5. UPDATE FUNCTION
@@ -394,6 +338,7 @@ export function createBigRover(
   // 6. DISPOSE FUNCTION
   // ==========================================
   function dispose() {
+    disposed = true;
     cockpit.texture.dispose();
     dracoLoader.dispose();
     root.traverse((o) => {
@@ -412,9 +357,12 @@ export function createBigRover(
   }
 
   return {
+    ready,
     setCockpitView(enabled) {
+      if (cockpitView === enabled) return;
       cockpitView = enabled;
       cockpit.root.visible = enabled;
+      cockpit.cabinLight.intensity = enabled ? 2.4 : 0;
       if (exteriorBody) exteriorBody.visible = !enabled;
     },
     positionCockpitCamera(camera, yaw, pitch) {

@@ -20,7 +20,7 @@ export async function loadMarsSurfaceTextures(): Promise<MarsSurfaceTextures> {
   ].map(async ([name, tint]) => {
     const [color, relief] = await Promise.all([
       loader.loadAsync(assetUrl(`/art/mars-surface/${name}-color.webp`)).catch(() => fallback(tint as number)),
-      loader.loadAsync(assetUrl(`/art/mars-surface/${name}-relief.png`)).catch(() => fallback(0, true)),
+      loader.loadAsync(assetUrl(`/art/mars-surface/${name}-relief.webp`)).catch(() => fallback(0, true)),
     ]);
     // DataTexture fallback already contains linear values.
     color.colorSpace = color instanceof T.DataTexture ? T.NoColorSpace : T.SRGBColorSpace;

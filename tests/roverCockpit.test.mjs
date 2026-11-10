@@ -36,3 +36,16 @@ test('cockpit has a clear forward windshield and bounded interior geometry', () 
   }
 });
 
+test('switching cockpit visibility keeps the scene light count stable',()=>{
+  const previous=globalThis.document;
+  globalThis.document={createElement:()=>({getContext:()=>({})})};
+  try {
+    const cockpit=createRoverCockpit(),scene=new T.Scene();
+    scene.add(cockpit.root,cockpit.cabinLight);
+    const lights=()=>{let count=0;scene.traverseVisible(o=>{if(o.isLight)count++;});return count;};
+    assert.equal(lights(),1);
+    cockpit.root.visible=true;cockpit.cabinLight.intensity=2.4;assert.equal(lights(),1);
+    cockpit.root.visible=false;cockpit.cabinLight.intensity=0;assert.equal(lights(),1);
+  } finally {globalThis.document=previous;}
+});
+
