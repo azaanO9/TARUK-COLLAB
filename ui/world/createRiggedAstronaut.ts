@@ -45,7 +45,7 @@ export type RiggedAstronautHandle = {
 
 /**
  * Multi-rig fuzzy bone search patterns.
- * Supports Mixamo rigs, glTF humanoid convention, Blender Rigify, and 3ds Max Biped.
+ * Supports Three.js sanitized node names (e.g. "leg_1L_050"), Mixamo, glTF humanoid, and Biped.
  */
 const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
   hips: [
@@ -66,82 +66,80 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_spine/i,
   ],
   leftUpLeg: [
-    /leg_1\.l/i,
+    /leg_?1.*l/i,
     /mixamorig:?leftupleg/i,
     /left.*(up.*leg|thigh)/i,
-    /thigh[._]l/i,
+    /thigh.*l/i,
     /l.*thigh/i,
     /bip00?1_l_thigh/i,
   ],
   rightUpLeg: [
-    /leg_1\.r/i,
+    /leg_?1.*r/i,
     /mixamorig:?rightupleg/i,
     /right.*(up.*leg|thigh)/i,
-    /thigh[._]r/i,
+    /thigh.*r/i,
     /r.*thigh/i,
     /bip00?1_r_thigh/i,
   ],
   leftLeg: [
-    /leg_2\.l/i,
+    /leg_?2.*l/i,
     /mixamorig:?leftleg/i,
     /left.*(leg|calf|knee|shin)/i,
-    /shin[._]l/i,
-    /l.*calf/i,
+    /shin.*l/i,
+    /calf.*l/i,
     /bip00?1_l_calf/i,
   ],
   rightLeg: [
-    /leg_2\.r/i,
+    /leg_?2.*r/i,
     /mixamorig:?rightleg/i,
     /right.*(leg|calf|knee|shin)/i,
-    /shin[._]r/i,
-    /r.*calf/i,
+    /shin.*r/i,
+    /calf.*r/i,
     /bip00?1_r_calf/i,
   ],
   leftFoot: [
-    /foot\.l/i,
+    /foot.*l/i,
     /mixamorig:?leftfoot/i,
     /left.*(foot|ankle)/i,
-    /foot[._]l/i,
     /l.*foot/i,
     /bip00?1_l_foot/i,
   ],
   rightFoot: [
-    /foot\.r/i,
+    /foot.*r/i,
     /mixamorig:?rightfoot/i,
     /right.*(foot|ankle)/i,
-    /foot[._]r/i,
     /r.*foot/i,
     /bip00?1_r_foot/i,
   ],
   leftArm: [
-    /arm_1\.l/i,
+    /arm_?1.*l/i,
     /mixamorig:?leftarm/i,
     /left.*(upper.*arm|arm|shoulder)/i,
-    /upper_arm[._]l/i,
+    /upper.*arm.*l/i,
     /l.*upperarm/i,
     /bip00?1_l_upperarm/i,
   ],
   rightArm: [
-    /arm_1\.r/i,
+    /arm_?1.*r/i,
     /mixamorig:?rightarm/i,
     /right.*(upper.*arm|arm|shoulder)/i,
-    /upper_arm[._]r/i,
+    /upper.*arm.*r/i,
     /r.*upperarm/i,
     /bip00?1_r_upperarm/i,
   ],
   leftForeArm: [
-    /arm_2\.l/i,
+    /arm_?2.*l/i,
     /mixamorig:?leftforearm/i,
     /left.*(forearm|elbow)/i,
-    /forearm[._]l/i,
+    /forearm.*l/i,
     /l.*forearm/i,
     /bip00?1_l_forearm/i,
   ],
   rightForeArm: [
-    /arm_2\.r/i,
+    /arm_?2.*r/i,
     /mixamorig:?rightforearm/i,
     /right.*(forearm|elbow)/i,
-    /forearm[._]r/i,
+    /forearm.*r/i,
     /r.*forearm/i,
     /bip00?1_r_forearm/i,
   ],
@@ -171,33 +169,6 @@ function resolveBones(scene: T.Object3D): AstronautBones {
 }
 
 /**
- * Normalize model height and ground position so that:
- * 1. Model stands at realistic human EVA space suit height (~1.9m).
- * 2. Soles of the boots rest exactly at y = 0.
- * 3. Model is centered horizontally on the origin.
- */
-function normalizeModelTransform(model: T.Object3D, targetHeight = 1.9): void {
-  model.updateMatrixWorld(true);
-  const bbox = new T.Box3().setFromObject(model);
-  const size = bbox.getSize(new T.Vector3());
-  const center = bbox.getCenter(new T.Vector3());
-
-  if (size.y > 0.01) {
-    const scale = targetHeight / size.y;
-    model.scale.multiplyScalar(scale);
-  }
-
-  model.updateMatrixWorld(true);
-  const scaledBox = new T.Box3().setFromObject(model);
-  const scaledCenter = scaledBox.getCenter(new T.Vector3());
-
-  // Center on X and Z, align boot soles to y = 0
-  model.position.x -= scaledCenter.x;
-  model.position.z -= scaledCenter.z;
-  model.position.y -= scaledBox.min.y;
-}
-
-/**
  * Configure materials and cast/receive shadows on all child meshes.
  */
 function configureMeshes(root: T.Object3D): void {
@@ -223,27 +194,42 @@ function configureMeshes(root: T.Object3D): void {
   });
 }
 
-/**
- * Apply procedural Mars gait rotations to resolved bones safely,
- * compounding onto each bone's original rest-pose rotation.
- */
-const _euler = new T.Euler();
+const AXIS_X = new T.Vector3(1, 0, 0);
+const AXIS_Y = new T.Vector3(0, 1, 0);
+const AXIS_Z = new T.Vector3(0, 0, 1);
+
 const _deltaQuat = new T.Quaternion();
 const _targetQuat = new T.Quaternion();
+const _euler = new T.Euler();
 
-function applyBoneRotation(
+function applyAxisRotations(
+  boneRec: BoneRecord | undefined,
+  rotations: { axis: T.Vector3; angle: number }[],
+  dt: number,
+): void {
+  if (!boneRec) return;
+  _targetQuat.copy(boneRec.restRotation);
+  for (const r of rotations) {
+    if (Math.abs(r.angle) > 0.0001) {
+      _deltaQuat.setFromAxisAngle(r.axis, r.angle);
+      _targetQuat.multiply(_deltaQuat);
+    }
+  }
+  boneRec.bone.quaternion.slerp(_targetQuat, 1 - Math.exp(-24 * dt));
+}
+
+function applyGenericRotation(
   boneRec: BoneRecord | undefined,
   pitch: number,
   yaw: number,
   roll: number,
   dt: number,
-  order: "YXZ" | "XYZ" = "YXZ",
 ): void {
   if (!boneRec) return;
-  _euler.set(pitch, yaw, roll, order);
+  _euler.set(pitch, yaw, roll, "YXZ");
   _deltaQuat.setFromEuler(_euler);
   _targetQuat.copy(boneRec.restRotation).multiply(_deltaQuat);
-  boneRec.bone.quaternion.slerp(_targetQuat, 1 - Math.exp(-22 * dt));
+  boneRec.bone.quaternion.slerp(_targetQuat, 1 - Math.exp(-24 * dt));
 }
 
 /**
@@ -261,6 +247,9 @@ export function createRiggedAstronaut(
   const root = new T.Group();
   let bones: AstronautBones = {};
   const gaitState: MarsGaitState = createMarsGaitState();
+  let baseModelY = 0;
+  let modelRef: T.Object3D | null = null;
+  let mixer: T.AnimationMixer | null = null;
 
   // Initialize with procedural astronaut fallback immediately so the scene is never empty
   const fallback = createMarsAstronaut();
@@ -273,24 +262,146 @@ export function createRiggedAstronaut(
     update(dt: number, speed: number, isAirborne: boolean, jumpHeight: number) {
       const pose: MarsGaitPose = stepMarsGait(gaitState, speed, isAirborne, dt);
 
-      if (handle.isModelLoaded && bones.hips) {
-        // Procedural Mars Walking Engine targeting internal bone structures:
-        // 1. Hips: vertical sinusoidal bounce + pelvic roll & yaw
-        if (bones.hips) {
-          bones.hips.bone.position.y =
-            bones.hips.restPosition.y + pose.hipOffsetY;
-          applyBoneRotation(
-            bones.hips,
-            pose.hipPitch,
-            pose.hipYaw,
-            pose.hipRoll,
-            dt,
-          );
+      if (handle.isModelLoaded && bones.leftUpLeg && modelRef) {
+        // 1. Vertical bounce on Mars: lift the astronaut root smoothly in world space
+        modelRef.position.y = baseModelY + pose.hipOffsetY;
+
+        // 2. Play subtle idle breathing/finger animation when available
+        if (mixer) {
+          mixer.update(dt);
         }
 
-        // 2. Spine: counter-balance twist + idle breathing
-        if (bones.spine) {
-          applyBoneRotation(
+        // 3. Detect rig type: FBX-style rig (e.g. Sketchfab astro_bones with leg_1) vs standard Mixamo/humanoid
+        const isAstroRig = /leg_?1/i.test(bones.leftUpLeg.bone.name);
+
+        if (isAstroRig) {
+          // Precise kinematics for the Sketchfab astronaut rig:
+          // Thighs: local X is forward swing (negative tilts towards visor)
+          applyAxisRotations(
+            bones.leftUpLeg,
+            [
+              { axis: AXIS_X, angle: -pose.leftThighPitch },
+              { axis: AXIS_Z, angle: pose.leftThighRoll },
+            ],
+            dt,
+          );
+          applyAxisRotations(
+            bones.rightUpLeg,
+            [
+              { axis: AXIS_X, angle: -pose.rightThighPitch },
+              { axis: AXIS_Z, angle: pose.rightThighRoll },
+            ],
+            dt,
+          );
+
+          // Knees: local X is flexion (positive bends foot backward towards backpack)
+          applyAxisRotations(
+            bones.leftLeg,
+            [{ axis: AXIS_X, angle: pose.leftKneePitch * 1.3 }],
+            dt,
+          );
+          applyAxisRotations(
+            bones.rightLeg,
+            [{ axis: AXIS_X, angle: pose.rightKneePitch * 1.3 }],
+            dt,
+          );
+
+          // Feet: local X is dorsiflexion (positive tilts toes up)
+          applyAxisRotations(
+            bones.leftFoot,
+            [{ axis: AXIS_X, angle: pose.leftAnklePitch }],
+            dt,
+          );
+          applyAxisRotations(
+            bones.rightFoot,
+            [{ axis: AXIS_X, angle: pose.rightAnklePitch }],
+            dt,
+          );
+
+          // Arms: local Z is forward/back swing, local X is lateral abduction
+          // Left arm: negative Z swings forward towards visor
+          applyAxisRotations(
+            bones.leftArm,
+            [
+              { axis: AXIS_Z, angle: -pose.leftArmPitch },
+              { axis: AXIS_X, angle: -pose.leftArmRoll },
+            ],
+            dt,
+          );
+          // Right arm: positive Z swings forward towards visor
+          applyAxisRotations(
+            bones.rightArm,
+            [
+              { axis: AXIS_Z, angle: pose.rightArmPitch },
+              { axis: AXIS_X, angle: pose.rightArmRoll },
+            ],
+            dt,
+          );
+
+          // Forearms: local X flexes elbow forward
+          applyAxisRotations(
+            bones.leftForeArm,
+            [{ axis: AXIS_X, angle: pose.leftForearmPitch }],
+            dt,
+          );
+          applyAxisRotations(
+            bones.rightForeArm,
+            [{ axis: AXIS_X, angle: pose.rightForearmPitch }],
+            dt,
+          );
+
+          // Spine: counter-balance twist
+          applyAxisRotations(
+            bones.spine,
+            [
+              { axis: AXIS_X, angle: -pose.spinePitch },
+              { axis: AXIS_Y, angle: pose.spineYaw },
+              { axis: AXIS_Z, angle: pose.spineRoll },
+            ],
+            dt,
+          );
+        } else {
+          // Standard humanoid / Mixamo bone orientation fallback
+          applyGenericRotation(
+            bones.leftUpLeg,
+            pose.leftThighPitch,
+            0,
+            pose.leftThighRoll,
+            dt,
+          );
+          applyGenericRotation(
+            bones.rightUpLeg,
+            pose.rightThighPitch,
+            0,
+            pose.rightThighRoll,
+            dt,
+          );
+
+          applyGenericRotation(bones.leftLeg, pose.leftKneePitch, 0, 0, dt);
+          applyGenericRotation(bones.rightLeg, pose.rightKneePitch, 0, 0, dt);
+
+          applyGenericRotation(bones.leftFoot, pose.leftAnklePitch, 0, 0, dt);
+          applyGenericRotation(bones.rightFoot, pose.rightAnklePitch, 0, 0, dt);
+
+          applyGenericRotation(
+            bones.leftArm,
+            pose.leftArmPitch,
+            pose.leftArmYaw,
+            pose.leftArmRoll,
+            dt,
+          );
+          applyGenericRotation(
+            bones.rightArm,
+            pose.rightArmPitch,
+            pose.rightArmYaw,
+            pose.rightArmRoll,
+            dt,
+          );
+
+          applyGenericRotation(bones.leftForeArm, pose.leftForearmPitch, 0, 0, dt);
+          applyGenericRotation(bones.rightForeArm, pose.rightForearmPitch, 0, 0, dt);
+
+          applyGenericRotation(
             bones.spine,
             pose.spinePitch,
             pose.spineYaw,
@@ -298,47 +409,6 @@ export function createRiggedAstronaut(
             dt,
           );
         }
-
-        // 3. Legs: forward momentum reach, knee flexion, ankle dorsiflexion & plant
-        applyBoneRotation(
-          bones.leftUpLeg,
-          pose.leftThighPitch,
-          0,
-          pose.leftThighRoll,
-          dt,
-        );
-        applyBoneRotation(
-          bones.rightUpLeg,
-          pose.rightThighPitch,
-          0,
-          pose.rightThighRoll,
-          dt,
-        );
-
-        applyBoneRotation(bones.leftLeg, pose.leftKneePitch, 0, 0, dt);
-        applyBoneRotation(bones.rightLeg, pose.rightKneePitch, 0, 0, dt);
-
-        applyBoneRotation(bones.leftFoot, pose.leftAnklePitch, 0, 0, dt);
-        applyBoneRotation(bones.rightFoot, pose.rightAnklePitch, 0, 0, dt);
-
-        // 4. Arms: space-suit lateral abduction & counter-balance swing
-        applyBoneRotation(
-          bones.leftArm,
-          pose.leftArmPitch,
-          pose.leftArmYaw,
-          pose.leftArmRoll,
-          dt,
-        );
-        applyBoneRotation(
-          bones.rightArm,
-          pose.rightArmPitch,
-          pose.rightArmYaw,
-          pose.rightArmRoll,
-          dt,
-        );
-
-        applyBoneRotation(bones.leftForeArm, pose.leftForearmPitch, 0, 0, dt);
-        applyBoneRotation(bones.rightForeArm, pose.rightForearmPitch, 0, 0, dt);
       } else {
         // Fallback procedural animation
         const stride = gaitState.blend * Math.sin(gaitState.phase) * 0.45;
@@ -346,6 +416,7 @@ export function createRiggedAstronaut(
       }
     },
     dispose() {
+      mixer?.stopAllAction();
       root.traverse((node) => {
         if ((node as T.Mesh).isMesh) {
           const mesh = node as T.Mesh;
@@ -367,7 +438,6 @@ export function createRiggedAstronaut(
   dracoLoader.setDecoderPath("/draco/");
   loader.setDRACOLoader(dracoLoader);
 
-  // Attempt to load the model
   loader.load(
     modelUrl,
     (gltf) => {
@@ -376,8 +446,36 @@ export function createRiggedAstronaut(
       // Enable shadows and configure sRGB color space
       configureMeshes(model);
 
-      // Scale to human height and ground soles at y = 0
-      normalizeModelTransform(model, 1.92);
+      // Rotate model 180 degrees so the astronaut faces forward away from the camera
+      // (into the scene) rather than facing towards the player's screen
+      model.rotation.y = Math.PI;
+      model.updateMatrixWorld(true);
+
+      // Scale to human EVA suit height (~1.92m)
+      const bbox = new T.Box3().setFromObject(model);
+      const size = bbox.getSize(new T.Vector3());
+      if (size.y > 0.01) {
+        const scale = 1.92 / size.y;
+        model.scale.multiplyScalar(scale);
+      }
+
+      model.updateMatrixWorld(true);
+      const scaledBox = new T.Box3().setFromObject(model);
+      const scaledCenter = scaledBox.getCenter(new T.Vector3());
+
+      // Center horizontally on origin and place boot soles at y = 0
+      model.position.x -= scaledCenter.x;
+      model.position.z -= scaledCenter.z;
+      model.position.y -= scaledBox.min.y;
+      baseModelY = model.position.y;
+      modelRef = model;
+
+      // Setup animation mixer for idle clip if available
+      if (gltf.animations && gltf.animations.length > 0) {
+        mixer = new T.AnimationMixer(model);
+        const action = mixer.clipAction(gltf.animations[0]);
+        action.play();
+      }
 
       // Search and resolve internal bone structures
       const resolved = resolveBones(model);
@@ -392,19 +490,17 @@ export function createRiggedAstronaut(
       handle.modelType = "rigged-gltf";
 
       console.info(
-        `[RiggedAstronaut] Loaded "${modelUrl}" successfully with ${boneCount} matched bones.`,
+        `[RiggedAstronaut] Loaded "${modelUrl}" successfully with ${boneCount} matched bones. Rig: ${/leg_?1/i.test(bones.leftUpLeg?.bone.name || "") ? "astro_bones" : "humanoid"}`,
       );
       onLoaded?.();
     },
     undefined,
     (err) => {
-      // If /models/astronaut.glb does not exist yet, log clear instructions and continue using fallback
       console.warn(
-        `[RiggedAstronaut] Model "${modelUrl}" not found or failed to load (${(err as Error)?.message || "File not found"}). Using procedural Mars astronaut. To use the Sketchfab model, download the GLB from https://sketchfab.com/3d-models/astronaut-rigged-and-animated-f45039084a674080b42f5e171fd4f04c and save it to public/models/astronaut.glb`,
+        `[RiggedAstronaut] Model "${modelUrl}" not found or failed to load (${(err as Error)?.message || "File not found"}). Using procedural Mars astronaut.`,
       );
     },
   );
 
   return handle;
 }
-
