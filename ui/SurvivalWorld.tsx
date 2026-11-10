@@ -643,8 +643,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const roverGround = model.heightAt(rover.x, rover.z);
           cameraGround += (roverGround - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
-            const vehicleBack = 7.5;
-            const roverTargetY = cameraGround + 1.85;
+            const vehicleBack = 7.8;
+            const roverTargetY = cameraGround + 2.1;
             const horizBack = Math.cos(pitch) * vehicleBack;
             const vertBack = -Math.sin(pitch) * vehicleBack;
             camera.position.set(
@@ -658,9 +658,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.6);
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
           } else {
-            const eyeX = rover.x - Math.cos(rover.yaw) * 0.46 - Math.sin(rover.yaw) * 0.45;
-            const eyeY = cameraGround + 1.82;
-            const eyeZ = rover.z + Math.sin(rover.yaw) * 0.46 - Math.cos(rover.yaw) * 0.45;
+            // Authentic cockpit view inside the NASA Space Exploration Vehicle panoramic bubble canopy
+            const driverForward = 1.25;
+            const driverSide = -0.42;
+            const eyeX = rover.x - Math.sin(rover.yaw) * driverForward + Math.cos(rover.yaw) * driverSide;
+            const eyeY = cameraGround + 2.15;
+            const eyeZ = rover.z - Math.cos(rover.yaw) * driverForward - Math.sin(rover.yaw) * driverSide;
             camera.position.set(eyeX, eyeY, eyeZ);
             camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
           }
