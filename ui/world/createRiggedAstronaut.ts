@@ -49,23 +49,24 @@ export type RiggedAstronautHandle = {
  */
 const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
   hips: [
+    /master/i,
+    /hip_joint/i,
     /mixamorig:?hips/i,
-    /^hips$/i,
-    /^pelvis$/i,
+    /hips/i,
+    /pelvis/i,
     /bip00?1_pelvis/i,
     /bip00?1_root/i,
     /root/i,
   ],
   spine: [
-    /mixamorig:?spine1/i,
+    /spine1/i,
+    /spine/i,
     /mixamorig:?spine/i,
-    /^spine1$/i,
-    /^spine$/i,
-    /^chest$/i,
-    /bip00?1_spine1/i,
+    /chest/i,
     /bip00?1_spine/i,
   ],
   leftUpLeg: [
+    /leg_1\.l/i,
     /mixamorig:?leftupleg/i,
     /left.*(up.*leg|thigh)/i,
     /thigh[._]l/i,
@@ -73,6 +74,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_l_thigh/i,
   ],
   rightUpLeg: [
+    /leg_1\.r/i,
     /mixamorig:?rightupleg/i,
     /right.*(up.*leg|thigh)/i,
     /thigh[._]r/i,
@@ -80,6 +82,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_r_thigh/i,
   ],
   leftLeg: [
+    /leg_2\.l/i,
     /mixamorig:?leftleg/i,
     /left.*(leg|calf|knee|shin)/i,
     /shin[._]l/i,
@@ -87,6 +90,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_l_calf/i,
   ],
   rightLeg: [
+    /leg_2\.r/i,
     /mixamorig:?rightleg/i,
     /right.*(leg|calf|knee|shin)/i,
     /shin[._]r/i,
@@ -94,6 +98,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_r_calf/i,
   ],
   leftFoot: [
+    /foot\.l/i,
     /mixamorig:?leftfoot/i,
     /left.*(foot|ankle)/i,
     /foot[._]l/i,
@@ -101,6 +106,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_l_foot/i,
   ],
   rightFoot: [
+    /foot\.r/i,
     /mixamorig:?rightfoot/i,
     /right.*(foot|ankle)/i,
     /foot[._]r/i,
@@ -108,6 +114,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_r_foot/i,
   ],
   leftArm: [
+    /arm_1\.l/i,
     /mixamorig:?leftarm/i,
     /left.*(upper.*arm|arm|shoulder)/i,
     /upper_arm[._]l/i,
@@ -115,6 +122,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_l_upperarm/i,
   ],
   rightArm: [
+    /arm_1\.r/i,
     /mixamorig:?rightarm/i,
     /right.*(upper.*arm|arm|shoulder)/i,
     /upper_arm[._]r/i,
@@ -122,6 +130,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_r_upperarm/i,
   ],
   leftForeArm: [
+    /arm_2\.l/i,
     /mixamorig:?leftforearm/i,
     /left.*(forearm|elbow)/i,
     /forearm[._]l/i,
@@ -129,6 +138,7 @@ const BONE_PATTERNS: Record<keyof AstronautBones, RegExp[]> = {
     /bip00?1_l_forearm/i,
   ],
   rightForeArm: [
+    /arm_2\.r/i,
     /mixamorig:?rightforearm/i,
     /right.*(forearm|elbow)/i,
     /forearm[._]r/i,
@@ -397,3 +407,4 @@ export function createRiggedAstronaut(
 
   return handle;
 }
+
