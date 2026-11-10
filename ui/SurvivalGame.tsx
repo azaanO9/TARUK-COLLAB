@@ -35,7 +35,7 @@ const initialView: View = {
   locked: false,
   jumpHeight: 0,
 };
-export default function SurvivalGame({ skipOpening = false }: { skipOpening?: boolean }) {
+export default function SurvivalGame({ skipOpening = false, initialTouchControls = false }: { skipOpening?: boolean; initialTouchControls?: boolean }) {
   const [state, dispatch] = useReducer(
     survivalReducer,
     undefined,
@@ -48,7 +48,7 @@ export default function SurvivalGame({ skipOpening = false }: { skipOpening?: bo
     [planning, setPlanning] = useState(false),
     [missionOpen, setMissionOpen] = useState(false),
     [guide, setGuide] = useState(false),
-    [touchControls, setTouchControls] = useState(false),
+    [touchControls, setTouchControls] = useState(initialTouchControls),
     [map, setMap] = useState(false),
     [paths, setPaths] = useState(false),
     [fallback, setFallback] = useState(false),
