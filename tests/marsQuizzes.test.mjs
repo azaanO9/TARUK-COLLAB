@@ -1,0 +1,4 @@
+import test from 'node:test'; import assert from 'node:assert/strict';
+import {solQuestions,stationQuestions,shuffledQuiz} from '../content/marsQuizzes.ts';
+test('NASA quiz bank has ten distinct sol and six distinct station questions',()=>{const all=[...solQuestions,...Object.values(stationQuestions)];assert.equal(solQuestions.length,10);assert.equal(Object.keys(stationQuestions).length,6);assert.equal(new Set(all.map(q=>q.q)).size,16);for(const q of all){assert.equal(q.answers.length,3);assert.ok(q.correct>=0&&q.correct<3);assert.match(q.url,/nasa\.gov/);}});
+test('shuffling preserves the correct answer and can move it',()=>{const q=solQuestions[0];for(const random of [()=>0,()=>0.99]){const next=shuffledQuiz(q,random);assert.equal(next.answers[next.correct],q.answers[q.correct]);}assert.notEqual(shuffledQuiz(q,()=>0).correct,q.correct)});

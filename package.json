@@ -22,7 +22,6 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "^1.1.1",
-    "date-fns": "^4.4.0",
     "drizzle-orm": "0.45.2",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
@@ -38,9 +37,9 @@
     "recharts": "^3.8.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "3.6.0",
+    "three": "0.180.0",
     "vaul": "^1.1.2",
-    "zod": "^3.25.76",
-    "three": "0.180.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
@@ -49,6 +48,7 @@
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/three": "0.180.0",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
@@ -62,8 +62,7 @@
     "typescript": "5.9.3",
     "vinext": "1.0.0-beta.5",
     "vite": "8.0.13",
-    "wrangler": "4.92.0",
-    "@types/three": "0.180.0"
+    "wrangler": "4.92.0"
   },
   "type": "module",
   "overrides": {

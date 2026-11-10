@@ -1,5 +1,10 @@
 # Interface contracts
 
+## Junior Astronaut Mars mission (current)
+
+`game/juniorMission.ts` owns Mars mission resources, discoveries, XP, patches and sol progression. `TASK` marks a sol activity and can restore a station resource on repeat visits. `SHIFT` requires an activity that sol and consumes supplies; `QUIZ` and `SHIFT_QUIZ` award once. Rank depends on both XP and discovery count. `isNight(sol)` selects a player-paced alternating lighting cue. The mission briefing controls Mobile versus PC presentation; lunar rules are unchanged.
+
+
 ## Current default: ten-day first-person expedition and open-world Mars rover (v4)
 
 The centre crosshair is the sole aim point for station raycasts in both views. Space queues one jump from the ground; holding it cannot repeatedly jump in midair. `stepJump` is a pure illustrative movement helper and has no resource effects. The HUD reads resources and risk from engine state and shows them vertically at the upper left. The unboxed objective text expands for the full clue list and MICA's message; planning and clue gates remain authoritative in the survival engine. On-screen movement controls, including Jump, are hidden by default and can be enabled in Field Guide → Accessible station guide. `SurvivalGame` passes this presentation preference to `SurvivalWorld` as `showTouchControls`; it does not change mission state.
