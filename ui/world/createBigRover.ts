@@ -1,4 +1,5 @@
 import * as T from "three";
+import { assetUrl } from "../../lib/assetUrl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { ROVER_WHEEL_OFFSETS, ROVER_WHEEL_OUTER_RADIUS, type RoverVehicle } from "../../game/roverVehicle";
@@ -30,7 +31,7 @@ export type BigRoverHandle = {
  * Automatically loads /models/space-exploration-vehicle.glb with DRACOLoader.
  */
 export function createBigRover(
-  modelUrl = "/models/space-exploration-vehicle.glb",
+  modelUrl = assetUrl("/models/space-exploration-vehicle.glb"),
 ): BigRoverHandle {
   const root = new T.Group();
   root.name = "BigRover";
@@ -171,7 +172,7 @@ export function createBigRover(
   // ==========================================
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath("/draco/");
+  dracoLoader.setDecoderPath(assetUrl("/draco/"));
   loader.setDRACOLoader(dracoLoader);
 
   loader.load(

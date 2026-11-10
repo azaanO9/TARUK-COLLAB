@@ -1,4 +1,5 @@
 "use client";
+import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
 import { STATIONS } from "../content/survival";
@@ -169,8 +170,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const [regolithSurface,panelSurface] = props.planet === "mars" ? await Promise.all([
-        new T.TextureLoader().loadAsync("/art/mars-regolith-original.webp").catch(() => undefined),
-        new T.TextureLoader().loadAsync("/art/mars-ivory-panel-original.webp").catch(() => undefined),
+        new T.TextureLoader().loadAsync(assetUrl("/art/mars-regolith-original.webp")).catch(() => undefined),
+        new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
       ]) : [undefined,undefined];
       if (cancelled) {regolithSurface?.dispose();panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
@@ -291,7 +292,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       part(new T.BoxGeometry(0.24, 0.1, 0.26), accent, -0.5, 1.23, 0);
       part(new T.BoxGeometry(0.24, 0.1, 0.26), accent, 0.5, 1.23, 0);
       scene.add(astronaut);
-      const marsAstronaut = props.planet === "mars" ? createRiggedAstronaut("/models/astronaut.glb") : null;
+      const marsAstronaut = props.planet === "mars" ? createRiggedAstronaut(assetUrl("/models/astronaut.glb")) : null;
       if (marsAstronaut) { astronaut.clear(); astronaut.add(marsAstronaut.root); }
       const sun = new T.Mesh(
         new T.SphereGeometry(4, 24, 16),

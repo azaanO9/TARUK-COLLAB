@@ -1,4 +1,5 @@
 import * as T from "three";
+import { assetUrl } from "../../lib/assetUrl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import {
@@ -240,7 +241,7 @@ function applyGenericRotation(
  * @param onLoaded Optional callback when the rigged model loads
  */
 export function createRiggedAstronaut(
-  modelUrl = "/models/astronaut.glb",
+  modelUrl = assetUrl("/models/astronaut.glb"),
   onLoaded?: () => void,
 ): RiggedAstronautHandle {
   const root = new T.Group();
@@ -436,7 +437,7 @@ export function createRiggedAstronaut(
   // Modern Three.js GLTFLoader boilerplate with DRACOLoader support
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath("/draco/");
+  dracoLoader.setDecoderPath(assetUrl("/draco/"));
   loader.setDRACOLoader(dracoLoader);
 
   loader.load(
