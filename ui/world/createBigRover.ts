@@ -93,6 +93,8 @@ function buildSubGeometry(
 /**
  * Automatically segments the unified NASA SEV mesh into a chassis body
  * and 6 individual rotating wheel assemblies with realistic suspension pivots.
+ * Uses cylindrical bounds aligned with the wheel axles so 100% of the wire-mesh
+ * tires rotate smoothly with zero missing parts and zero suspension strut rotation.
  */
 function partitionRoverMesh(
   mesh: T.Mesh,
@@ -108,7 +110,7 @@ function partitionRoverMesh(
 
   const wheelTriangles: number[][] = Array.from({ length: 6 }, () => []);
   const chassisTriangles: number[] = [];
-  const captureRadiusSq = 0.46 * 0.46; // Radius of authentic MMSEV wire-mesh wheel
+  const maxRadialSq = 0.58 * 0.58; // Captures outer tire radius in Y-Z plane
 
   for (let i = 0; i < idx.count; i += 3) {
     const i0 = idx.getX(i);
@@ -120,16 +122,19 @@ function partitionRoverMesh(
     const cz = (pos.getZ(i0) + pos.getZ(i1) + pos.getZ(i2)) / 3;
 
     let assigned = -1;
-    // Wheels are strictly below the cabin floor (y < 0.88m) and outboard (|cx| > 0.65m)
-    if (cy < 0.88 && Math.abs(cx) > 0.65) {
-      let minDistSq = captureRadiusSq;
+    // Outboard wheel check: wheel rim/tire is strictly outboard (|cx| >= 0.86m) and below collar (cy <= 0.98m)
+    if (Math.abs(cx) >= 0.86 && cy <= 0.98) {
+      let minDistSq = maxRadialSq;
       for (let k = 0; k < 6; k++) {
-        const dx = cx - wheelCenters[k].x;
-        const dy = cy - wheelCenters[k].y;
-        const dz = cz - wheelCenters[k].z;
-        const dSq = dx * dx + dy * dy + dz * dz;
-        if (dSq < minDistSq) {
-          minDistSq = dSq;
+        const c = wheelCenters[k];
+        const dy = cy - c.y;
+        const dz = cz - c.z;
+        const r_yz_sq = dy * dy + dz * dz;
+        const dx = Math.abs(cx - c.x);
+
+        // Cylindrical volume aligned along X axis with half-thickness 0.42m
+        if (r_yz_sq <= minDistSq && dx <= 0.42) {
+          minDistSq = r_yz_sq;
           assigned = k;
         }
       }
@@ -212,8 +217,8 @@ export function createBigRover(
     roughness: 0.85,
   });
 
-  const bodyMesh = new T.Mesh(new T.BoxGeometry(2.1, 1.25, 3.9), chassisMat);
-  bodyMesh.position.set(0, 1.35, 0);
+  const bodyMesh = new T.Mesh(new T.BoxGeometry(2.3, 1.4, 4.4), chassisMat);
+  bodyMesh.position.set(0, 1.5, 0);
   bodyMesh.castShadow = true;
   bodyMesh.receiveShadow = true;
   fallback.add(bodyMesh);
@@ -221,12 +226,12 @@ export function createBigRover(
   // 6 wheels on fallback chassis with working suspension pivots
   const fallbackWheels: RoverWheelAssembly[] = [];
   const fallbackPositions = [
-    [-1.12, 0.42, -0.91],
-    [1.12, 0.42, -0.91],
-    [-1.12, 0.44, 0.31],
-    [1.12, 0.44, 0.31],
-    [-1.12, 0.41, 1.46],
-    [1.12, 0.41, 1.46],
+    [-1.27, 0.48, -1.03],
+    [1.27, 0.48, -1.03],
+    [-1.28, 0.49, 0.34],
+    [1.28, 0.49, 0.34],
+    [-1.27, 0.47, 1.63],
+    [1.27, 0.47, 1.63],
   ];
 
   for (let i = 0; i < fallbackPositions.length; i++) {
@@ -235,7 +240,7 @@ export function createBigRover(
     pivot.position.set(wx, wy, wz);
 
     const wheelMesh = new T.Mesh(
-      new T.CylinderGeometry(0.42, 0.42, 0.34, 16),
+      new T.CylinderGeometry(0.48, 0.48, 0.38, 16),
       tireMat,
     );
     wheelMesh.rotation.z = Math.PI / 2;
@@ -261,16 +266,16 @@ export function createBigRover(
   // ==========================================
   // 2. HIGH-POWER FORWARD HEADLIGHTS
   // ==========================================
-  const headlightL = new T.SpotLight(0xfffae6, 3.5, 45, 0.55, 0.65, 1.2);
-  const headlightR = new T.SpotLight(0xfffae6, 3.5, 45, 0.55, 0.65, 1.2);
+  const headlightL = new T.SpotLight(0xfffae6, 3.5, 50, 0.55, 0.65, 1.2);
+  const headlightR = new T.SpotLight(0xfffae6, 3.5, 50, 0.55, 0.65, 1.2);
 
-  headlightL.position.set(-0.75, 1.35, -2.15);
-  headlightR.position.set(0.75, 1.35, -2.15);
+  headlightL.position.set(-0.85, 1.55, -2.45);
+  headlightR.position.set(0.85, 1.55, -2.45);
 
   const targetL = new T.Object3D();
-  targetL.position.set(-0.75, 0.4, -28);
+  targetL.position.set(-0.85, 0.4, -30);
   const targetR = new T.Object3D();
-  targetR.position.set(0.75, 0.4, -28);
+  targetR.position.set(0.75, 0.4, -30);
 
   root.add(targetL);
   root.add(targetR);
@@ -287,12 +292,12 @@ export function createBigRover(
 
   // Headlight physical glow fixtures
   const lensMat = new T.MeshBasicMaterial({ color: 0xfffae6 });
-  const lensGeo = new T.CircleGeometry(0.1, 12);
+  const lensGeo = new T.CircleGeometry(0.12, 12);
   const lensL = new T.Mesh(lensGeo, lensMat);
-  lensL.position.set(-0.75, 1.35, -2.18);
+  lensL.position.set(-0.85, 1.55, -2.48);
   lensL.rotation.y = Math.PI;
   const lensR = new T.Mesh(lensGeo, lensMat);
-  lensR.position.set(0.75, 1.35, -2.18);
+  lensR.position.set(0.85, 1.55, -2.48);
   lensR.rotation.y = Math.PI;
   root.add(lensL);
   root.add(lensR);
@@ -314,7 +319,7 @@ export function createBigRover(
   dustGeo.setAttribute("position", new T.BufferAttribute(dustPos, 3));
   const dustMat = new T.PointsMaterial({
     color: 0xc87d4f,
-    size: 0.32,
+    size: 0.35,
     transparent: true,
     opacity: 0.55,
     depthWrite: false,
@@ -380,11 +385,10 @@ export function createBigRover(
       // - Raw Y: Rear (-3.35) to Front (+2.56) -> Three.js -Z
       // - Raw Z: Roof (-1.73) to Wheels (+2.24) -> Three.js -Y
       //
-      // Target proportions for Junior Astronaut:
-      // Length = 4.35m, Height = 2.92m, Width = 2.97m (fits 1.92m astronaut perfectly!)
-      const scale = 4.35 / 5.91002; // ~0.736038
-      const bottomY = -1.65011;     // lowest point of wheels in -Z * scale
-      const centerZ = 0.29402;      // vehicle midpoint in -Y * scale
+      // Scale proportionally: target length 4.95m (width 3.38m, height 3.32m)
+      const scale = 4.95 / 5.91002; // ~0.83756
+      const bottomY = -2.24213 * scale; // lowest point of wheels in -Z * scale
+      const centerZ = 0.39988 * scale;  // vehicle midpoint in -Y * scale
 
       // Transformation matrix directly into vehicle world space:
       // x' = x * scale
@@ -412,14 +416,14 @@ export function createBigRover(
       }
       targetMesh.geometry.computeVertexNormals();
 
-      // Exact wheel hub centers in the transformed vehicle space (sampled directly from the mesh vertices)
+      // Exact wheel hub centers in the scaled vehicle space
       const wheelCenters = [
-        { x: -1.119, y: 0.422, z: -0.906 }, // Front-Left
-        { x:  1.118, y: 0.421, z: -0.906 }, // Front-Right
-        { x: -1.120, y: 0.436, z:  0.308 }, // Mid-Left
-        { x:  1.119, y: 0.436, z:  0.308 }, // Mid-Right
-        { x: -1.115, y: 0.412, z:  1.460 }, // Rear-Left
-        { x:  1.114, y: 0.412, z:  1.460 }, // Rear-Right
+        { x: -1.273, y: 0.477, z: -1.031 }, // Front-Left
+        { x:  1.272, y: 0.477, z: -1.031 }, // Front-Right
+        { x: -1.279, y: 0.494, z:  0.341 }, // Mid-Left
+        { x:  1.277, y: 0.494, z:  0.341 }, // Mid-Right
+        { x: -1.267, y: 0.467, z:  1.628 }, // Rear-Left
+        { x:  1.265, y: 0.467, z:  1.628 }, // Rear-Right
       ];
 
       const assembledGroup = new T.Group();
@@ -438,14 +442,14 @@ export function createBigRover(
       }
 
       // Re-anchor high-power headlights to the scaled front bumper
-      const frontZ = -2.175;
-      const headlightY = 1.35;
-      headlightL.position.set(-0.75, headlightY, frontZ);
-      headlightR.position.set(0.75, headlightY, frontZ);
-      lensL.position.set(-0.75, headlightY, frontZ - 0.04);
-      lensR.position.set(0.75, headlightY, frontZ - 0.04);
-      targetL.position.set(-0.75, 0.4, frontZ - 25);
-      targetR.position.set(0.75, 0.4, frontZ - 25);
+      const frontZ = -2.48;
+      const headlightY = 1.55;
+      headlightL.position.set(-0.85, headlightY, frontZ);
+      headlightR.position.set(0.85, headlightY, frontZ);
+      lensL.position.set(-0.85, headlightY, frontZ - 0.04);
+      lensR.position.set(0.85, headlightY, frontZ - 0.04);
+      targetL.position.set(-0.85, 0.4, -30);
+      targetR.position.set(0.85, 0.4, -30);
 
       // Swap out procedural fallback with the authentic NASA SEV assembly
       root.remove(fallback);
@@ -454,7 +458,7 @@ export function createBigRover(
       isModelLoaded = true;
 
       console.info(
-        `[BigRover] Loaded NASA Space Exploration Vehicle successfully (2.97m wide x 4.35m long x 2.92m high). Forward heading aligned (-Z), tires placed at ground level (Y = 0), and 6 independent rotating wheels with active surface suspension initialized.`,
+        `[BigRover] Loaded NASA Space Exploration Vehicle successfully (3.38m wide x 4.95m long x 3.32m high). Forward heading aligned (-Z), tires placed at ground level (Y = 0), and 6 independent rotating wheels with active surface suspension initialized.`,
       );
     },
     undefined,
@@ -502,7 +506,7 @@ export function createBigRover(
         // Smooth spring damping (stiff suspension for heavy rover)
         w.suspensionOffset +=
           (targetOffset - w.suspensionOffset) * (1 - Math.exp(-22 * dt));
-        const travel = Math.max(-0.16, Math.min(0.16, w.suspensionOffset));
+        const travel = Math.max(-0.18, Math.min(0.18, w.suspensionOffset));
         w.pivot.position.y = w.baseY + travel;
       }
     }
@@ -520,10 +524,10 @@ export function createBigRover(
       for (let k = 0; k < 2; k++) {
         const i = dustIndex;
         dustIndex = (dustIndex + 1) % dustCount;
-        const side = k === 0 ? -1.12 : 1.12;
+        const side = k === 0 ? -1.27 : 1.27;
         dustPos[i * 3] = side + (Math.random() - 0.5) * 0.3;
         dustPos[i * 3 + 1] = 0.12;
-        dustPos[i * 3 + 2] = 1.46 + Math.random() * 0.35;
+        dustPos[i * 3 + 2] = 1.63 + Math.random() * 0.35;
         dustVel[i * 3] = (Math.random() - 0.5) * 0.7;
         dustVel[i * 3 + 1] = 0.45 + Math.random() * 0.6;
         dustVel[i * 3 + 2] = 1.1 + Math.random() * 1.5;

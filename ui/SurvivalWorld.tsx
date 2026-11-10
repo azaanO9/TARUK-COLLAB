@@ -349,7 +349,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         range = Infinity,
         previousDay = -1,
         lastMarsNight: boolean | null = null,
-        captureDenied = false;
+        captureDenied = false,
+        lastMouseMoveTime = 0;
       toggleRoverAction.current = () => {
         if (!current.current.enabled || current.current.planet !== "mars") return;
         if (!rover.driving) {
@@ -358,13 +359,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             keys.clear();
             setRoverDriving(true);
             setRoverNear(false);
+            cameraYaw = rover.yaw;
+            characterYaw = rover.yaw;
+            lastMouseMoveTime = performance.now();
           }
         } else {
           const { rover: nextRover, exitPosition } = exitRover(rover);
           rover = nextRover;
           walker.x = exitPosition.x;
           walker.z = exitPosition.z;
-          walker.yaw = rover.yaw;
+          walker.yaw = cameraYaw;
           cameraYaw = rover.yaw;
           characterYaw = rover.yaw;
           walker.vx = 0;
@@ -410,6 +414,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       };
       const move = (e: PointerEvent) => {
         if ((e.target as HTMLElement).closest?.(".sv-target")) return;
+        lastMouseMoveTime = performance.now();
         const rect = element.getBoundingClientRect();
         mouse.set(
           ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -578,6 +583,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           // Small physics steps keep acceleration and jumping consistent across slower frames.
           const steps = Math.max(1, Math.ceil(dt / (1 / 120))), step = dt / steps;
           if (rover.driving) {
+            const prevRoverYaw = rover.yaw;
             for (let i = 0; i < steps; i++) {
               rover = stepRoverVehicle(
                 rover,
@@ -590,8 +596,19 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             walker.x = rover.x;
             walker.z = rover.z;
             walker.yaw = rover.yaw;
-            cameraYaw = rover.yaw;
+            // Transfer vehicle turning delta to the orbit camera so relative angle is preserved
+            const yawDelta = rover.yaw - prevRoverYaw;
+            cameraYaw += yawDelta;
             characterYaw = rover.yaw;
+
+            // GTA-style gentle auto-centering behind vehicle when cruising without mouse movement
+            const isCruising = Math.abs(rover.speed) > 1.2;
+            const timeSinceMouse = (performance.now() - lastMouseMoveTime) / 1000;
+            if (isCruising && !dragging && timeSinceMouse > 0.8 && document.pointerLockElement !== element) {
+              const targetYaw = rover.speed >= 0 ? rover.yaw : rover.yaw + Math.PI;
+              const diff = shortestAngleDiff(cameraYaw, targetYaw);
+              cameraYaw += diff * (1 - Math.exp(-2.2 * dt));
+            }
           } else {
             const dynamicObstacles = bigRover
               ? [...model.obstacles, { x: rover.x, z: rover.z, radius: 2.2 }]
@@ -615,8 +632,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               );
             }
             keys.delete("jump");
-            if (keys.has("look-left")) cameraYaw += dt * 1.3;
-            if (keys.has("look-right")) cameraYaw -= dt * 1.3;
+          }
+          if (keys.has("look-left")) {
+            cameraYaw += dt * 1.3;
+            lastMouseMoveTime = performance.now();
+          }
+          if (keys.has("look-right")) {
+            cameraYaw -= dt * 1.3;
+            lastMouseMoveTime = performance.now();
           }
         }
         if (bigRover) {
@@ -649,29 +672,30 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const roverGround = model.heightAt(rover.x, rover.z);
           cameraGround += (roverGround - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
-            const vehicleBack = 6.2;
-            const roverTargetY = cameraGround + 1.65;
+            // GTA-style vehicle chase camera orbiting around vehicle center with full mouse look
+            const vehicleBack = 7.4;
+            const roverTargetY = cameraGround + 1.95;
             const horizBack = Math.cos(pitch) * vehicleBack;
             const vertBack = -Math.sin(pitch) * vehicleBack;
             camera.position.set(
-              rover.x + Math.sin(rover.yaw) * horizBack,
+              rover.x + Math.sin(cameraYaw) * horizBack,
               roverTargetY + vertBack,
-              rover.z + Math.cos(rover.yaw) * horizBack,
+              rover.z + Math.cos(cameraYaw) * horizBack,
             );
             const groundUnderCam = props.planet === "mars"
               ? marsHeight(camera.position.x, camera.position.z)
               : model.heightAt(camera.position.x, camera.position.z);
             camera.position.y = Math.max(camera.position.y, groundUnderCam + 0.6);
-            camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
+            camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
           } else {
             // Authentic cockpit view inside the NASA Space Exploration Vehicle panoramic bubble canopy
-            const driverForward = 0.95;
-            const driverSide = -0.36;
+            const driverForward = 1.25;
+            const driverSide = -0.42;
             const eyeX = rover.x - Math.sin(rover.yaw) * driverForward + Math.cos(rover.yaw) * driverSide;
-            const eyeY = cameraGround + 1.68;
+            const eyeY = cameraGround + 1.95;
             const eyeZ = rover.z - Math.cos(rover.yaw) * driverForward - Math.sin(rover.yaw) * driverSide;
             camera.position.set(eyeX, eyeY, eyeZ);
-            camera.rotation.set(pitch, rover.yaw, 0, "YXZ");
+            camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
           }
         } else {
           astronaut.visible = third;
