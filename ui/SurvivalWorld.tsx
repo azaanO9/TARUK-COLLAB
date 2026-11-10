@@ -689,7 +689,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
           const stride = reduced.matches ? 0 : Math.sin(gaitPhase) * .38 * gaitBlend;
           if (marsAstronaut) {
-            marsAstronaut.update(dt, speed, jump.height > 0.08, jump.height);
+            marsAstronaut.update(
+              dt,
+              speed,
+              jump.height > 0.04,
+              jump.height,
+              jump.velocity,
+            );
           } else {
             leftLeg.rotation.x = stride;
             rightLeg.rotation.x = -stride;

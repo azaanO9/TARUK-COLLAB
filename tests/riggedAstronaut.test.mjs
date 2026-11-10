@@ -112,6 +112,28 @@ test("Mars gait: airborne/jump blends into low-gravity floating pose", () => {
   assert.ok(pose.leftArmPitch < -0.2, "Airborne arms should raise for low-gravity balance");
 });
 
+test("Mars gait: touchdown triggers physical landing impact compression and recovery", () => {
+  const state = createMarsGaitState();
+
+  // Jump into air
+  for (let i = 0; i < 30; i++) {
+    stepMarsGait(state, 2.5, true, 0.016, undefined, 2.0);
+  }
+  assert.equal(state.landingBlend, 0, "No landing compression while airborne");
+
+  // Touchdown onto Mars surface
+  const impactPose = stepMarsGait(state, 2.5, false, 0.016, undefined, -3.5);
+  assert.ok(state.landingBlend > 0.8, "Landing blend should fire upon touching down");
+  assert.ok(impactPose.leftKneePitch > 0.35, "Knees should flex deeply on landing impact");
+  assert.ok(impactPose.hipOffsetY < 0, "Hips should compress downward on impact");
+
+  // Recover over 30 frames (~0.5s)
+  for (let i = 0; i < 30; i++) {
+    stepMarsGait(state, 2.5, false, 0.016);
+  }
+  assert.ok(state.landingBlend < 0.05, "Landing compression should recover smoothly to walking stance");
+});
+
 test("Rigged skeleton: bone matching and procedural Mars deformation", async () => {
   const T = await import("three");
   const root = new T.Group();

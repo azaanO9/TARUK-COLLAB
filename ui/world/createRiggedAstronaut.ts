@@ -39,6 +39,7 @@ export type RiggedAstronautHandle = {
     speed: number,
     isAirborne: boolean,
     jumpHeight: number,
+    verticalVelocity?: number,
   ) => void;
   dispose: () => void;
 };
@@ -257,8 +258,21 @@ export function createRiggedAstronaut(
     root,
     isModelLoaded: false,
     modelType: "procedural-fallback",
-    update(dt: number, speed: number, isAirborne: boolean, jumpHeight: number) {
-      const pose: MarsGaitPose = stepMarsGait(gaitState, speed, isAirborne, dt);
+    update(
+      dt: number,
+      speed: number,
+      isAirborne: boolean,
+      jumpHeight: number,
+      verticalVelocity = 0,
+    ) {
+      const pose: MarsGaitPose = stepMarsGait(
+        gaitState,
+        speed,
+        isAirborne,
+        dt,
+        undefined,
+        verticalVelocity,
+      );
 
       if (handle.isModelLoaded && bones.leftUpLeg && modelRef) {
         // 1. Vertical bounce & lateral weight shift (GTA 5 inspired root motion)

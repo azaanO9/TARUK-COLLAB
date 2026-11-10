@@ -54,6 +54,8 @@ export type MarsGaitState = {
   phase: number;          // Stride phase in radians [0, 2*PI)
   blend: number;          // Locomotion blend [0 = idle, 1 = full gait]
   airborneBlend: number;  // Jump / airborne blend [0 = grounded, 1 = airborne]
+  landingBlend: number;   // Landing compression blend [0 = recovered, 1 = max impact]
+  prevAirborne: boolean;  // Tracks previous frame airborne state to detect touchdown
   time: number;           // Running time for idle oscillations
 };
 
@@ -62,6 +64,8 @@ export function createMarsGaitState(): MarsGaitState {
     phase: 0,
     blend: 0,
     airborneBlend: 0,
+    landingBlend: 0,
+    prevAirborne: false,
     time: 0,
   };
 }
@@ -97,6 +101,7 @@ export function stepMarsGait(
   isAirborne: boolean,
   dt: number,
   options?: MarsGaitOptions,
+  verticalVelocity = 0,
 ): MarsGaitPose {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const safeDt = Math.max(0, Math.min(dt, 0.1));
@@ -108,9 +113,23 @@ export function stepMarsGait(
   const blendRate = targetBlend > state.blend ? 8 : 5;
   state.blend += (targetBlend - state.blend) * (1 - Math.exp(-blendRate * safeDt));
 
-  // 2. Blend airborne state for low-gravity float
+  // 2. Blend airborne state & detect touchdown impact
+  if (state.prevAirborne && !isAirborne) {
+    // Astronaut just touched down onto the Martian regolith!
+    state.landingBlend = 1.0;
+  }
+  state.prevAirborne = isAirborne;
+
   const targetAirborne = isAirborne ? 1 : 0;
   state.airborneBlend += (targetAirborne - state.airborneBlend) * (1 - Math.exp(-12 * safeDt));
+
+  // Smoothly decay landing impact compression over ~0.35s
+  if (state.landingBlend > 0.001) {
+    state.landingBlend *= Math.exp(-9.0 * safeDt);
+    if (state.landingBlend < 0.005) state.landingBlend = 0;
+  } else {
+    state.landingBlend = 0;
+  }
 
   // 3. Cadence & Phase Accumulation
   // Synchronized directly to ground travel: ~1.9m stride distance per 2-step cycle.
@@ -129,7 +148,7 @@ export function stepMarsGait(
   // 4. Low-Gravity Vertical Oscillation & Lateral Weight Shift
   // Parabolic float at the apex of each stride + lateral sway over stance leg
   const rawBounce = Math.pow(Math.abs(Math.sin(p)), 0.85);
-  const hipOffsetY = rawBounce * opts.bounceAmplitude * groundBlend;
+  let hipOffsetY = rawBounce * opts.bounceAmplitude * groundBlend;
   const hipOffsetX = Math.sin(p) * 0.022 * groundBlend;
 
   // 5. Pelvic Dynamics (Yaw, Roll, Forward Lean)
@@ -145,7 +164,7 @@ export function stepMarsGait(
 
   const spineYaw = -hipYaw * 0.7;
   const spineRoll = -hipRoll * 0.6 + idleSway;
-  const spinePitch = forwardLean * 0.7 * groundBlend + breathe - ab * 0.05;
+  let spinePitch = forwardLean * 0.7 * groundBlend + breathe - ab * 0.05;
 
   // 7. Leg Dynamics (Forward Foot Plant, Heel Strike & Low-Gravity Grounding)
   // Left leg: phase p; Right leg: phase p + PI
@@ -205,23 +224,73 @@ export function stepMarsGait(
   const leftArm = calcArm(leftPhase, true);
   const rightArm = calcArm(rightPhase, false);
 
-  // 9. Airborne / Low-Gravity Jump Blend
-  // In low gravity, legs hang relaxed with soft knee bend; arms raise for balance
+  // 9. Low-Gravity Ballistic Jump Flight Dynamics (0.38g Mars Arc)
   if (ab > 0.01) {
-    const floatThigh = -0.18 * ab;
-    const floatKnee = 0.32 * ab;
-    const floatArmPitch = -0.42 * ab;
-    const floatArmRollExtra = 0.22 * ab;
+    const isAscent = verticalVelocity > 0.6;
+    const isDescent = verticalVelocity < -0.6;
 
-    leftLeg.thighPitch = leftLeg.thighPitch * (1 - ab) + floatThigh;
-    rightLeg.thighPitch = rightLeg.thighPitch * (1 - ab) + floatThigh;
-    leftLeg.kneePitch = leftLeg.kneePitch * (1 - ab) + floatKnee;
-    rightLeg.kneePitch = rightLeg.kneePitch * (1 - ab) + floatKnee;
+    // Relaxed trailing legs in low-gravity float (iconic Apollo / Mars astronaut float)
+    const floatLeftThigh = isAscent ? -0.24 : isDescent ? 0.08 : -0.12;
+    const floatRightThigh = isAscent ? -0.16 : isDescent ? -0.04 : 0.08;
 
-    leftArm.armPitch = leftArm.armPitch * (1 - ab) + floatArmPitch;
-    rightArm.armPitch = rightArm.armPitch * (1 - ab) + floatArmPitch;
-    leftArm.armRoll += floatArmRollExtra;
-    rightArm.armRoll -= floatArmRollExtra;
+    // Knees: flex during ascent & apex; extend downward anticipating landing on descent
+    const floatLeftKnee = isDescent ? 0.26 : 0.42;
+    const floatRightKnee = isDescent ? 0.22 : 0.36;
+
+    // Feet: push off (plantarflex) on ascent; toes tilt up (dorsiflex heel first) on descent
+    const floatAnkle = isAscent ? 0.20 : isDescent ? -0.18 : -0.06;
+
+    // Arms: float upward and outward in EVA pressurized balance posture
+    const floatArmPitch = isAscent ? -0.48 : isDescent ? -0.28 : -0.38;
+    const floatArmRollExtra = 0.24;
+    const floatForearm = 0.46;
+
+    leftLeg.thighPitch = leftLeg.thighPitch * (1 - ab) + floatLeftThigh * ab;
+    rightLeg.thighPitch = rightLeg.thighPitch * (1 - ab) + floatRightThigh * ab;
+    leftLeg.kneePitch = leftLeg.kneePitch * (1 - ab) + floatLeftKnee * ab;
+    rightLeg.kneePitch = rightLeg.kneePitch * (1 - ab) + floatRightKnee * ab;
+    leftLeg.anklePitch = leftLeg.anklePitch * (1 - ab) + floatAnkle * ab;
+    rightLeg.anklePitch = rightLeg.anklePitch * (1 - ab) + floatAnkle * ab;
+
+    leftArm.armPitch = leftArm.armPitch * (1 - ab) + floatArmPitch * ab;
+    rightArm.armPitch = rightArm.armPitch * (1 - ab) + floatArmPitch * ab;
+    leftArm.armRoll += floatArmRollExtra * ab;
+    rightArm.armRoll -= floatArmRollExtra * ab;
+    leftArm.forearmPitch = leftArm.forearmPitch * (1 - ab) + floatForearm * ab;
+    rightArm.forearmPitch = rightArm.forearmPitch * (1 - ab) + floatForearm * ab;
+
+    spinePitch += (isAscent ? -0.05 : isDescent ? 0.08 : 0) * ab;
+  }
+
+  // 10. Planetary Landing Impact Compression & Shock Absorption
+  if (state.landingBlend > 0.005) {
+    const lb = state.landingBlend;
+
+    // Deep knee flexion to absorb the kinetic impact of the 100+ kg EVA suit
+    leftLeg.kneePitch += 0.52 * lb;
+    rightLeg.kneePitch += 0.52 * lb;
+
+    // Thighs flex forward with landing crouch
+    leftLeg.thighPitch += 0.22 * lb;
+    rightLeg.thighPitch += 0.22 * lb;
+
+    // Boots plant firmly against the Martian surface
+    leftLeg.anklePitch -= 0.14 * lb;
+    rightLeg.anklePitch -= 0.14 * lb;
+
+    // Heavy life-support backpack momentum tilts spine forward
+    spinePitch += 0.18 * lb;
+
+    // Arms lower and flare outwards to steady balance
+    leftArm.armPitch += 0.20 * lb;
+    rightArm.armPitch += 0.20 * lb;
+    leftArm.armRoll += 0.14 * lb;
+    rightArm.armRoll -= 0.14 * lb;
+    leftArm.forearmPitch += 0.26 * lb;
+    rightArm.forearmPitch += 0.26 * lb;
+
+    // Hips drop down in world space to absorb shock
+    hipOffsetY -= 0.14 * lb;
   }
 
   return {
