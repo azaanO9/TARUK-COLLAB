@@ -10,5 +10,5 @@ export function MissionDialogFrame({dialogRef,children}:{dialogRef:RefObject<HTM
 }
 
 export function SolQuizDialog({quiz,sol,answer,onAnswer,onClose}:{quiz:Quiz;sol:number;answer:number|null;onAnswer:(index:number)=>void;onClose:()=>void}) {
- return <><p className="mars-kicker">NASA QUICK QUIZ · SOL {sol}</p><h2>{quiz.q}</h2>{answer===null?quiz.answers.map((text,index)=><button key={text} onClick={()=>onAnswer(index)}>{text}</button>):<><p>{answer===quiz.correct?"Correct! +50 XP, 3 power points and a sol patch.":"Good try!"} {quiz.explain} <a href={quiz.url} target="_blank" rel="noreferrer">NASA source ↗</a></p><button onClick={onClose}>Continue</button></>}</>;
+ return <><p className="mars-kicker">NASA QUICK QUIZ · SOL {sol}</p><h2>{quiz.q}</h2>{answer===null?quiz.answers.map((text,index)=><button key={text} data-quiz-answer onClick={()=>onAnswer(index)}>{text}</button>):<><p>{answer===quiz.correct?"Correct! +50 XP, 3 power points and a sol patch.":"Good try!"} {quiz.explain} <a href={quiz.url} target="_blank" rel="noreferrer">NASA source ↗</a></p><button data-dialog-continue onClick={onClose}>Continue</button></>}</>;
 }

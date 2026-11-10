@@ -2,7 +2,7 @@
 
 ## Junior Astronaut Mars mission (current)
 
-`game/juniorMission.ts` owns Mars mission resources, discoveries, XP, patches and sol progression. `TASK` marks a sol activity and can restore a station resource on repeat visits. `SHIFT` requires an activity that sol and consumes supplies; `QUIZ` and `SHIFT_QUIZ` award once. Rank depends on both XP and discovery count. `isNight(sol)` selects a player-paced alternating lighting cue. The mission briefing controls Mobile versus PC presentation; lunar rules are unchanged.
+`game/juniorMission.ts` owns Mars mission resources, discoveries, XP, patches and sol progression. `TASK` marks a sol activity and can restore a station resource on repeat visits. `SHIFT` requires an activity that sol and consumes supplies; `QUIZ` and `SHIFT_QUIZ` award once. Rank depends on both XP and discovery count. `isNight(sol)` selects a player-paced alternating lighting cue. The mission briefing controls Mobile versus PC presentation and owns Mars mission state. Versioned browser-local saves retain mission resources, discoveries, XP, logs and cadet ID; the hub resumes or explicitly confirms a restart. World position and unfinished dialog input are not saved. Lunar rules are unchanged.
 
 
 ## Current default: ten-day first-person expedition and open-world Mars rover (v4)

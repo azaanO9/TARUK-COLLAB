@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useReducer,useRef,useState} from "react";
 import {STATIONS} from "../content/survival";
-import {createMission,missionReducer,rank,discoveryIds,solEvents,isNight} from "../game/juniorMission";
+import {rank,discoveryIds,solEvents,isNight,type Mission,type Action} from "../game/juniorMission";
 import SurvivalWorld,{type SurvivalWorldHandle,type View} from "./SurvivalWorld";
 import { MarsHud, MissionDialogFrame, SolQuizDialog } from "./MarsPanels";
 import "./survival.css"; import "./mars.css"; import "./junior.css";
@@ -14,8 +14,8 @@ type DialogAction = {[K in keyof DialogState]:{key:K;value:DialogState[K]}}[keyo
 function dialogReducer(state:DialogState,action:DialogAction):DialogState{if(action.key==="updateProgress")return {...state,progress:action.value(state.progress)};return {...state,[action.key]:action.value};}
 
 
-export default function MarsGame({callsign="Explorer",patch="✦",onHub,controlMode="pc"}:{callsign?:string;patch?:string;onHub?:()=>void;controlMode?:"mobile"|"pc"}) {
- const [mission,send]=useReducer(missionReducer,undefined,createMission);
+export default function MarsGame({callsign="Explorer",patch="✦",onHub,controlMode="pc",mission,sendMission}:{callsign?:string;patch?:string;onHub?:()=>void;controlMode?:"mobile"|"pc";mission:Mission;sendMission:(action:Action)=>void}) {
+ const send=sendMission;
  const [view,setView]=useState(initial), [voice,setVoice]=useState(false), [certificate,setCertificate]=useState(false), [quizSol,setQuizSol]=useState(0);
  const [dialog,dispatchDialog]=useReducer(dialogReducer, initialDialog);
  const {modal,stage,answer,progress,angle,drill,led,water,shield}=dialog;
@@ -50,6 +50,14 @@ export default function MarsGame({callsign="Explorer",patch="✦",onHub,controlM
    document.addEventListener("keydown",keydown);
    return ()=>{document.removeEventListener("keydown",keydown);previous?.focus();};
  },[activeDialog,mission.ended]);
+ // The dialog remains mounted while its content changes, so focus the new step explicitly.
+ useEffect(()=>{
+   if (!modal || !dialogRef.current) return;
+   const selector = modal === "solQuiz"
+     ? (answer === null ? "[data-quiz-answer]" : "[data-dialog-continue]")
+     : stage === "result" ? "[data-dialog-continue]" : stage === "quiz" ? "[data-quiz-answer]" : null;
+   if (selector) dialogRef.current.querySelector<HTMLElement>(selector)?.focus();
+ },[modal,stage,answer]);
  const world=useRef<SurvivalWorldHandle>(null); const dragging=useRef(false);
  const [sageFollowing,setSageFollowing]=useState(false);
  const night=isNight(mission.sol);
@@ -62,7 +70,7 @@ export default function MarsGame({callsign="Explorer",patch="✦",onHub,controlM
  return <main className="sv-root mars-root junior-root" data-controls={controlMode} data-phase="explore" data-player-x={view.x.toFixed(2)} data-player-z={view.z.toFixed(2)}>
  <SurvivalWorld solarClean={mission.found.includes("solar")} key={worldAttempt} ref={world} initialQuality={lowGraphics ? "performance" : "auto"} planet="mars" showTouchControls={controlMode === "mobile"} enabled={!modal&&!mission.ended} event={night?"night":"quiet"} day={0} target={next} effect={null} failure={false} stabilized={false} animating={false} sageFollowing={sageFollowing} onToggleSage={()=>setSageFollowing(value=>!value)} onInspect={open} onView={setView} onUnavailable={()=>setWorldFailure(true)} />
  {worldFailure&&<div className="mars-dialog-backdrop"><section className="mars-dialog junior-dialog" role="alert"><h2>We couldn’t start the 3D world</h2><p>Your browser may have lost its graphics connection. Try again, or choose the lighter graphics setting.</p><button onClick={()=>{setLowGraphics(false);setWorldFailure(false);setWorldAttempt(v=>v+1)}}>Retry</button><button onClick={()=>{setLowGraphics(true);setWorldFailure(false);setWorldAttempt(v=>v+1)}}>Retry with low graphics</button><button onClick={onHub}>Mission hub</button></section></div>}
- {showControlHint&&<div className="junior-hint" role="note"><strong>Ready, explorer?</strong> {controlMode === "mobile" ? "Use the on-screen buttons to move and interact. Drag the world to look around." : "Use WASD to walk, drag to look, Space to jump, E to inspect and V to change view."} <button onClick={()=>setShowControlHint(false)}>Got it</button></div>}
+ {showControlHint&&<div className="junior-hint" role="note"><strong>Ready, explorer?</strong> {controlMode === "mobile" ? "Use the on-screen buttons to move and interact. Drag the world to look around." : "Use WASD to walk. Drag to look (or capture the mouse); Q/R also turn. Space jumps, E inspects and V changes view."} <button onClick={()=>setShowControlHint(false)}>Got it</button></div>}
  <header className="junior-header"><b>TARUKH <span>· JUNIOR ASTRONAUT MISSION</span></b><strong>{patch} {callsign} · SOL {String(mission.sol).padStart(2,"0")} / 10 · {night?"NIGHT":"DAY"}</strong><button onClick={onHub}>Mission hub</button></header>
  <MarsHud mission={mission} onGuide={()=>setModal("guide")} onLog={()=>setModal("log")} />
  <div className="junior-compass">{dir} NEXT · {labels[next]} · {distance} m</div>
@@ -75,7 +83,7 @@ export default function MarsGame({callsign="Explorer",patch="✦",onHub,controlM
  modal==="guide"?<><p className="mars-kicker">STICKER & DISCOVERY CODEX</p><h2>{mission.found.length}/6 discoveries</h2><div className="junior-grid">{discoveryIds.map(id=><div key={id} className={mission.found.includes(id)?"unlocked":"locked"}><span>{mission.found.includes(id)?"✦":"?"}</span><b>{mission.found.includes(id)?labels[id]:"Undiscovered"}</b><small>{mission.patches.includes(id)?"Patch earned":"Patch locked"}</small></div>)}</div><p>Explore the outpost to reveal all six discoveries. <a href="https://science.nasa.gov/mars/facts/" target="_blank" rel="noreferrer">NASA Mars facts ↗</a></p><button onClick={()=>setModal(null)}>Back to mission</button></>:
  modal==="log"?<><p className="mars-kicker">MISSION LOG</p><h2>Your expedition</h2><ol>{mission.log.map((v,i)=><li key={i}>{v}</li>)}</ol><button onClick={()=>setModal(null)}>Close log</button></>:
  modal==="shift"?<><p className="mars-kicker">SOL {mission.sol} · EVENT</p><h2>{solEvents[mission.sol-1].title}</h2><p>Choose a response. Each sol uses 7 water, food and oxygen points. Repeat a station activity to restore supplies. These are game assumptions.</p><button onClick={()=>{setQuizSol(mission.sol);setAnswer(null);setActiveQuiz(shuffledQuiz(solQuestions[mission.sol-1]));send({type:"SHIFT",choice:"careful"});setModal("solQuiz")}}>{solEvents[mission.sol-1].careful} · power −6, risk steady</button><button onClick={()=>{setQuizSol(mission.sol);setAnswer(null);setActiveQuiz(shuffledQuiz(solQuestions[mission.sol-1]));send({type:"SHIFT",choice:"quick"});setModal("solQuiz")}}>{solEvents[mission.sol-1].quick} · power −4, {solEvents[mission.sol-1].resource} −10, risk +8</button><button onClick={()=>setModal(null)}>Keep exploring</button></>:
- stage==="quiz"||stage==="result"?<><p className="mars-kicker">NASA QUICK QUIZ · ✦</p><h2>{activeQuiz!.q}</h2>{activeQuiz!.answers.map((a,i)=><button key={a} disabled={stage==="result"} onClick={()=>{setAnswer(i);send({type:"QUIZ",id:modal,correct:i===activeQuiz!.correct});setStage("result")}}>{a}</button>)}{stage==="result"&&<><p><b>{answer===activeQuiz!.correct?"Correct! +50 XP and a mission patch.":"Good try! You can revisit this station and try again."}</b> {activeQuiz!.explain} <a href={activeQuiz!.url} target="_blank" rel="noreferrer">NASA source ↗</a></p><button onClick={()=>setModal(null)}>Continue exploring</button></>}</>:
+ stage==="quiz"||stage==="result"?<><p className="mars-kicker">NASA QUICK QUIZ · ✦</p><h2>{activeQuiz!.q}</h2>{activeQuiz!.answers.map((a,i)=><button key={a} data-quiz-answer disabled={stage==="result"} onClick={()=>{setAnswer(i);send({type:"QUIZ",id:modal,correct:i===activeQuiz!.correct});setStage("result")}}>{a}</button>)}{stage==="result"&&<><p><b>{answer===activeQuiz!.correct?"Correct! +50 XP and a mission patch.":"Good try! You can revisit this station and try again."}</b> {activeQuiz!.explain} <a href={activeQuiz!.url} target="_blank" rel="noreferrer">NASA source ↗</a></p><button data-dialog-continue onClick={()=>setModal(null)}>Continue exploring</button></>}</>:
  <><p className="mars-kicker">HANDS-ON SCIENCE · {labels[modal]}</p><h2>{labels[modal]}</h2>{mission.found.includes(modal)&&<p>You completed this activity already. You can try its quiz again.</p>}
  {modal==="solar"?<><p>Drag over the dusty panel to clean it, then tilt it toward the sun. You can also use the brush button.</p><div className="junior-panel" onPointerDown={e=>{dragging.current=true;e.currentTarget.setPointerCapture(e.pointerId);setProgress(v=>Math.min(10,v+1))}} onPointerMove={()=>{if(dragging.current)setProgress(v=>Math.min(10,v+1))}} onPointerUp={()=>dragging.current=false} style={{background:`linear-gradient(rgba(184,109,58,${Math.max(0, .85-progress*.085)}),rgba(23,61,93,.92))`}}>☀ SOLAR ARRAY · DUST {Math.max(0,10-progress)}/10</div><button onClick={()=>setProgress(v=>Math.min(10,v+1))}>Brush dust</button><label>Panel angle: {angle}° <input type="range" min="0" max="90" value={angle} onChange={e=>setAngle(+e.target.value)}/></label><small>Training target: 65–90°. Real optimal angles depend on location and time.</small></>:
  modal==="oxygen"?<><p>Collect two oxygen atoms from two CO₂ molecules, then combine them into O₂. CO is also produced.</p><button onClick={()=>setProgress(v=>Math.min(2,v+1))}>Split one CO₂ molecule · {progress}/2</button><p>CO₂ → CO + O · O + O → O₂</p></>:
