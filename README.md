@@ -6,6 +6,8 @@ On Mars, explore six stations, complete hands-on activities and NASA-linked quiz
 
 The astronaut used in Mars exploration is an original animated procedural model. The historical NASA model is retained as an unused asset; see [ASSET_CREDITS.md](ASSET_CREDITS.md). Numerical supplies and risk are educational game assumptions, not real mission procedures. There are no accounts, telemetry, or pressure timers. Mars saves stay on this device and can be replaced by restarting the mission.
 
+The Mars art now includes a detailed pressure habitat and service stations, original ground and hardware textures, a continuous canyon landscape, and a rebuilt astronaut and Sage bay. See [graphics verification and screenshots](docs/GRAPHICS_UPDATE.md).
+
 ## Run and verify
 
 Use Node 22.18+ and pnpm 11.25.0. Run `pnpm install --frozen-lockfile`, then `pnpm dev` and open http://127.0.0.1:5173/. Run `pnpm test`, `pnpm typecheck`, and `pnpm build` for checks. Historical notes are in [docs/ARCHIVE.md](docs/ARCHIVE.md).

@@ -1,0 +1,6 @@
+{
+  "baselineGzipBytes": 5996963,
+  "rebuiltGzipBytes": 6129236,
+  "deltaGzipBytes": 132273,
+  "method": "Sum of per-file gzip compressed client JS, CSS, images and models; prior packaged version versus current build."
+}

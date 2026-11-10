@@ -1,5 +1,6 @@
 import * as T from "three";
 import { STATIONS } from "../../content/survival.ts";
+import { terrainFbm, terrainNoise } from "./terrainNoise.ts";
 
 // One continuous surface is sampled by geometry, stones, boots and camera.
 const craters = [[24, -29, 7, 2.1], [38, -48, 12, 3.5], [62, -22, 9, 2.8], [-48, 24, 15, 4], [-55, -52, 20, 5.5], [51, 57, 22, 6]];
@@ -22,76 +23,138 @@ export function marsHeight(x: number, z: number) {
   return blend === 0 ? 0 : rawHeight(x, z) * blend;
 }
 
-export function createMarsTerrain(root: T.Group) {
+export function createMarsTerrain(root: T.Group, surface?:T.Texture) {
   const obstacles: { x: number; z: number; radius: number }[] = [];
-  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 512;
-  const ctx = canvas.getContext("2d")!;
-  const pixels = ctx.createImageData(512, 512);
-  for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
-    const n = random(x + y * 512), ripple = Math.sin(x * .075 + Math.sin(y * .012) * 5) * 4;
-    const v = n * 28 + Math.sin(x * .013) * Math.cos(y * .019) * 12 + ripple;
-    const i = (x + y * 512) * 4;
-    pixels.data[i] = 132 + v; pixels.data[i + 1] = 86 + v * .72; pixels.data[i + 2] = 61 + v * .5; pixels.data[i + 3] = 255;
+  const canvas=document.createElement("canvas");canvas.width=canvas.height=512;
+  const ctx=canvas.getContext("2d")!,pixels=ctx.createImageData(512,512);
+  for(let y=0;y<512;y++)for(let x=0;x<512;x++){
+    const i=(y*512+x)*4;
+    const grain=random(x+y*512)*22-11;
+    const dune=Math.sin(x*.22+Math.sin(y*.018)*3+Math.sin(y*.071)) * 4;
+    const mottling=terrainFbm(x*.024,y*.024)*23;
+    pixels.data[i]=165+grain+dune+mottling;
+    pixels.data[i+1]=108+grain*.7+dune*.7+mottling*.8;
+    pixels.data[i+2]=72+grain*.45+dune*.45+mottling*.6;pixels.data[i+3]=255;
   }
-  ctx.putImageData(pixels, 0, 0);
-  const map = new T.CanvasTexture(canvas); map.wrapS = map.wrapT = T.RepeatWrapping;
-  map.repeat.set(46, 46); map.colorSpace = T.SRGBColorSpace; map.anisotropy = 8;
-  const bump = map.clone(); bump.colorSpace = T.NoColorSpace;
-  const geometry = new T.PlaneGeometry(420, 420, 320, 320); geometry.rotateX(-Math.PI / 2);
-  const pos = geometry.attributes.position, colors = new Float32Array(pos.count * 3), c = new T.Color();
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i), h = marsHeight(x, z); pos.setY(i, h);
-    const variation = Math.sin(x * .021 + z * .037) * .06 + Math.sin(z * .13) * .025;
-    const basalt = Math.max(0, Math.sin(x * .036 + Math.sin(z * .021) * 2) * Math.cos(z * .041) - .35);
-    c.setHSL(.052 + variation * .13 + basalt * .025, .27 + variation - basalt * .1, .63 + variation + h * .012 - basalt * .16);
-    c.toArray(colors, i * 3);
+  ctx.putImageData(pixels,0,0);
+  const map=surface ?? new T.CanvasTexture(canvas);map.wrapS=map.wrapT=T.RepeatWrapping;map.repeat.set(46,46);map.colorSpace=T.SRGBColorSpace;map.anisotropy=4;
+  const bump=map.clone();bump.colorSpace=T.NoColorSpace;
+  const geometry=new T.PlaneGeometry(420,420,256,256);geometry.rotateX(-Math.PI/2);
+  const pos=geometry.attributes.position;
+  for(let i=0;i<pos.count;i++)pos.setY(i,marsHeight(pos.getX(i),pos.getZ(i)));
+  geometry.computeVertexNormals();
+  const colors=new Float32Array(pos.count*3),color=new T.Color();
+  const rust=new T.Color(0xe0c7aa),ochre=new T.Color(0xf3dfc3),basalt=new T.Color(0x85796e);
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i),z=pos.getZ(i),slope=1-geometry.attributes.normal.getY(i);
+    const patch=terrainFbm(x*.037,z*.037);
+    color.copy(rust).lerp(ochre,Math.max(0,patch-.4)*1.25);
+    color.lerp(basalt,Math.min(.65,slope*2+Math.max(0,terrainNoise(x*.08,z*.08)-.73)));
+    color.toArray(colors,i*3);
   }
-  geometry.setAttribute("color", new T.BufferAttribute(colors, 3)); geometry.computeVertexNormals();
-  const ground = new T.Mesh(geometry, new T.MeshStandardMaterial({ map, bumpMap: bump, bumpScale: .18, vertexColors: true, roughness: .98 }));
-  ground.receiveShadow = true; root.add(ground);
+  geometry.setAttribute("color",new T.BufferAttribute(colors,3));
+  const groundMat=new T.MeshStandardMaterial({map,bumpMap:bump,bumpScale:.13,vertexColors:true,roughness:.98});
+  // A second rotated texture scale breaks up the periodic base map without a new asset.
+  groundMat.onBeforeCompile=shader=>{
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      #ifdef USE_MAP
+      vec3 broadDust=texture2D(map,mat2(.79,-.61,.61,.79)*vMapUv*.173+vec2(.21,.73)).rgb;
+      diffuseColor.rgb*=mix(vec3(.81),vec3(1.24),broadDust.r);
+      #endif`);
+  };
+  groundMat.customProgramCacheKey=()=>"tarukh-regolith-dual-scale-v1";
+  const ground=new T.Mesh(geometry,groundMat);ground.receiveShadow=true;root.add(ground);
 
-  // Thousands of stones use two draw calls; individual rocks have original eroded geometry.
-  const rockGeometry = new T.IcosahedronGeometry(1, 1), rp = rockGeometry.attributes.position;
-  for (let i = 0; i < rp.count; i++) {
-    const x = rp.getX(i), y = rp.getY(i), z = rp.getZ(i);
-    const n = 1 + Math.sin(x * 13 + y * 17 + z * 7) * .17;
-    rp.setXYZ(i, x * n, y * n * .7, z * n);
-  }
-  rockGeometry.computeVertexNormals();
-  const rockMat = new T.MeshStandardMaterial({ color: 0xb78a69, roughness: .95, map, bumpMap: bump, bumpScale: .12 });
-  for (const [count, large] of [[6500, false], [450, true]] as const) {
-    const rocks = new T.InstancedMesh(rockGeometry, rockMat, count), dummy = new T.Object3D();
-    rocks.name = large ? "mars-large-rocks" : "mars-small-rocks";
-    for (let i = 0; i < count; i++) {
-      const seed = i + (large ? 9000 : 0), x = (random(seed * 7) - .5) * 240, z = (random(seed * 7 + 1) - .5) * 240;
-      const nearStation = STATIONS.some(s => Math.hypot(x - s.x, z - s.z) < 4.5) || Math.hypot(x, z - 12) < 5;
-      const size = nearStation && large ? .07 : large ? .35 + random(seed + 3) * 1.15 : .035 + random(seed + 4) ** 3 * .24;
-      if (large && size > .25 && Math.abs(x) < 87 && Math.abs(z) < 87) obstacles.push({ x, z, radius: size * 1.15 + .3 });
-      dummy.position.set(x, marsHeight(x, z) + size * .21, z);
-      dummy.scale.set(size * (1 + random(seed + 14) * .65), size * (.48 + random(seed + 15) * .5), size * (.7 + random(seed + 16) * .6)); dummy.rotation.set(seed, seed * .6, seed * .13); dummy.updateMatrix();
-      rocks.setMatrixAt(i, dummy.matrix);
-      rocks.setColorAt(i, c.setHSL(.05 + random(seed) * .035, .18 + random(seed + 5) * .2, .3 + random(seed + 6) * .24));
+  const rockMat=new T.MeshStandardMaterial({color:0xad8a70,map,bumpMap:bump,bumpScale:.15,roughness:1});
+  const makeRock=(detail:number,variant:number)=>{
+    const geo=new T.IcosahedronGeometry(1,detail),p=geo.attributes.position;
+    for(let i=0;i<p.count;i++){
+      const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+      const n=1+Math.sin(x*8.4+y*7.1+z*11+variant*2)*.14+Math.sin(x*17-z*13+variant)*.07;
+      p.setXYZ(i,x*n,y*n*(.68+variant*.07),z*n);
+    }geo.computeVertexNormals();return geo;
+  };
+  const small=new T.InstancedMesh(makeRock(0,0),rockMat,6500);small.name="mars-small-rocks";
+  const large=Array.from({length:4},(_,i)=>new T.InstancedMesh(makeRock(2,i),rockMat,Math.ceil((450-i)/4)));
+  const dummy=new T.Object3D();
+  for(const [count,big] of [[6500,false],[450,true]] as const){
+    for(let i=0;i<count;i++){
+      const seed=i+(big?9000:0),x=(random(seed*7)-.5)*240,z=(random(seed*7+1)-.5)*240;
+      const near=STATIONS.some(s=>Math.hypot(x-s.x,z-s.z)<4.5)||Math.hypot(x,z-12)<5;
+      const size=near&&big?.07:big?.35+random(seed+3)*1.15:.035+random(seed+4)**3*.24;
+      if(big&&size>.25&&Math.abs(x)<87&&Math.abs(z)<87)obstacles.push({x,z,radius:size*1.15+.3});
+      dummy.position.set(x,marsHeight(x,z)+size*.16,z);
+      dummy.scale.set(size*(1+random(seed+14)*.6),size*(.55+random(seed+15)*.3),size*(.7+random(seed+16)*.6));
+      dummy.rotation.set(seed,seed*.6,seed*.13);dummy.updateMatrix();
+      const mesh=big?large[i%4]:small,index=big?Math.floor(i/4):i;
+      mesh.setMatrixAt(index,dummy.matrix);
+      color.setHSL(.054+random(seed)*.018,.13+random(seed+5)*.13,.25+random(seed+6)*.25);
+      mesh.setColorAt(index,color);
     }
-    rocks.receiveShadow = true; rocks.castShadow = large; root.add(rocks);
   }
-  // Stratified escarpments break up the skyline without a cylindrical image seam.
-  const cliffMat = new T.MeshStandardMaterial({ color: 0xa66f55, roughness: 1 });
-  for (let i = 0; i < 70; i++) {
-    const a = i * Math.PI * 2 / 70, r = 145 + random(i + 54) * 40, height = 9 + random(i + 22) ** 2 * 34;
-    // Wide, flat-topped mesas create the layered canyon silhouette in the reference.
-    const baseRadius = 18 + random(i + 4) * 18;
-    const geo = new T.CylinderGeometry(baseRadius * (.58 + random(i) * .22), baseRadius, height, 20, 16);
-    const p = geo.attributes.position;
-    for (let j = 0; j < p.count; j++) {
-      const x = p.getX(j), y = p.getY(j), z = p.getZ(j);
-      const taper = 1 + Math.sin(y * 1.7) * .045 + Math.sin(x * .7 + z * .4) * .12 + Math.sin(x * 1.3 + z * 1.1 + y * .4) * .07;
-      p.setXYZ(j, x * taper, y + Math.sin(x * .5 + z * .3) * .55, z * taper);
-    }
-    geo.computeVertexNormals();
-    const cliff = new T.Mesh(geo, cliffMat); cliff.position.set(Math.sin(a) * r, height * .36 - 3, Math.cos(a) * r);
-    cliff.rotation.y = i * 2.3; root.add(cliff);
+  small.receiveShadow=true;root.add(small);
+  for(const rocks of large){rocks.castShadow=rocks.receiveShadow=true;root.add(rocks);}
+
+  // Two depth layers of deeply eroded mesas. Vertex colours survive static batching.
+  const cliffCanvas=document.createElement("canvas");cliffCanvas.width=cliffCanvas.height=512;
+  const cliffCtx=cliffCanvas.getContext("2d")!,cliffPixels=cliffCtx.createImageData(512,512);
+  for(let y=0;y<512;y++)for(let x=0;x<512;x++){
+    const i=(y*512+x)*4;
+    const bands=Math.sin(y*.16+terrainNoise(x*.02,y*.009)*2)*12+Math.sin(y*.65)*4;
+    const fissure=Math.max(0,Math.sin(x*.17+Math.sin(y*.015))-.7)*40;
+    const grit=random(x+y*512)*24;
+    const value=210+bands-fissure+grit;
+    cliffPixels.data[i]=value;cliffPixels.data[i+1]=value;cliffPixels.data[i+2]=value;cliffPixels.data[i+3]=255;
+  }cliffCtx.putImageData(cliffPixels,0,0);
+  const cliffMap=new T.CanvasTexture(cliffCanvas);cliffMap.wrapS=cliffMap.wrapT=T.RepeatWrapping;cliffMap.repeat.set(4,2);cliffMap.colorSpace=T.SRGBColorSpace;
+  
+  const cliffMat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:true,map:cliffMap});
+  const close=new T.Color(0xac6f49),lightStrata=new T.Color(0xca9566),dustHaze=new T.Color(0xba8c73);
+  // A continuous eroded canyon surface, rather than a circular fence of identical towers.
+  const landscape=new T.PlaneGeometry(720,720,240,240);landscape.rotateX(-Math.PI/2);
+  const lp=landscape.attributes.position,landColors=new Float32Array(lp.count*3);
+  for(let i=0;i<lp.count;i++){
+    const x=lp.getX(i),z=lp.getZ(i),r=Math.hypot(x,z);
+    const broad=terrainFbm(x*.009,z*.009);
+    const warped=terrainFbm(x*.017+broad*2.7,z*.016-broad*1.8);
+    const plateau=smooth(.43,.62,warped);
+    const ridge=1-Math.abs(terrainFbm(x*.031,z*.031)*2-1);
+    const apron=smooth(110,240,r);
+    const rightWall=.72+smooth(-20,150,x)*.6;
+    let height=(plateau*57+ridge*14+terrainNoise(x*.07,z*.07)*3)*rightWall;
+    // Thin ledges and vertical erosion retain an angular, stratified rock face.
+    const ledge=Math.floor(height/2.4)*2.4;
+    height=height*.72+ledge*.28;
+    lp.setY(i,-9+(height+9)*apron);
   }
-  return { heightAt: marsHeight, obstacles };
+  landscape.computeVertexNormals();
+  for(let i=0;i<lp.count;i++){
+    const x=lp.getX(i),y=lp.getY(i),z=lp.getZ(i),r=Math.hypot(x,z);
+    const slope=1-landscape.attributes.normal.getY(i);
+    const band=.26+.1*Math.sin(y*.6+terrainNoise(x*.035,z*.035)*2);
+    color.copy(close).lerp(lightStrata,band+Math.max(0,1-slope)*.12);
+    color.lerp(dustHaze,smooth(140,370,r)*.45);color.toArray(landColors,i*3);
+  }
+  landscape.setAttribute("color",new T.BufferAttribute(landColors,3));
+  cliffMap.repeat.set(1,1);
+  // Rock grain is projected in world space to avoid stretched cliff-wall UVs.
+  cliffMat.onBeforeCompile=shader=>{
+    shader.vertexShader='varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      vCanyonPosition=(modelMatrix*vec4(position,1.)).xyz;
+      vCanyonNormal=normalize(mat3(modelMatrix)*normal);`);
+    shader.fragmentShader='varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#ifdef USE_MAP
+      vec3 blend=abs(normalize(vCanyonNormal));blend/=max(.001,blend.x+blend.y+blend.z);
+      vec3 cliffGrain=texture2D(map,vCanyonPosition.yz*.065).rgb*blend.x;
+      cliffGrain+=texture2D(map,vCanyonPosition.xz*.065).rgb*blend.y;
+      cliffGrain+=texture2D(map,vCanyonPosition.xy*.065).rgb*blend.z;
+      diffuseColor.rgb*=mix(vec3(.83),vec3(1.12),cliffGrain);
+      #endif`);
+  };
+  cliffMat.customProgramCacheKey=()=>"tarukh-canyon-world-grain-v1";
+  const canyon=new T.Mesh(landscape,cliffMat);root.add(canyon);
+  return {heightAt:marsHeight,obstacles};
 }
 
 export function createMarsSky(scene: T.Scene) {
@@ -101,19 +164,19 @@ export function createMarsSky(scene: T.Scene) {
     vertexShader: `varying vec3 direction; void main(){ direction=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `varying vec3 direction; uniform float night;
       void main(){ vec3 d=normalize(direction); float h=max(d.y,0.);
-        vec3 day=mix(vec3(.92,.52,.34),vec3(.60,.40,.35),pow(h,.52));
-        float sunAngle=max(dot(d,normalize(vec3(-.55,.28,-.8))),0.);
-        float blueHalo=pow(sunAngle,32.) * .28;
+        vec3 day=mix(vec3(.61,.30,.16),vec3(.29,.20,.18),pow(h,.54));
+        float sunAngle=max(dot(d,normalize(vec3(-.4,.23,-.8))),0.);
+        float blueHalo=pow(sunAngle,32.) * .07;
         float sun=pow(sunAngle,140.);
         day=mix(day,vec3(.49,.56,.64),blueHalo);
-        day+=vec3(.65,.48,.32)*sun;
+        day+=vec3(1.3,.63,.19)*sun + vec3(.26,.09,.025)*pow(sunAngle,18.);
         vec3 dark=mix(vec3(.12,.10,.14),vec3(.012,.024,.054),pow(h,.45));
         gl_FragColor=vec4(mix(day,dark,night),1.);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
-  const sky = new T.Mesh(new T.SphereGeometry(390, 40, 24), material); scene.add(sky);
+  const sky = new T.Mesh(new T.SphereGeometry(850, 40, 24), material); scene.add(sky);
   return material;
 }
 

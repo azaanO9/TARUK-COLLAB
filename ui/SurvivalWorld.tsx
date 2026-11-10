@@ -128,26 +128,32 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       scene.background = new T.Color(0x090e18);
       scene.fog = new T.FogExp2(0x333b48, 0.0024);
-      const camera = new T.PerspectiveCamera(72, 1, 0.08, 500);
+      const camera = new T.PerspectiveCamera(props.planet === "mars" ? 58 : 72, 1, 0.08, props.planet === "mars" ? 1100 : 500);
       camera.rotation.order = "YXZ";
       const light = new T.DirectionalLight(0xffe5c7, 3.5);
       light.position.set(-55, props.planet === "mars" ? 28 : 60, -80);
       light.castShadow = true;
       light.shadow.mapSize.set(props.planet === "mars" ? 1024 : 2048, props.planet === "mars" ? 1024 : 2048);
       Object.assign(light.shadow.camera, {
-        left: -55,
-        right: 55,
-        top: 55,
-        bottom: -55,
+        left: props.planet === "mars" ? -34 : -55,
+        right: props.planet === "mars" ? 34 : 55,
+        top: props.planet === "mars" ? 34 : 55,
+        bottom: props.planet === "mars" ? -34 : -55,
         near: 1,
         far: 220,
       });
       light.shadow.bias = -0.00015;
       light.shadow.normalBias = 0.035;
       scene.add(light);
+      if (props.planet === "mars") scene.add(light.target);
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
-      const model = createSurvivalOutpost(scene, props.planet);
+      const [regolithSurface,panelSurface] = props.planet === "mars" ? await Promise.all([
+        new T.TextureLoader().loadAsync("/art/mars-regolith-original.webp").catch(() => undefined),
+        new T.TextureLoader().loadAsync("/art/mars-ivory-panel-original.webp").catch(() => undefined),
+      ]) : [undefined,undefined];
+      if (cancelled) {regolithSurface?.dispose();panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
+      const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       setLoadingStage("Preparing explorers and equipment…");
       setLoadingProgress(70);
@@ -166,7 +172,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       const sage = props.planet === "mars" ? createSageCompanion() : null;
       if (sage) {
-        const dock = createSageDock(); scene.add(dock);
+        const dock = createSageDock(panelSurface); scene.add(dock);
         sage.scale.setScalar(.78); sage.position.set(SAGE_DOCK.x, .16, SAGE_DOCK.z); scene.add(sage);
         // Small overlapping circles keep the dock walls solid while leaving the front open.
         for (const z of [-1.25, -.55, .15, .85, 1.45]) for (const x of [-1.65, 1.65])
@@ -271,7 +277,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         new T.SphereGeometry(4, 24, 16),
         new T.MeshBasicMaterial({ color: 0xfff1ce, fog: false, toneMapped: false }),
       );
-      sun.position.set(-110, props.planet === "mars" ? 56 : 65, -160);
+      sun.position.set(props.planet === "mars" ? -80 : -110, props.planet === "mars" ? 46 : 65, -160);
       scene.add(sun);
       const earth = new T.Mesh(
         new T.SphereGeometry(5, 28, 20),
@@ -644,8 +650,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           rightLeg.rotation.x = -stride;
           leftArm.rotation.x = -stride * 0.65;
           rightArm.rotation.x = stride * 0.65;
-          const back = third ? 4.3 : 0;
-          const shoulder = third ? 0.8 : 0;
+          const back = third ? (props.planet === "mars" ? 5.8 : 4.3) : 0;
+          const shoulder = third ? (props.planet === "mars" ? .22 : .8) : 0;
           cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
           camera.position.set(
             walker.x + Math.sin(walker.yaw) * back + Math.cos(walker.yaw) * shoulder,
@@ -673,18 +679,23 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           aim.current.style.top = "50%";
         }
         const eclipse = p.event === "eclipse" || p.event === "night";
-        light.intensity = eclipse ? .18 : props.planet === "mars" ? 3.4 : 3.5;
-        ambient.intensity = eclipse ? (props.planet === "mars" ? .4 : .65) : props.planet === "mars" ? 1.2 : 1.65;
+        light.intensity = eclipse ? .22 : props.planet === "mars" ? 4.1 : 3.5;
+        ambient.intensity = eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .64 : 1.65;
         if (props.planet === "mars") {
           ambient.color.setHex(eclipse ? 0x7f9dca : 0xd0bca0);
           ambient.groundColor.setHex(eclipse ? 0x312a36 : 0x77543e);
           light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
-          scene.environmentIntensity = eclipse ? .12 : .38;
+          scene.environmentIntensity = eclipse ? .16 : .24;
+          const shadowStep = 68 / 1024;
+          const sx = Math.round((walker.x - Math.sin(walker.yaw) * 15) / shadowStep) * shadowStep;
+          const sz = Math.round((walker.z - Math.cos(walker.yaw) * 15) / shadowStep) * shadowStep;
+          light.target.position.set(sx, 0, sz);
+          light.position.set(sx - 55, 28, sz - 80);
           starField.visible = eclipse; earth.visible = eclipse;
         }
         if (props.planet === "mars" && lastMarsNight !== eclipse) {
           scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
-          scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xc69e91, eclipse ? 0.003 : 0.0038);
+          scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.003 : 0.0027);
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
           if (dust) (dust.material as import("three").PointsMaterial).opacity = reduced.matches ? 0.1 : eclipse ? 0.12 : 0.35;
           lastMarsNight = eclipse;
@@ -838,13 +849,28 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             for (const material of Array.isArray(m.material)
               ? m.material
               : [m.material])
-              { const mapped = material as import("three").MeshStandardMaterial; mapped.map?.dispose(); mapped.bumpMap?.dispose(); material.dispose(); }
+              { const mapped = material as import("three").MeshStandardMaterial; mapped.map?.dispose(); mapped.bumpMap?.dispose(); mapped.normalMap?.dispose(); mapped.roughnessMap?.dispose(); mapped.metalnessMap?.dispose(); mapped.emissiveMap?.dispose(); mapped.alphaMap?.dispose(); material.dispose(); }
           }
         });
         renderer.domElement.remove();
       };
-      // Register cleanup before asynchronous shader compilation, including unmounts during warm-up.
-      if (props.planet === "mars") { try { await renderer.compileAsync(scene, camera); } catch { /* fall back to normal lazy compilation */ } }
+      // Compile both shadow variants and upload the visible surfaces behind the loading screen.
+      if (props.planet === "mars") {
+        setLoadingStage("Preparing materials and light…"); setLoadingProgress(88);
+        camera.position.set(.22,2.8,17.8); camera.rotation.set(pitch,0,0,"YXZ"); astronaut.position.set(0,0,12);
+        try {
+          renderer.shadowMap.enabled=false; await renderer.compileAsync(scene,camera); if(cancelled)return;renderer.render(scene,camera);
+          renderer.shadowMap.enabled=true;
+          scene.traverse(o=>{if(o instanceof T.Mesh){if(Array.isArray(o.material))o.material.forEach(material=>material.needsUpdate=true);else o.material.needsUpdate=true;}});
+          await renderer.compileAsync(scene,camera);if(cancelled)return;renderer.render(scene,camera);
+          // Optional post effects are warmed on desktop; phones keep Auto's smaller allocation.
+          if(composer && cameraSettings.current.quality !== "performance" && !window.matchMedia("(pointer: coarse)").matches && window.innerWidth>800){
+            if(occlusion)occlusion.enabled=true;if(bloom)bloom.enabled=!reduced.matches;composer.render();
+          }
+          const preset=graphicsTier(cameraSettings.current.quality);
+          renderer.shadowMap.enabled=preset.shadows;if(occlusion)occlusion.enabled=preset.ssao;if(bloom)bloom.enabled=preset.bloom&&!reduced.matches;
+        }catch{/* A missing optional GPU feature must not prevent the basic scene from rendering. */}
+      }
       if (cancelled) return;
       frame = requestAnimationFrame(animate);
       setLoadingStage("Launching exploration…");

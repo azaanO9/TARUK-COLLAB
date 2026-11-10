@@ -3,7 +3,8 @@ import type { ReactNode, RefObject } from "react";
 import type { Quiz } from "../content/marsQuizzes";
 import {rank, type Mission} from "../game/juniorMission";
 export function MarsHud({mission,onGuide,onLog}:{mission:Mission;onGuide:()=>void;onLog:()=>void}) {
- return <section className="junior-hud" aria-label="Mission resources"><b>MISSION RESOURCES</b>{Object.entries(mission.resources).map(([key,value])=><div key={key}><span>{key==="risk"?"Radiation risk":key}</span><strong>{value}</strong></div>)}<small>Illustrative game points</small><div className="junior-rank"><b>{rank(mission.xp,mission.found.length)}</b><span>{mission.xp} XP</span><progress max="1000" value={mission.xp}/></div><button onClick={onGuide}>FIELD GUIDE · {mission.found.length}/6</button><button onClick={onLog}>LOG</button></section>;
+ const icons:Record<string,string>={power:"ϟ",water:"◒",food:"♜",oxygen:"O₂",risk:"☢"};
+ return <><section className="junior-hud" aria-label="Mission resources">{Object.entries(mission.resources).map(([key,value])=><div key={key}><span><i aria-hidden="true" className={`resource-icon resource-${key}`}>{icons[key]}</i>{key==="risk"?"Rad risk":key}</span><strong>{value}</strong></div>)}</section><section className="mars-mission-tools" aria-label="Mission notebook"><div className="junior-rank"><b>{rank(mission.xp,mission.found.length)}</b><span>{mission.xp} XP</span><progress max="1000" value={mission.xp}/></div><div className="mars-notebook-actions"><button onClick={onGuide}>Discoveries {mission.found.length}/6</button><button onClick={onLog}>Mission log</button></div><small>Illustrative resource points</small></section></>;
 }
 export function MissionDialogFrame({dialogRef,children}:{dialogRef:RefObject<HTMLElement|null>;children:ReactNode}) {
  return <section ref={dialogRef} tabIndex={-1} className="mars-dialog junior-dialog" role="dialog" aria-modal="true" aria-label="Mission activity">{children}</section>;

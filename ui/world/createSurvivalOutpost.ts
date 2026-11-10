@@ -3,8 +3,13 @@ import { STATIONS } from "../../content/survival";
 import { dressMarsOutpost } from "./marsDetails";
 import { batchStaticMeshes } from "./batchStaticMeshes";
 import { createMarsTerrain } from "./marsTerrain";
+import { createMarsColony } from "./createMarsColony";
 /** All dimensions are illustrative. This module only builds presentation assets. */
-export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon") {
+export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon", surface?:T.Texture, panelSurface?:T.Texture) {
+  return planet === "mars" ? createMarsColony(scene, surface, panelSurface) : createLegacySurvivalOutpost(scene, planet);
+}
+
+function createLegacySurvivalOutpost(scene:T.Scene, planet:"moon"|"mars") {
   const mat = (color: number, extra = {}) =>
     new T.MeshStandardMaterial({ color, roughness: 0.78, ...extra });
   const ivory = mat(0xc8c6b9),

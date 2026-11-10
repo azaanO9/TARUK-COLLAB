@@ -1,4 +1,6 @@
 import * as T from "three";
+import { createColonyMaterials, colonyBuilder } from "./colonyMaterials";
+import { batchStaticMeshes } from "./batchStaticMeshes";
 
 /** Original mission hardware, built locally without external model requests. */
 export function dressMarsOutpost(root: T.Group, targets: T.Group[]) {
@@ -79,49 +81,63 @@ export function dressMarsOutpost(root: T.Group, targets: T.Group[]) {
 }
 
 export function createMarsAstronaut() {
-  const root = new T.Group();
-  const suit = new T.MeshStandardMaterial({ color: 0xdad3c0, roughness: .8 });
-  const dark = new T.MeshStandardMaterial({ color: 0x303534, roughness: .75 });
-  const orange = new T.MeshStandardMaterial({ color: 0xbe6036, roughness: .6 });
-  const metal = new T.MeshStandardMaterial({ color: 0x9ca49e, metalness: .7, roughness: .35 });
-  const visor = new T.MeshPhysicalMaterial({ color: 0x73502a, metalness: .85, roughness: .13, clearcoat: 1 });
-  function part(parent: T.Object3D, geometry: T.BufferGeometry, material: T.Material, x: number, y: number, z: number) {
-    const m = new T.Mesh(geometry, material); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m;
+  const root=new T.Group(),m=createColonyMaterials(),b=colonyBuilder(m);
+  const fabric=m.ceramic.clone();fabric.roughness=.95;fabric.metalness=0;fabric.bumpScale=.024;
+  const visor=new T.MeshStandardMaterial({color:0x1b292d,metalness:.92,roughness:.13,envMapIntensity:1.7});
+  const torso=b.add(root,new T.CapsuleGeometry(.285,.36,8,24),fabric,0,1.23,0);torso.scale.set(1.18,1,.84);
+  b.box(root,.56,.1,.39,0,.96,0,m.graphite);
+  b.box(root,.47,.19,.09,0,1.39,-.22,m.orange);
+  b.box(root,.3,.25,.07,0,1.24,-.26,m.alloy);
+  for(const x of [-.205,.205])b.box(root,.052,.48,.04,x,1.25,.23,m.graphite);
+  // Life-support pack, shaped corner guards, fasteners and a legible status screen.
+  b.box(root,.49,.6,.27,0,1.26,.31,m.alloy);
+  b.box(root,.39,.48,.055,0,1.26,.47,m.ceramic);
+  b.box(root,.24,.27,.035,0,1.3,.51,m.graphite);
+  for(let i=0;i<4;i++)b.box(root,.13,.018,.015,0,1.23+i*.045,.535,m.light,false);
+  for(const x of [-.22,.22]){b.box(root,.075,.48,.1,x,1.28,.43,m.orange);b.bolts(root,.05,.43,x,1.28,.491);}
+  b.pipe(root,[[-.25,1.35,.33],[-.36,1.23,.31],[-.35,1.05,.05],[-.26,1.1,-.16]],.028,m.orange);
+  for(const x of [-.12,.12])b.cylinder(root,.024,.11,x,1.65,.35,m.alloy);
+  b.add(root,new T.TorusGeometry(.193,.034,8,24).rotateX(Math.PI/2),m.orange,0,1.62,0);
+  const helmet=b.add(root,new T.SphereGeometry(.295,32,22),fabric,0,1.88,0);helmet.scale.set(1.04,1,.98);
+  const face=b.add(root,new T.SphereGeometry(.268,32,20),visor,0,1.88,-.083);face.scale.set(.95,.77,.87);
+  for(const x of [-.3,.3]){
+    const ear=b.cylinder(root,.092,.075,x,1.87,.015,m.graphite);ear.rotation.z=Math.PI/2;
+    const cover=b.cylinder(root,.072,.085,x,1.87,.015,m.alloy);cover.rotation.z=Math.PI/2;
   }
-  const box = (p: T.Object3D, w: number, h: number, d: number, m: T.Material, x: number, y: number, z: number) => part(p, new T.BoxGeometry(w, h, d), m, x, y, z);
-  part(root, new T.CapsuleGeometry(.29, .35, 8, 20), suit, 0, 1.15, 0).scale.z = .76;
-  box(root, .6, .1, .43, dark, 0, .92, 0);
-  box(root, .52, .58, .28, metal, 0, 1.24, .3);
-  box(root, .48, .1, .3, orange, 0, 1.5, .3);
-  // Backpack silhouette and illuminated life-support display, visible in third person.
-  const status = new T.MeshStandardMaterial({color:0xbef9e4,emissive:0x54d4ba,emissiveIntensity:1.2});
-  box(root, .34, .38, .035, dark, 0, 1.23, .46);
-  box(root, .23, .22, .02, metal, 0, 1.25, .49);
-  for(let i=0;i<3;i++) box(root, .14, .018, .012, status, 0, 1.19 + i*.05, .505);
-  for(const x of [-.25,.25]) box(root, .06, .45, .08, orange, x, 1.23, .46);
-  for (const x of [-.18, .18]) box(root, .055, .53, .03, dark, x, 1.2, -.23);
-  box(root, .29, .22, .09, dark, 0, 1.24, -.27);
-  for (let i = 0; i < 3; i++) box(root, .045, .025, .01, orange, -.08 + i * .08, 1.27, -.32);
-  part(root, new T.CylinderGeometry(.17, .17, .1, 24), metal, 0, 1.57, 0);
-  part(root, new T.SphereGeometry(.29, 32, 24), suit, 0, 1.82, 0);
-  part(root, new T.SphereGeometry(.265, 32, 24), visor, 0, 1.83, -.07).scale.set(.96, .72, .94);
-  for (const x of [-.29, .29]) part(root, new T.CylinderGeometry(.09, .09, .07, 16).rotateZ(Math.PI / 2), metal, x, 1.81, 0);
-  const limbs: T.Group[] = [];
-  for (const side of [-1, 1]) {
-    const leg = new T.Group(); leg.position.set(side * .18, .88, 0); root.add(leg); limbs.push(leg);
-    part(leg, new T.CapsuleGeometry(.135, .48, 6, 16), suit, 0, -.34, 0);
-    part(leg, new T.SphereGeometry(.14, 16, 12), dark, 0, -.42, -.02).scale.y = .65;
-    box(leg, .21, .16, .07, metal, 0, -.43, -.12);
-    box(leg, .29, .18, .41, dark, 0, -.76, -.08);
-    box(leg, .3, .045, .43, metal, 0, -.84, -.08);
-    const arm = new T.Group(); arm.position.set(side * .37, 1.42, 0); root.add(arm); limbs.push(arm);
-    part(arm, new T.CapsuleGeometry(.105, .36, 6, 16), suit, side * .03, -.25, -.025);
-    box(arm, .22, .11, .22, orange, side * .03, -.08, -.025);
-    part(arm, new T.SphereGeometry(.105, 12, 10), dark, side * .03, -.54, -.03);
+  b.box(root,.13,.055,.07,0,2.13,-.04,m.alloy);
+  b.add(root,new T.TorusGeometry(.257,.012,6,28).rotateX(Math.PI/2),m.alloy,0,1.72,0);
+  b.box(root,.17,.055,.025,0,1.9,.286,m.alloy);
+  for(const x of [-.09,-.03,.03,.09])b.box(root,.015,.06,.018,x,1.82,.284,m.graphite,false);
+  // Wrinkled fabric profiles give arms and legs natural volume rather than straight rods.
+  const sleeve=(length:number,radius:number)=>{
+    const profile:T.Vector2[]=[];
+    for(let i=0;i<=18;i++){
+      const t=i/18;const taper=.78+.22*Math.sin(t*Math.PI);
+      const crease=1+Math.sin(t*Math.PI*12)*.043*Math.sin(t*Math.PI);
+      profile.push(new T.Vector2(radius*taper*crease,-t*length));
+    }
+    return new T.LatheGeometry(profile,18);
+  };
+  const limbs:T.Group[]=[];
+  for(const side of [-1,1]){
+    const leg=new T.Group();leg.position.set(side*.19,.96,0);root.add(leg);limbs.push(leg);
+    b.add(leg,sleeve(.73,.145),fabric,0,0,0);
+    b.box(leg,.2,.17,.07,0,-.42,-.13,fabric);
+    for(const y of [-.36,-.53])b.add(leg,new T.TorusGeometry(.146,.012,6,18).rotateX(Math.PI/2),fabric,0,y,0);
+    b.box(leg,.30,.2,.43,0,-.81,-.065,m.graphite);
+    b.box(leg,.305,.05,.44,0,-.9,-.065,m.alloy);
+    b.box(leg,.2,.13,.13,0,-.74,.06,fabric);
+    const arm=new T.Group();arm.position.set(side*.37,1.5,0);arm.rotation.z=side*.065;root.add(arm);limbs.push(arm);
+    b.add(arm,sleeve(.47,.11),fabric,side*.04,-.025,0);
+    b.box(arm,.205,.12,.21,side*.04,-.075,0,m.orange);
+    b.add(arm,new T.TorusGeometry(.11,.012,6,18).rotateX(Math.PI/2),m.graphite,side*.04,-.3,0);
+    b.cylinder(arm,.1,.1,side*.04,-.48,0,m.alloy);
+    const glove=b.add(arm,new T.SphereGeometry(.104,16,10),m.graphite,side*.04,-.58,-.01);glove.scale.set(.8,1.14,.9);
+    batchStaticMeshes(leg,new Set());batchStaticMeshes(arm,new Set());
   }
-  return { root, animate(stride: number, airborne: boolean) {
-    limbs[0].rotation.x = stride; limbs[2].rotation.x = -stride;
-    limbs[1].rotation.x = airborne ? -.4 : -stride * .65;
-    limbs[3].rotation.x = airborne ? -.4 : stride * .65;
-  } };
+  batchStaticMeshes(root,new Set(limbs));
+  return {root,animate(stride:number,airborne:boolean){
+    limbs[0].rotation.x=stride;limbs[2].rotation.x=-stride;
+    limbs[1].rotation.x=airborne?-.4:-stride*.65;limbs[3].rotation.x=airborne?-.4:stride*.65;
+  }};
 }

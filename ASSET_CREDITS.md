@@ -1,3 +1,16 @@
+# Current Mars asset provenance
+
+- `ui/world/createMarsColony.ts`, `colonyMaterials.ts`, `terrainNoise.ts`, `marsTerrain.ts`, `marsDetails.ts` and `createSageCompanion.ts`: original procedural geometry, materials, characters and effects. Rounded bevels use Three.js `RoundedBoxGeometry` under the existing Three.js MIT license.
+- `public/art/mars-regolith-original.webp`: original AI-generated regolith surface, made with the built-in image-generation tool for this project. Compressed to 768×768, 121,404 bytes. It is a surface texture, not a scene backdrop.
+- `public/art/mars-ivory-panel-original.webp`: original AI-generated painted-metal surface, made with the same tool. Compressed to 512×512, 2,744 bytes.
+- Reference image supplied by the user: visual direction only. It is not overlaid onto the game and no third-party game models or photographed terrain scans were downloaded.
+
+Generation prompts: the regolith prompt requested a seamless orthographic, evenly lit rusty ochre Mars sand albedo with fine basalt grit and subtle wind ripples, no scene, text, shadows or perspective. The hardware prompt requested an orthographic ivory powder-coated aerospace panel with fine grain, subtle wear, ochre dust at the lower edge, fine seams and small fasteners, no scene, labels or perspective. Both used the built-in image tool; no API key or fallback CLI was used.
+
+---
+
+## Earlier retained asset notes
+
 # Asset credits and replacements
 
 - November graphics update: `ui/world/marsTerrain.ts` and `ui/world/marsDetails.ts` contain original procedural terrain, textures, escarpments, footprints, astronaut and hardware details. No external texture/model licence is required for those original assets. The active Mars astronaut is now the original animated procedural model; the credited NASA model remains in the archive but is not loaded by the Mars scene. The generated horizon image is retained but replaced in the playable scene by original geometry and a shader sky.

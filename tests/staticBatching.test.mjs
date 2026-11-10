@@ -34,3 +34,10 @@ test("excluded station subtrees stay separately raycastable after scenery batchi
   assert.ok(hits.length > 0);
   assert.equal(hits[0].object.parent.userData.station, "oxygen");
 });
+
+test("vertex-coloured scenery keeps its colour and fills uncoloured vertices when batched",()=>{
+  const root=new T.Group(),material=new T.MeshStandardMaterial({vertexColors:true});
+  const tinted=new T.BoxGeometry();const colour=new Float32Array(tinted.attributes.position.count*3);for(let i=0;i<colour.length;i+=3){colour[i]=.7;colour[i+1]=.3;colour[i+2]=.1;}tinted.setAttribute('color',new T.BufferAttribute(colour,3));
+  root.add(new T.Mesh(tinted,material));const plain=new T.Mesh(new T.BoxGeometry(),material);plain.position.x=2;root.add(plain);
+  assert.equal(batchStaticMeshes(root,new Set()),1);const merged=root.children[0];assert.ok(merged.geometry.attributes.color);const values=merged.geometry.attributes.color.array;assert.ok(values.some(v=>Math.abs(v-.3)<.0001));assert.ok(values.some(v=>v===1));assert.ok(values.every(Number.isFinite));
+});

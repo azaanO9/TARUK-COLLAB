@@ -1,3 +1,24 @@
+# Reference-driven Mars colony rebuild · 10 November 2026
+
+The Mars scene now uses `createMarsColony.ts` instead of the earlier generic outpost geometry. The supplied concept was used as the visual target for composition, warm lighting, readable shapes and hardware detail. All structures and characters remain interactive 3D geometry. This remains a stylised real-time interpretation, not a pixel-identical offline render.
+
+- A pressure habitat with a segmented dome, entrance frame, piping, slotted windows, roof fittings and steps.
+- Separate detailed solar, MOXIE, ice/water, grow-lab, shielding, battery, rover-service and communications hardware at the existing station IDs.
+- A continuous eroded canyon surface with world-projected grain, layered colour and distance haze. Walking terrain and its crater sampling remain intact. The habitat collision volume follows its new visual position and size, and the shielding shelter retains an open doorway with solid side and back walls.
+- Four original large-rock shapes, low-cost instanced small stones and an original ground texture. `marsHeight` still controls the walkable ground.
+- A rebuilt articulated astronaut suit and backpack; a detailed Sage service bay with insulated panels, hatches, vents, cabinets, warm light and an emissive floor ring. Sage's following code is unchanged.
+- Smaller warm HUD panels and a notebook at the bottom left; companion and voice controls remain available in the Sage disclosure.
+- Tighter player-following shadows and shader/material warm-up behind the loading screen, including desktop post effects. Auto still has no post-processing; Performance keeps fewer pebbles/particles and a lower resolution cap.
+- Original compressed same-origin surface assets, with procedural fallback if they fail to load. The two WebP files total 124,148 bytes. There are no asset or service requests after setup; changing graphics tiers reuses the loaded surfaces.
+
+Verification: 60 tests plus TypeScript and production build passed. Browser checks covered the day/night sol transition, the new MOXIE inspect target, keyboard dialog focus, Sage follow/home controls, Mobile selection and a 390×844 layout. A deliberate WebGL context loss showed the recovery screen, and low-graphics retry returned to the scene with mission progress intact. The browser/device overrides were reset afterward.
+
+Screenshots are in `docs/screenshots/reference-before-day.jpg`, `reference-after-day.jpg`, `reference-after-night.jpg` and `reference-after-mobile.jpg`. Desktop FPS samples are not real-phone benchmarks. See `GRAPHICS_PLAN.md` for measured workload and build-size comparisons.
+
+---
+
+## Earlier graphics notes
+
 # Mars graphics update — 9 November 2026
 
 ## Movement and Sage follow-up

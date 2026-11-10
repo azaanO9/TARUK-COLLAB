@@ -18,12 +18,14 @@ export function batchStaticMeshes(owner: T.Group, excluded: ReadonlySet<T.Object
   let savedCalls = 0;
   for (const [material, meshes] of batches) {
     if (meshes.length < 2) continue;
+    const keepColors = Boolean((material as T.MeshStandardMaterial).vertexColors);
     const geometries = meshes.map(mesh => {
       const source = mesh.geometry.clone().applyMatrix4(new T.Matrix4().multiplyMatrices(inverse, mesh.matrixWorld));
       const geometry = source.index ? source.toNonIndexed() : source;
       if (geometry !== source) source.dispose();
       // Standard attributes make cylinders, tubes and boxes compatible.
-      for (const name of Object.keys(geometry.attributes)) if (!["position", "normal", "uv"].includes(name)) geometry.deleteAttribute(name);
+      for (const name of Object.keys(geometry.attributes)) if (!["position", "normal", "uv", ...(keepColors ? ["color"] : [])].includes(name)) geometry.deleteAttribute(name);
+      if (keepColors && !geometry.attributes.color) geometry.setAttribute("color", new T.BufferAttribute(new Float32Array(geometry.attributes.position.count * 3).fill(1), 3));
       if (!geometry.attributes.uv) geometry.setAttribute("uv", new T.BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2));
       return geometry;
     });

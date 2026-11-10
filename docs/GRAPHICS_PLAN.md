@@ -1,3 +1,25 @@
+# Current reference rebuild
+
+This section supersedes the historical pass below. The camera composition now follows the reference more closely, so the before/after views are not an identical-frustum GPU benchmark. Samples below use the initial view in the same desktop browser at 1280×720; FPS is a short settled sample after shader warm-up.
+
+| Tier | Previous draw calls | Rebuilt draw calls | Previous triangles | Rebuilt triangles | Settled frame time |
+|---|---:|---:|---:|---:|---:|
+| Auto | 551 | 503 | 1,009,756 | 923,724 | about 16.7 ms |
+| Performance | 203 | 198 | 492,176 | 456,554 | about 16.7 ms |
+| High | 565 | 517 | 1,009,770 | 923,738 | about 16.7 ms |
+
+Ultra was not measured in the same daytime comparison. Auto uses no new full-screen effect. Hardware lamps merge by material while retaining the live material reference, and tiny emissive indicators do not render into the shadow map. Small stones use lower-polygon geometry; large stones have four higher-detail shapes. The new habitat dimensions have a matching collision boundary.
+
+Build-size check: sum gzip-compressed client JavaScript, CSS, images and models individually, comparing the previous packaged version with the current production build. Baseline: 5,996,963 bytes; rebuilt: 6,129,236 bytes; delta: 132,273 bytes (about 129 KiB). This includes the two original WebP assets and stays below the approximately 250 KB added-asset target. Recalculate this table if source changes after this check. Screenshots and source documents are not deployed game assets.
+
+Maximum terrain texture dimension is 768; hardware maps are at most 512. No tier downloads another asset when selected. Native phones still need testing for sustained 30 fps, thermal throttling, portrait/landscape transitions and memory usage. Texture count increased from the original scene because the hardware uses labelled physical surfaces. This is documented rather than treated as free memory.
+
+The rebuild provides a materially more detailed playable interpretation. Offline-render realism, full triplanar PBR scan quality, a Milky Way and Mars moons, new weather simulations and a separately controlled sunset are not claimed.
+
+---
+
+## Historical baseline and earlier pass
+
 # Mars graphics plan and measurement
 
 Baseline sampled at the spawn view in the local in-app browser, desktop viewport, 2026-11-10. Frame times are short browser samples, not a device benchmark or a phone guarantee. Draw calls and triangles include shadow and post-processing passes. Texture counts depend on which tiers were visited.
