@@ -110,7 +110,7 @@ function partitionRoverMesh(
 
   const wheelTriangles: number[][] = Array.from({ length: 6 }, () => []);
   const chassisTriangles: number[] = [];
-  const maxRadialSq = 0.58 * 0.58; // Captures outer tire radius in Y-Z plane
+  const maxRadialSq = 0.60 * 0.60; // Captures outer tire radius in Y-Z plane
 
   for (let i = 0; i < idx.count; i += 3) {
     const i0 = idx.getX(i);
@@ -122,18 +122,21 @@ function partitionRoverMesh(
     const cz = (pos.getZ(i0) + pos.getZ(i1) + pos.getZ(i2)) / 3;
 
     let assigned = -1;
-    // Outboard wheel check: wheel rim/tire is strictly outboard (|cx| >= 0.86m) and below collar (cy <= 0.98m)
-    if (Math.abs(cx) >= 0.86 && cy <= 0.98) {
+    // Pure circular rim-shaped wheel:
+    // Strictly outboard (|cx| >= 1.14m) so the suspension pod / drive actuator stays stationary on the chassis,
+    // and within vertical wheel tire bounds (cy <= 1.15m)
+    if (Math.abs(cx) >= 1.14 && cy <= 1.15) {
       let minDistSq = maxRadialSq;
       for (let k = 0; k < 6; k++) {
         const c = wheelCenters[k];
+        if (cx * c.x < 0) continue; // Must be on same side (left or right)
+
         const dy = cy - c.y;
         const dz = cz - c.z;
         const r_yz_sq = dy * dy + dz * dz;
-        const dx = Math.abs(cx - c.x);
 
-        // Cylindrical volume aligned along X axis with half-thickness 0.42m
-        if (r_yz_sq <= minDistSq && dx <= 0.42) {
+        // Cylindrical volume aligned along X axis
+        if (r_yz_sq <= minDistSq && Math.abs(cx - c.x) <= 0.35) {
           minDistSq = r_yz_sq;
           assigned = k;
         }
@@ -226,12 +229,12 @@ export function createBigRover(
   // 6 wheels on fallback chassis with working suspension pivots
   const fallbackWheels: RoverWheelAssembly[] = [];
   const fallbackPositions = [
-    [-1.27, 0.48, -1.03],
-    [1.27, 0.48, -1.03],
-    [-1.28, 0.49, 0.34],
-    [1.28, 0.49, 0.34],
-    [-1.27, 0.47, 1.63],
-    [1.27, 0.47, 1.63],
+    [-1.42, 0.54, -1.03],
+    [1.42, 0.54, -1.03],
+    [-1.42, 0.55, 0.39],
+    [1.42, 0.55, 0.39],
+    [-1.42, 0.53, 1.82],
+    [1.42, 0.53, 1.82],
   ];
 
   for (let i = 0; i < fallbackPositions.length; i++) {
@@ -416,14 +419,14 @@ export function createBigRover(
       }
       targetMesh.geometry.computeVertexNormals();
 
-      // Exact wheel hub centers in the scaled vehicle space
+      // Exact circular wheel rim and tire centers in the scaled vehicle space
       const wheelCenters = [
-        { x: -1.273, y: 0.477, z: -1.031 }, // Front-Left
-        { x:  1.272, y: 0.477, z: -1.031 }, // Front-Right
-        { x: -1.279, y: 0.494, z:  0.341 }, // Mid-Left
-        { x:  1.277, y: 0.494, z:  0.341 }, // Mid-Right
-        { x: -1.267, y: 0.467, z:  1.628 }, // Rear-Left
-        { x:  1.265, y: 0.467, z:  1.628 }, // Rear-Right
+        { x: -1.416, y: 0.538, z: -1.031 }, // Front-Left
+        { x:  1.416, y: 0.538, z: -1.031 }, // Front-Right
+        { x: -1.416, y: 0.547, z:  0.394 }, // Mid-Left
+        { x:  1.416, y: 0.547, z:  0.394 }, // Mid-Right
+        { x: -1.416, y: 0.531, z:  1.818 }, // Rear-Left
+        { x:  1.416, y: 0.531, z:  1.818 }, // Rear-Right
       ];
 
       const assembledGroup = new T.Group();
@@ -524,10 +527,10 @@ export function createBigRover(
       for (let k = 0; k < 2; k++) {
         const i = dustIndex;
         dustIndex = (dustIndex + 1) % dustCount;
-        const side = k === 0 ? -1.27 : 1.27;
+        const side = k === 0 ? -1.42 : 1.42;
         dustPos[i * 3] = side + (Math.random() - 0.5) * 0.3;
         dustPos[i * 3 + 1] = 0.12;
-        dustPos[i * 3 + 2] = 1.63 + Math.random() * 0.35;
+        dustPos[i * 3 + 2] = 1.82 + Math.random() * 0.35;
         dustVel[i * 3] = (Math.random() - 0.5) * 0.7;
         dustVel[i * 3 + 1] = 0.45 + Math.random() * 0.6;
         dustVel[i * 3 + 2] = 1.1 + Math.random() * 1.5;
