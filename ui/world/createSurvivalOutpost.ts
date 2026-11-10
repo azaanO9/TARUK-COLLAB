@@ -4,8 +4,9 @@ import { dressMarsOutpost } from "./marsDetails";
 import { batchStaticMeshes } from "./batchStaticMeshes";
 import { createMarsTerrain } from "./marsTerrain";
 import { createMarsColony } from "./createMarsColony";
+import type { MarsSurfaceTextures } from "./marsSurfaceTextures";
 /** All dimensions are illustrative. This module only builds presentation assets. */
-export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon", surface?:T.Texture, panelSurface?:T.Texture) {
+export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon", surface?:MarsSurfaceTextures, panelSurface?:T.Texture) {
   return planet === "mars" ? createMarsColony(scene, surface, panelSurface) : createLegacySurvivalOutpost(scene, planet);
 }
 

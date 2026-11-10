@@ -88,9 +88,10 @@ export function createRoverCockpit() {
   screen.position.set(0, 1.90, -1.62);
   screen.rotation.x = -.48;
   root.add(screen);
-  const cabinLight = new T.PointLight(0xc4e8ee, 2.4, 4, 2);
+  // Keep this light outside the visibility-switched interior. Changing the light
+  // count recompiles every lit material; changing intensity only updates a uniform.
+  const cabinLight = new T.PointLight(0xc4e8ee, 0, 4, 2);
   cabinLight.position.set(0, 2.7, -.25);
-  root.add(cabinLight);
   let lastReadout = "";
   function update(rover: RoverVehicle) {
     yoke.rotation.z = rover.steerAngle * 1.6;
@@ -113,7 +114,7 @@ export function createRoverCockpit() {
     context.fillStyle = "#48636c"; context.fillRect(26, 224, 716, 2);
     texture.needsUpdate = true;
   }
-  return { root, update, texture };
+  return { root, update, texture, cabinLight };
 }
 
 /** Seat and look direction follow chassis pitch/roll as well as heading. */
