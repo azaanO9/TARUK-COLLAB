@@ -1,7 +1,8 @@
 import * as T from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import type { RoverVehicle } from "../../game/roverVehicle";
+import { ROVER_WHEEL_OFFSETS, ROVER_WHEEL_OUTER_RADIUS, type RoverVehicle } from "../../game/roverVehicle";
+import { partitionRoverMesh, type RoverWheelAssembly } from "./roverWheelAssembly";
 
 export type BigRoverHandle = {
   root: T.Group;
@@ -17,190 +18,6 @@ export type BigRoverHandle = {
   ) => void;
   dispose: () => void;
 };
-
-type RoverWheelAssembly = {
-  pivot: T.Group;
-  wheelMesh: T.Object3D;
-  baseX: number;
-  baseY: number;
-  baseZ: number;
-  suspensionOffset: number;
-  isFront: boolean;
-  isLeft: boolean;
-};
-
-/**
- * Builds a sub-geometry from selected triangle index lists, remapping vertices
- * to maintain clean buffers and proper UV/normal attributes.
- */
-function buildSubGeometry(
-  origGeom: T.BufferGeometry,
-  triIndices: number[],
-  centerOffset?: { x: number; y: number; z: number },
-): T.BufferGeometry {
-  const origPos = origGeom.attributes.position;
-  const origNorm = origGeom.attributes.normal;
-  const origUv = origGeom.attributes.uv;
-
-  const vertexMap = new Map<number, number>();
-  const newPos: number[] = [];
-  const newNorm: number[] = [];
-  const newUv: number[] = [];
-  const newIdx: number[] = [];
-
-  const ox = centerOffset?.x ?? 0;
-  const oy = centerOffset?.y ?? 0;
-  const oz = centerOffset?.z ?? 0;
-
-  for (let i = 0; i < triIndices.length; i++) {
-    const oldIdx = triIndices[i];
-    let mapped = vertexMap.get(oldIdx);
-    if (mapped === undefined) {
-      mapped = newPos.length / 3;
-      vertexMap.set(oldIdx, mapped);
-
-      newPos.push(
-        origPos.getX(oldIdx) - ox,
-        origPos.getY(oldIdx) - oy,
-        origPos.getZ(oldIdx) - oz,
-      );
-      if (origNorm) {
-        newNorm.push(
-          origNorm.getX(oldIdx),
-          origNorm.getY(oldIdx),
-          origNorm.getZ(oldIdx),
-        );
-      }
-      if (origUv) {
-        newUv.push(origUv.getX(oldIdx), origUv.getY(oldIdx));
-      }
-    }
-    newIdx.push(mapped);
-  }
-
-  const sub = new T.BufferGeometry();
-  sub.setAttribute("position", new T.Float32BufferAttribute(newPos, 3));
-  if (origNorm) {
-    sub.setAttribute("normal", new T.Float32BufferAttribute(newNorm, 3));
-  }
-  if (origUv) {
-    sub.setAttribute("uv", new T.Float32BufferAttribute(newUv, 2));
-  }
-  sub.setIndex(newIdx);
-  return sub;
-}
-
-/**
- * Automatically segments the unified NASA SEV mesh into a chassis body
- * and 6 individual rotating wheel assemblies with realistic suspension pivots.
- * Uses cylindrical bounds aligned with the wheel axles so 100% of the wire-mesh
- * tires rotate smoothly with zero missing parts and zero suspension strut rotation.
- */
-function partitionRoverMesh(
-  mesh: T.Mesh,
-  wheelCenters: { x: number; y: number; z: number }[],
-): {
-  chassisMesh: T.Mesh;
-  wheels: RoverWheelAssembly[];
-} | null {
-  const geom = mesh.geometry;
-  const pos = geom.attributes.position;
-  const idx = geom.index;
-  if (!pos || !idx || idx.count < 9) return null;
-
-  const wheelTriangles: number[][] = Array.from({ length: 6 }, () => []);
-  const chassisTriangles: number[] = [];
-  const maxRadialSq = 0.60 * 0.60; // Captures outer tire radius in Y-Z plane
-
-  for (let i = 0; i < idx.count; i += 3) {
-    const i0 = idx.getX(i);
-    const i1 = idx.getX(i + 1);
-    const i2 = idx.getX(i + 2);
-
-    const cx = (pos.getX(i0) + pos.getX(i1) + pos.getX(i2)) / 3;
-    const cy = (pos.getY(i0) + pos.getY(i1) + pos.getY(i2)) / 3;
-    const cz = (pos.getZ(i0) + pos.getZ(i1) + pos.getZ(i2)) / 3;
-
-    let assigned = -1;
-    // Pure circular rim-shaped wheel:
-    // Strictly outboard (|cx| >= 1.14m) so the suspension pod / drive actuator stays stationary on the chassis,
-    // and within vertical wheel tire bounds (cy <= 1.15m)
-    if (Math.abs(cx) >= 1.14 && cy <= 1.15) {
-      let minDistSq = maxRadialSq;
-      for (let k = 0; k < 6; k++) {
-        const c = wheelCenters[k];
-        if (cx * c.x < 0) continue; // Must be on same side (left or right)
-
-        const dy = cy - c.y;
-        const dz = cz - c.z;
-        const r_yz_sq = dy * dy + dz * dz;
-
-        // Cylindrical volume aligned along X axis
-        if (r_yz_sq <= minDistSq && Math.abs(cx - c.x) <= 0.35) {
-          minDistSq = r_yz_sq;
-          assigned = k;
-        }
-      }
-    }
-
-    // Exclude upper suspension module (the brown steering housing and twin white canisters in the green circle):
-    // They sit directly above the wheel axle (dy > 0.15m), within radial reach r < 0.44m, and inboard of the outer face (|cx| < 1.45m).
-    // Keeping them on the chassis ensures they stay stationary and do not tumble or rotate with the wheel.
-    if (assigned >= 0) {
-      const c = wheelCenters[assigned];
-      const dy = cy - c.y;
-      const dz = cz - c.z;
-      const r_yz = Math.hypot(dy, dz);
-      if (dy > 0.15 && r_yz < 0.44 && Math.abs(cx) < 1.45) {
-        assigned = -1;
-      }
-    }
-
-    if (assigned >= 0) {
-      wheelTriangles[assigned].push(i0, i1, i2);
-    } else {
-      chassisTriangles.push(i0, i1, i2);
-    }
-  }
-
-  // Ensure all 6 wheels received triangles
-  const allWheelsHaveTris = wheelTriangles.every((t) => t.length > 0);
-  if (!allWheelsHaveTris || chassisTriangles.length === 0) {
-    return null;
-  }
-
-  // Build chassis and 6 wheels
-  const chassisGeom = buildSubGeometry(geom, chassisTriangles);
-  const chassisMesh = new T.Mesh(chassisGeom, mesh.material);
-  chassisMesh.castShadow = true;
-  chassisMesh.receiveShadow = true;
-
-  const wheels: RoverWheelAssembly[] = [];
-  for (let k = 0; k < 6; k++) {
-    const center = wheelCenters[k];
-    const wheelGeom = buildSubGeometry(geom, wheelTriangles[k], center);
-    const wheelMesh = new T.Mesh(wheelGeom, mesh.material);
-    wheelMesh.castShadow = true;
-    wheelMesh.receiveShadow = true;
-
-    const pivot = new T.Group();
-    pivot.position.set(center.x, center.y, center.z);
-    pivot.add(wheelMesh);
-
-    wheels.push({
-      pivot,
-      wheelMesh,
-      baseX: center.x,
-      baseY: center.y,
-      baseZ: center.z,
-      suspensionOffset: 0,
-      isFront: k < 2,
-      isLeft: k % 2 === 0,
-    });
-  }
-
-  return { chassisMesh, wheels };
-}
 
 /**
  * Creates the authentic NASA Multi-Mission Space Exploration Vehicle (MMSEV)
@@ -241,14 +58,7 @@ export function createBigRover(
 
   // 6 wheels on fallback chassis with working suspension pivots
   const fallbackWheels: RoverWheelAssembly[] = [];
-  const fallbackPositions = [
-    [-1.42, 0.54, -1.03],
-    [1.42, 0.54, -1.03],
-    [-1.42, 0.55, 0.39],
-    [1.42, 0.55, 0.39],
-    [-1.42, 0.53, 1.82],
-    [1.42, 0.53, 1.82],
-  ];
+  const fallbackPositions = ROVER_WHEEL_OFFSETS.map(([x, z]) => [x, ROVER_WHEEL_OUTER_RADIUS, z]);
 
   for (let i = 0; i < fallbackPositions.length; i++) {
     const [wx, wy, wz] = fallbackPositions[i];
@@ -256,17 +66,19 @@ export function createBigRover(
     pivot.position.set(wx, wy, wz);
 
     const wheelMesh = new T.Mesh(
-      new T.CylinderGeometry(0.48, 0.48, 0.38, 16),
+      new T.CylinderGeometry(ROVER_WHEEL_OUTER_RADIUS, ROVER_WHEEL_OUTER_RADIUS, 0.38, 24).rotateZ(Math.PI / 2),
       tireMat,
     );
-    wheelMesh.rotation.z = Math.PI / 2;
+    const steering = new T.Group();
     wheelMesh.castShadow = true;
     wheelMesh.receiveShadow = true;
-    pivot.add(wheelMesh);
+    steering.add(wheelMesh);
+    pivot.add(steering);
     fallback.add(pivot);
 
     fallbackWheels.push({
       pivot,
+      steering,
       wheelMesh,
       baseX: wx,
       baseY: wy,
@@ -432,21 +244,11 @@ export function createBigRover(
       }
       targetMesh.geometry.computeVertexNormals();
 
-      // Exact circular wheel rim and tire centers in the scaled vehicle space
-      const wheelCenters = [
-        { x: -1.416, y: 0.538, z: -1.031 }, // Front-Left
-        { x:  1.416, y: 0.538, z: -1.031 }, // Front-Right
-        { x: -1.416, y: 0.547, z:  0.394 }, // Mid-Left
-        { x:  1.416, y: 0.547, z:  0.394 }, // Mid-Right
-        { x: -1.416, y: 0.531, z:  1.818 }, // Rear-Left
-        { x:  1.416, y: 0.531, z:  1.818 }, // Rear-Right
-      ];
-
       const assembledGroup = new T.Group();
       assembledGroup.name = "MMSEV_Assembled";
 
       // Segment geometry into chassis and 6 independent rotating wheels
-      const partitioned = partitionRoverMesh(targetMesh, wheelCenters);
+      const partitioned = partitionRoverMesh(targetMesh);
       if (partitioned) {
         assembledGroup.add(partitioned.chassisMesh);
         for (const w of partitioned.wheels) {
@@ -454,7 +256,8 @@ export function createBigRover(
         }
         activeWheels = partitioned.wheels;
       } else {
-        assembledGroup.add(targetMesh);
+        console.warn("[BigRover] Wheel partition failed; retaining the animated fallback.");
+        return;
       }
 
       // Re-anchor high-power headlights to the scaled front bumper
@@ -506,20 +309,18 @@ export function createBigRover(
     for (let i = 0; i < activeWheels.length; i++) {
       const w = activeWheels[i];
       // Rotate tire around axle with wheelRoll (spins forward when driving forward)
-      w.wheelMesh.rotation.x = rover.wheelRoll;
+      w.wheelMesh.rotation.x = -rover.wheelRoll;
 
       // Front wheels steer into turns
       if (w.isFront) {
-        w.pivot.rotation.y = rover.steerAngle;
+        w.steering.rotation.y = rover.steerAngle;
       }
 
       // Real 6-wheel suspension reacting to Mars surface profile & rocker-bogie compression
       if (rover.wheelCompression && rover.wheelCompression[i] !== undefined) {
-        const targetOffset = rover.wheelCompression[i];
-        w.suspensionOffset +=
-          (targetOffset - w.suspensionOffset) * (1 - Math.exp(-22 * dt));
-        const travel = Math.max(-0.18, Math.min(0.18, w.suspensionOffset));
-        w.pivot.position.y = w.baseY + travel;
+        // Physics already damps each spring. A second filter caused visible ground penetration.
+        w.suspensionOffset = rover.wheelCompression[i];
+        w.pivot.position.y = w.baseY + w.suspensionOffset;
       } else if (heightAt) {
         const worldWheelX = rover.x + cosYaw * w.baseX + sinYaw * w.baseZ;
         const worldWheelZ = rover.z - sinYaw * w.baseX + cosYaw * w.baseZ;
@@ -529,7 +330,7 @@ export function createBigRover(
         // Smooth spring damping (stiff suspension for heavy rover)
         w.suspensionOffset +=
           (targetOffset - w.suspensionOffset) * (1 - Math.exp(-22 * dt));
-        const travel = Math.max(-0.18, Math.min(0.18, w.suspensionOffset));
+        const travel = Math.max(-0.26, Math.min(0.32, w.suspensionOffset));
         w.pivot.position.y = w.baseY + travel;
       }
     }
