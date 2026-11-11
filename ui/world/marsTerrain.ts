@@ -3,6 +3,7 @@ import { STATIONS } from "../../content/survival.ts";
 import { terrainFbm, terrainNoise } from "./terrainNoise.ts";
 import { createMarsTrackSystem, TRACK_WORLD_HALF } from "./marsTrackDeformation.ts";
 import type { RoverVehicle } from "../../game/roverVehicle.ts";
+import type { CuriosityRoverState } from "../../game/curiosityRover.ts";
 import { SAGE_DOCK } from "../../game/sageCompanion.ts";
 import { fallbackMarsSurfaceTextures, stochasticSurfaceGLSL, type MarsSurfaceTextures } from "./marsSurfaceTextures.ts";
 
@@ -450,6 +451,8 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     mudAt: mudDepthAt,
     stampRoverTracks: (renderer: T.WebGLRenderer, rover: RoverVehicle) =>
       trackSystem.stampRover(renderer, rover, mudDepthAt),
+    stampCuriosityTracks: (renderer: T.WebGLRenderer, curiosity: CuriosityRoverState) =>
+      trackSystem.stampCuriosity(renderer, curiosity, mudDepthAt),
     disposeTracks: () => trackSystem.dispose(),
     obstacles,
   };

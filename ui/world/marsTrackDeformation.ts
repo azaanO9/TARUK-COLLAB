@@ -1,5 +1,6 @@
 import * as T from "three";
 import { ROVER_WHEEL_OFFSETS, type RoverVehicle } from "../../game/roverVehicle.ts";
+import { CURIOSITY_WHEEL_OFFSETS, type CuriosityRoverState } from "../../game/curiosityRover.ts";
 
 export const TRACK_TEX_SIZE = 1024;
 export const TRACK_WORLD_HALF = 96; // covers [-96, +96] meters
@@ -14,8 +15,15 @@ export type MarsTrackSystem = {
     rover: RoverVehicle,
     mudAt: (x: number, z: number) => number,
   ) => void;
+  stampCuriosity: (
+    renderer: T.WebGLRenderer,
+    curiosity: CuriosityRoverState,
+    mudAt: (x: number, z: number) => number,
+  ) => void;
   dispose: () => void;
 };
+
+type StampRecord = { x: number; z: number; yaw: number };
 
 export function createMarsTrackSystem(): MarsTrackSystem {
   const data = new Uint8Array(TRACK_TEX_SIZE * TRACK_TEX_SIZE * 4);
@@ -48,11 +56,9 @@ export function createMarsTrackSystem(): MarsTrackSystem {
   patchTexture.flipY = false;
 
   const dstOrigin = new T.Vector3(0, 0, 0);
-  let lastStampX = Infinity;
-  let lastStampZ = Infinity;
-  let lastStampYaw = 0;
+  const lastStamps = new Map<string, StampRecord>();
 
-  function stampWheel(wx: number, wz: number, wheelYaw: number, mud: number) {
+  function stampWheel(wx: number, wz: number, wheelYaw: number, mud: number, treadScale: number) {
     if (Math.abs(wx) > TRACK_WORLD_HALF - 1.5 || Math.abs(wz) > TRACK_WORLD_HALF - 1.5) return;
 
     const fwdX = -Math.sin(wheelYaw);
@@ -66,8 +72,14 @@ export function createMarsTrackSystem(): MarsTrackSystem {
     const cx = Math.floor(((wx + TRACK_WORLD_HALF) / TRACK_WORLD_SPAN) * TRACK_TEX_SIZE);
     const cy = Math.floor(((wz + TRACK_WORLD_HALF) / TRACK_WORLD_SPAN) * TRACK_TEX_SIZE);
     const kernel = 4; // +/- 4 texels = +/- 0.75m around wheel center
-    const depthGain = 0.52 + 0.48 * mud;
-    const bermGain = 0.42 + 0.58 * mud;
+    const depthGain = (0.52 + 0.48 * mud) * (treadScale < 1 ? 0.85 : 1);
+    const bermGain = (0.42 + 0.58 * mud) * (treadScale < 1 ? 0.82 : 1);
+    const lonMax = 0.44 * treadScale;
+    const lonCore = 0.2 * treadScale;
+    const treadHalf = Math.max(0.21, 0.29 * treadScale);
+    const bermMax = Math.max(0.48, 0.66 * treadScale);
+    const bermPeak = Math.max(0.32, 0.43 * treadScale);
+    const bermSigma = Math.max(0.12, 0.16 * treadScale);
 
     const minX = Math.max(0, cx - kernel);
     const maxX = Math.min(TRACK_TEX_SIZE - 1, cx + kernel);
@@ -82,15 +94,15 @@ export function createMarsTrackSystem(): MarsTrackSystem {
         const dx = rx - wx;
 
         const lon = Math.abs(dx * fwdX + dz * fwdZ);
-        if (lon > 0.44) continue;
-        const lonFade = 1 - Math.max(0, (lon - 0.2) / 0.24);
+        if (lon > lonMax) continue;
+        const lonFade = 1 - Math.max(0, (lon - lonCore) / (lonMax - lonCore));
 
         const lat = Math.abs(dx * rightX + dz * rightZ);
         const idx = (ty * TRACK_TEX_SIZE + tx) * 4;
 
-        if (lat <= 0.29) {
+        if (lat <= treadHalf) {
           // Tire center trough: press sand/mud downward
-          const cross = 1 - Math.pow(lat / 0.29, 2);
+          const cross = 1 - Math.pow(lat / treadHalf, 2);
           const rutVal = Math.min(255, Math.round(cross * lonFade * depthGain * 255));
           if (rutVal > data[idx]) {
             data[idx] = rutVal;
@@ -101,9 +113,9 @@ export function createMarsTrackSystem(): MarsTrackSystem {
           if (rutVal > 40) {
             data[idx + 1] = Math.round(data[idx + 1] * Math.max(0.25, 1 - (rutVal / 255) * 0.75));
           }
-        } else if (lat <= 0.66) {
+        } else if (lat <= bermMax) {
           // Raised displaced mud/regolith berms flanking both sides of the tire
-          const dEdge = (lat - 0.43) / 0.16;
+          const dEdge = (lat - bermPeak) / bermSigma;
           const ridge = Math.exp(-dEdge * dEdge);
           const bermVal = Math.min(255, Math.round(ridge * lonFade * bermGain * 255));
           if (bermVal > data[idx + 1]) {
@@ -114,34 +126,42 @@ export function createMarsTrackSystem(): MarsTrackSystem {
     }
   }
 
-  function stampRover(
+  function stampVehicle(
+    id: string,
+    x: number,
+    z: number,
+    yaw: number,
+    frontSteer: number,
+    rearSteer: number,
+    wheelOffsets: readonly (readonly [number, number])[],
+    treadScale: number,
     renderer: T.WebGLRenderer,
-    rover: RoverVehicle,
-    mudAt: (x: number, z: number) => number,
+    mudAt: (wx: number, wz: number) => number,
   ) {
-    const moved = Math.hypot(rover.x - lastStampX, rover.z - lastStampZ);
-    const turned = Math.abs(rover.yaw - lastStampYaw);
-    if (moved < TEXEL_SIZE * 0.8 && turned < 0.08) return;
-
-    lastStampX = rover.x;
-    lastStampZ = rover.z;
-    lastStampYaw = rover.yaw;
-
-    const cosY = Math.cos(rover.yaw);
-    const sinY = Math.sin(rover.yaw);
-
-    for (let i = 0; i < 6; i++) {
-      const [lx, lz] = ROVER_WHEEL_OFFSETS[i];
-      const wx = rover.x + lx * cosY + lz * sinY;
-      const wz = rover.z - lx * sinY + lz * cosY;
-      const wheelYaw = i < 2 ? rover.yaw + rover.steerAngle : rover.yaw;
-      const mud = mudAt(wx, wz);
-      stampWheel(wx, wz, wheelYaw, mud);
+    const prev = lastStamps.get(id);
+    if (prev) {
+      const moved = Math.hypot(x - prev.x, z - prev.z);
+      const turned = Math.abs(yaw - prev.yaw);
+      if (moved < TEXEL_SIZE * 0.8 && turned < 0.08) return;
     }
 
-    // Copy 48x48 sub-patch centered on rover to GPU (only ~9 KB transfer)
-    const centerTx = Math.floor(((rover.x + TRACK_WORLD_HALF) / TRACK_WORLD_SPAN) * TRACK_TEX_SIZE);
-    const centerTy = Math.floor(((rover.z + TRACK_WORLD_HALF) / TRACK_WORLD_SPAN) * TRACK_TEX_SIZE);
+    lastStamps.set(id, { x, z, yaw });
+
+    const cosY = Math.cos(yaw);
+    const sinY = Math.sin(yaw);
+
+    for (let i = 0; i < wheelOffsets.length; i++) {
+      const [lx, lz] = wheelOffsets[i];
+      const wx = x + lx * cosY + lz * sinY;
+      const wz = z - lx * sinY + lz * cosY;
+      const wheelYaw = i < 2 ? yaw + frontSteer : i >= 4 ? yaw + rearSteer : yaw;
+      const mud = mudAt(wx, wz);
+      stampWheel(wx, wz, wheelYaw, mud, treadScale);
+    }
+
+    // Copy 48x48 sub-patch centered on vehicle to GPU (only ~9 KB transfer)
+    const centerTx = Math.floor(((x + TRACK_WORLD_HALF) / TRACK_WORLD_SPAN) * TRACK_TEX_SIZE);
+    const centerTy = Math.floor(((z + TRACK_WORLD_HALF) / TRACK_WORLD_SPAN) * TRACK_TEX_SIZE);
     const baseX = Math.max(0, Math.min(TRACK_TEX_SIZE - PATCH_SIZE, centerTx - (PATCH_SIZE >> 1)));
     const baseY = Math.max(0, Math.min(TRACK_TEX_SIZE - PATCH_SIZE, centerTy - (PATCH_SIZE >> 1)));
 
@@ -156,11 +176,39 @@ export function createMarsTrackSystem(): MarsTrackSystem {
     renderer.copyTextureToTexture(patchTexture, texture, null, dstOrigin);
   }
 
+  function stampRover(
+    renderer: T.WebGLRenderer,
+    rover: RoverVehicle,
+    mudAt: (x: number, z: number) => number,
+  ) {
+    stampVehicle("rover", rover.x, rover.z, rover.yaw, rover.steerAngle, 0, ROVER_WHEEL_OFFSETS, 1, renderer, mudAt);
+  }
+
+  function stampCuriosity(
+    renderer: T.WebGLRenderer,
+    curiosity: CuriosityRoverState,
+    mudAt: (x: number, z: number) => number,
+  ) {
+    stampVehicle(
+      "curiosity",
+      curiosity.x,
+      curiosity.z,
+      curiosity.yaw,
+      curiosity.steerAngle,
+      -curiosity.steerAngle * 0.85,
+      CURIOSITY_WHEEL_OFFSETS,
+      0.8,
+      renderer,
+      mudAt,
+    );
+  }
+
   function dispose() {
     texture.dispose();
     patchTexture.dispose();
+    lastStamps.clear();
   }
 
-  return { texture, stampRover, dispose };
+  return { texture, stampRover, stampCuriosity, dispose };
 }
 

@@ -175,6 +175,20 @@ function MarsRadarMinimap({
       ctx.restore();
     }
 
+    // Autonomous NASA Curiosity science rover blip (cyan driving, amber scanning)
+    if (view && view.curiosityX !== undefined && view.curiosityZ !== undefined) {
+      const [qx, qy] = toRadar(view.curiosityX, view.curiosityZ);
+      ctx.save();
+      ctx.translate(qx, qy);
+      ctx.rotate(-(view.curiosityYaw ?? 0) + yaw);
+      ctx.fillStyle = view.curiosityPhase === "scanning" ? "#f59e0b" : "#38bdf8";
+      ctx.strokeStyle = "#082f49";
+      ctx.lineWidth = 1;
+      ctx.fillRect(-3, -4, 6, 8);
+      ctx.strokeRect(-3, -4, 6, 8);
+      ctx.restore();
+    }
+
     // Subtle range vignette & player arrow in center
     ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
     ctx.lineWidth = 1;

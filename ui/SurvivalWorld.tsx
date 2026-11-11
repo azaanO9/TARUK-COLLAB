@@ -3,7 +3,7 @@ import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
 import { STATIONS } from "../content/survival";
-import { spawnWalker, stepWalker, stepJump } from "../game/navigation";
+import { spawnWalker, stepWalker, stepJump, WALKER_RADIUS } from "../game/navigation";
 import { MARS_PHYSICS } from "../game/marsConfig";
 import { boxObstacle } from "../game/collision";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
@@ -12,6 +12,13 @@ import { createMarsSky, createMarsFootprints } from "./world/marsTerrain";
 import { loadMarsSurfaceTextures, disposeMarsSurfaceTextures } from "./world/marsSurfaceTextures";
 import { createRiggedAstronaut } from "./world/createRiggedAstronaut";
 import { createBigRover } from "./world/createBigRover";
+import { createCuriosityRover } from "./world/createCuriosityRover";
+import {
+  spawnCuriosityRover,
+  stepCuriosityRover,
+  curiosityFootprint,
+  type CuriosityRoverState,
+} from "../game/curiosityRover";
 import { graphicsTier } from "./world/graphicsTiers";
 import {
   spawnRoverVehicle,
@@ -47,6 +54,13 @@ export type View = {
   roverSpeed?: number;
   roverGear?: RoverGear;
   mudDepth?: number;
+  curiosityX?: number;
+  curiosityZ?: number;
+  curiosityYaw?: number;
+  curiosityPhase?: "driving" | "scanning";
+  curiosityScanStage?: "none" | "deploy" | "laser" | "stow";
+  curiosityScans?: number;
+  curiositySample?: string;
 };
 type Props = {
   enabled: boolean;
@@ -144,15 +158,17 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const scene = new T.Scene();
       // Start model and texture downloads together, before terrain construction.
       const bigRover = props.planet === "mars" ? createBigRover() : null;
+      const curiosityRover = props.planet === "mars" ? createCuriosityRover() : null;
       const marsAstronaut = props.planet === "mars" ? createRiggedAstronaut(assetUrl("/models/astronaut.glb")) : null;
       const surfacePromise = props.planet === "mars" ? Promise.all([
         loadMarsSurfaceTextures(),
         new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
       ]) : Promise.resolve([undefined,undefined] as const);
       if (bigRover) scene.add(bigRover.root);
+      if (curiosityRover) scene.add(curiosityRover.root);
       // Covers leaving the mission while imports/downloads are still pending.
       dispose = () => {
-        bigRover?.dispose(); marsAstronaut?.dispose();
+        bigRover?.dispose(); curiosityRover?.dispose(); marsAstronaut?.dispose();
         void surfacePromise.then(([surface,panel]) => { disposeMarsSurfaceTextures(surface); panel?.dispose(); });
         renderer.dispose(); renderer.domElement.remove(); environment?.dispose();
       };
@@ -188,7 +204,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const [regolithSurface,panelSurface] = await surfacePromise;
-      if (cancelled) {bigRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
+      if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       setLoadingStage("Preparing explorers and equipment…");
@@ -364,6 +380,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let walker = spawnWalker(),
         jump = { height: 0, velocity: 0 },
         rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt),
+        curiosity: CuriosityRoverState | null = curiosityRover
+          ? spawnCuriosityRover(model.obstacles, model.roverHeightAt)
+          : null,
         lastRoverNear = false,
         wasCockpit = false,
         lastRoverSpeed = 0,
@@ -399,7 +418,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             lastMouseMoveTime = performance.now();
           }
         } else {
-          const { rover: nextRover, exitPosition } = exitRover(rover,model.obstacles);
+          const exitObstacles = curiosity
+            ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
+            : model.obstacles;
+          const { rover: nextRover, exitPosition } = exitRover(rover, exitObstacles);
           if (!exitPosition) { setMessage("There isn't room to exit here. Move the rover to an open area."); return; }
           rover = nextRover;
           walker.x = exitPosition.x;
@@ -630,6 +652,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (p.enabled) {
           // Small physics steps keep acceleration and jumping consistent across slower frames.
           const steps = Math.max(1, Math.ceil(dt / (1 / 120))), step = dt / steps;
+          const sevObstacles = curiosity
+            ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
+            : model.obstacles;
           if (rover.driving) {
             const prevRoverYaw = rover.yaw;
             for (let i = 0; i < steps; i++) {
@@ -637,7 +662,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 rover,
                 keys,
                 step,
-                model.obstacles,
+                sevObstacles,
                 model.roverHeightAt,
                 model.mudAt,
               );
@@ -666,14 +691,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 rover,
                 keys,
                 dt,
-                model.obstacles,
+                sevObstacles,
                 model.roverHeightAt,
                 model.mudAt,
               );
             }
-            const dynamicObstacles = bigRover
-              ? [...model.obstacles, roverFootprint(rover.x,rover.z,rover.yaw)]
-              : model.obstacles;
+            const dynamicObstacles = [
+              ...model.obstacles,
+              ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
+              ...(curiosity ? [curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)] : []),
+            ];
             walker.yaw = cameraYaw;
             for (let i = 0; i < steps; i++) {
               walker = stepWalker(
@@ -693,6 +720,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               );
             }
             keys.delete("jump");
+          }
+          if (curiosity) {
+            const curiosityObstacles = [
+              ...model.obstacles,
+              ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
+              { x: walker.x, z: walker.z, radius: WALKER_RADIUS, id: "walker" },
+            ];
+            curiosity = stepCuriosityRover(curiosity, dt, curiosityObstacles, model.roverHeightAt);
           }
           if (keys.has("look-left")) {
             cameraYaw += dt * 1.3;
@@ -714,6 +749,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           );
           if (rover.driving || Math.abs(rover.speed) > 0.1) {
             model.stampRoverTracks?.(renderer, rover);
+          }
+        }
+        if (curiosityRover && curiosity) {
+          curiosityRover.update(
+            curiosity,
+            dt,
+            p.event === "night" || p.event === "eclipse",
+            reduced.matches,
+            graphicsTier(cameraSettings.current.quality).shadows,
+          );
+          if (Math.abs(curiosity.speed) > 0.05) {
+            model.stampCuriosityTracks?.(renderer, curiosity);
           }
         }
         if (props.planet === "mars") {
@@ -883,7 +930,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (time - lastAimCheck >= 80) {
         lastAimCheck = time;
         ray.setFromCamera(center, camera);
-        const hit = ray.intersectObjects(model.targets, true)[0];
+        const rayTargets = curiosityRover ? [...model.targets, curiosityRover.hitTarget] : model.targets;
+        const hit = ray.intersectObjects(rayTargets, true)[0];
         hover = null;
         range = Infinity;
         if (hit && hit.distance < 65) {
@@ -891,8 +939,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           while (o && !o.userData.station) o = o.parent;
           if (o) {
             hover = o.userData.station;
-            const station = STATIONS.find((s) => s.id === hover)!;
-            range = Math.hypot(walker.x - station.x, walker.z - station.z);
+            if (hover === "curiosity" && curiosity) {
+              range = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
+            } else {
+              const station = STATIONS.find((s) => s.id === hover);
+              if (station) range = Math.hypot(walker.x - station.x, walker.z - station.z);
+            }
           }
         }
         // On Mars, nearby equipment remains operable even when the crosshair
@@ -902,6 +954,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           for (const station of STATIONS) {
             const distance = Math.hypot(walker.x - station.x, walker.z - station.z);
             if (distance <= 5.5 && distance < range) { hover = station.id; range = distance; }
+          }
+          if (curiosity) {
+            const cDist = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
+            if (cDist <= 5.5 && cDist < range) { hover = "curiosity"; range = cDist; }
           }
         }
         }
@@ -964,6 +1020,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             characterYaw = 0;
             mouse.set(0, 0);
             rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
+            if (curiosityRover) curiosity = spawnCuriosityRover(model.obstacles, model.roverHeightAt);
             setRoverDriving(false);
             setRoverGear("N");
           }
@@ -987,6 +1044,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             roverSpeed: Math.round(Math.abs(rover.speed) * 3.6),
             roverGear: getRoverGear(rover.speed),
             mudDepth: rover.mudDepth,
+            curiosityX: curiosity?.x,
+            curiosityZ: curiosity?.z,
+            curiosityYaw: curiosity?.yaw,
+            curiosityPhase: curiosity?.phase,
+            curiosityScanStage: curiosity?.scanStage,
+            curiosityScans: curiosity?.scanCount,
+            curiositySample: curiosity?.lastScanSample,
           });
         }
         renderer.info.reset();
@@ -1006,6 +1070,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.sageZ = sage?.position.z.toFixed(2) ?? "";
           element.dataset.sageScale = sage?.scale.x.toFixed(2) ?? "";
           element.dataset.sageFollowing = String(current.current.sageFollowing ?? false);
+          element.dataset.curiosityX = curiosity?.x.toFixed(2) ?? "";
+          element.dataset.curiosityZ = curiosity?.z.toFixed(2) ?? "";
+          element.dataset.curiosityPhase = curiosity?.phase ?? "";
+          element.dataset.curiosityScans = String(curiosity?.scanCount ?? 0);
           element.dataset.resolutionScale = resolutionScale.toFixed(2);
           const fps = metricFrames * 1000 / (time - metricStart);
           if (debugPanel.current) debugPanel.current.textContent = `Frame: ${(1000 / fps).toFixed(1)} ms (${fps.toFixed(1)} fps)\nDraw calls: ${renderer.info.render.calls}\nTriangles: ${renderer.info.render.triangles}\nTextures: ${renderer.info.memory.textures}\nRender scale: ${resolutionScale.toFixed(2)}\nTier: ${lastQuality}`;
@@ -1035,6 +1103,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
         environment?.dispose();
         bigRover?.dispose();
+        curiosityRover?.dispose();
         marsAstronaut?.dispose();
         model.disposeTracks?.();
         disposeMarsSurfaceTextures(regolithSurface);
@@ -1053,7 +1122,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       // Finish async models before warmup, so geometry and textures never pop in during play.
       if (props.planet === "mars") {
         setLoadingStage("Preparing rover and explorer…"); setLoadingProgress(80);
-        await Promise.all([bigRover?.ready,marsAstronaut?.ready]);
+        await Promise.all([bigRover?.ready,curiosityRover?.ready,marsAstronaut?.ready]);
         if (cancelled) return;
         setLoadingStage("Preparing materials and light…"); setLoadingProgress(88);
         camera.position.set(.22,2.8,17.8); camera.rotation.set(pitch,0,0,"YXZ"); astronaut.position.set(0,0,12);
@@ -1064,6 +1133,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           renderer.setPixelRatio(resolutionScale); resize();
           renderer.shadowMap.enabled=preset.shadows;
           if (bigRover) { bigRover.headlightL.castShadow=preset.shadows; bigRover.headlightR.castShadow=preset.shadows; bigRover.update(rover,rover.chassisY,0,false,model.roverHeightAt); }
+          if (curiosityRover && curiosity) { curiosityRover.update(curiosity,0,false,reduced.matches,preset.shadows); }
           if (smallRocks) smallRocks.count=preset.smallRocks;
           if (dust) dust.geometry.setDrawRange(0,preset.particles);
           // Upload maps not yet visible (cockpit, rear surfaces and custom soil uniforms).

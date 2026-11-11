@@ -213,6 +213,7 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
     roverHeightAt:terrain.roverHeightAt,
     mudAt:terrain.mudAt,
     stampRoverTracks:terrain.stampRoverTracks,
+    stampCuriosityTracks:terrain.stampCuriosityTracks,
     disposeTracks:terrain.disposeTracks,
   };
 }

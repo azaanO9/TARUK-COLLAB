@@ -28,6 +28,15 @@ A full-scale, six-wheeled heavy exploration rover (`ui/world/createBigRover.ts`,
   - Dedicated GTA V style bottom-left radar HUD (`MarsHud`) and transmission gear readout (`getRoverGear`: `'D'`, `'R'`, `'N'`).
   - Pure vehicle physics live in `game/roverVehicle.ts` and are verified in `tests/roverVehicle.test.mjs`. Driving has no supply penalties.
 
+### Autonomous Curiosity science rover
+
+In addition to the drivable MMSEV crew rover above, an autonomous NASA Curiosity rover (`game/curiosityRover.ts`, `ui/world/createCuriosityRover.ts`, `/models/nasa-curiosity-clean.glb`) spawns visible near the outer western colony perimeter before patrolling and predominantly scanning across the outer Martian plains & crater outskirts (`34–60m`).
+- **Autonomous Hazard Avoidance & Suspension**: Samples `roverHeightAt` under all six wheels to drive independent left/right main rockers (`leftRockerAngle`, `rightRockerAngle`), rear bogies (`leftBogieAngle`, `rightBogieAngle`), and the differential crossbar (`suspension_xmember`) over bumpy rocks and uneven ground, while steering cleanly around non-traversable boulders (`traversable: false`), steep craters, buildings, the astronaut (`walker`), and the drivable MMSEV (`roverFootprint`).
+- **Mutual Solid Collision (Non-Pushable Mass)**: Uses an oriented box footprint (`curiosityFootprint`) integrated into `stepWalker`, `stepRoverVehicle`, `exitRover`, and `stepCuriosityRover` so neither the astronaut nor the drivable rover can clip through Curiosity, and the lightweight astronaut pushing into Curiosity cannot slide or displace the rover.
+- **Ground Tire Deformation**: Stamps Curiosity's 6 steered aluminum wheels into the shared `MarsTrackSystem` (`stampCuriosityTracks` in `ui/world/marsTrackDeformation.ts`) as it drives across regolith.
+- **Stop-and-Scan Cycles**: Pauses mostly in the outer plains (`>= 26m` from base center), smoothly crouches its chassis/body (`scanCrouch`) while keeping all 6 wheels grounded on `y = 0`, deploys its 5-joint robotic sample arm toward regolith/rock targets, fires a subtle realistic ChemCam LIBS pinpoint plasma glint with soft regolith bounce light, and lifts back to full ride clearance upon stowing to resume driving.
+- **Presentation-Only Inspection**: Aiming near Curiosity allows opening a telemetry card (`Inspect` / `E`) showing phase, completed scan count, and sample notes without altering mission resources, discoveries, XP, or end states. Verified in `tests/curiosityRover.test.mjs`.
+
 The player can switch between first- and third-person cameras with V or the view button. Pointer movement over the world rotates the camera, with an adjustable sensitivity; pointer capture remains optional. The astronaut and landing sequence are presentation only and never alter survival state. The TARUKH opening precedes a skippable, reduced-motion-aware rough landing, then the player starts day one. Day seven presents an authored crater-route decision; existing retry and resource rules continue to apply.
 
 ### Rigged astronaut & procedural Mars gait engine
