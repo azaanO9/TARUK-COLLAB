@@ -856,7 +856,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         light.intensity = eclipse ? .22 : props.planet === "mars" ? 4.1 : 3.5;
         ambient.intensity = eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .64 : 1.65;
         if (props.planet === "mars") {
-          ambient.color.setHex(eclipse ? 0x7f9dca : 0xd0bca0);
+          ambient.color.setHex(eclipse ? 0x7f9dca : 0xd8c9b5);
           ambient.groundColor.setHex(eclipse ? 0x312a36 : 0x77543e);
           light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
           scene.environmentIntensity = eclipse ? .16 : .24;
@@ -869,7 +869,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         if (props.planet === "mars" && lastMarsNight !== eclipse) {
           scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
-          scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.003 : 0.0027);
+          scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.003 : 0.0022);
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
           if (dust) (dust.material as import("three").PointsMaterial).opacity = reduced.matches ? 0.1 : eclipse ? 0.12 : 0.35;
           lastMarsNight = eclipse;
