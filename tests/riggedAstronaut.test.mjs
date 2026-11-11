@@ -188,3 +188,14 @@ test("Mars landing captures descent velocity before ground integration resets it
   }
   assert.ok(hard.landingBlend > soft.landingBlend * 4);
 });
+
+
+test("stationary jumps have balanced legs and extend the knees near the landing surface", () => {
+  const state = createMarsGaitState();
+  for (let i = 0; i < 30; i++) stepMarsGait(state, 0, true, .016, undefined, -2, 1);
+  const far = stepMarsGait({ ...state }, 0, true, 0, undefined, -2, 1);
+  const near = stepMarsGait({ ...state }, 0, true, 0, undefined, -2, .1);
+  assert.equal(far.leftThighPitch, far.rightThighPitch);
+  assert.equal(far.leftKneePitch, far.rightKneePitch);
+  assert.ok(near.leftKneePitch < far.leftKneePitch);
+});
