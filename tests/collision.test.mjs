@@ -44,7 +44,7 @@ test('rover front stops at hardware, wheels stop rolling, and reverse releases c
  for(let i=0;i<20;i++)r=stepRoverVehicle(r,new Set(['w']),.05,[wall]);
  assert.ok(Math.abs(r.wheelRoll-roll)<.001);
  const before=r.z;
- for(let i=0;i<20;i++)r=stepRoverVehicle(r,new Set(['s']),.05,[wall]);
+ for(let i=0;i<60;i++)r=stepRoverVehicle(r,new Set(['s']),.05,[wall]);
  assert.ok(r.z>before+1);
 });
 
@@ -68,6 +68,6 @@ test('rover exit chooses an unblocked side and stays seated if surrounded',()=>{
 
 test('collision endpoints remain stable across simulation frame rates',()=>{
  const wall=boxObstacle(0,0,8,.1);
- const run=dt=>{let r={...enterRover(spawnRoverVehicle(0,10)),speed:13};for(let t=0;t<2;t+=dt)r=stepRoverVehicle(r,new Set(['w']),dt,[wall]);return r;};
+ const run=dt=>{let r={...enterRover(spawnRoverVehicle(0,10)),speed:13};for(let i=0;i<Math.round(4/dt);i++)r=stepRoverVehicle(r,new Set(['w']),dt,[wall]);return r;};
  assert.ok(Math.abs(run(1/30).z-run(1/120).z)<.005);
 });

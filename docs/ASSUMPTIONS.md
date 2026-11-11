@@ -78,3 +78,8 @@ Starting supplies of 75, consumption of 7 per sol, the event costs, station reco
 Mars EVA motion uses an authored 2.8 m/s launch speed with 3.71 m/s² gravity, producing an approximately one-metre hop. Gait cadence, impact compression and visible wind wisps are artistic training-game choices, not validated EVA biomechanics or measured weather.
 
 Mars airborne movement conserves horizontal velocity until collision or landing. Camera rotation and movement keys cannot accelerate an airborne astronaut. Vertical flight is integrated in world coordinates above the changing terrain. Air drag is neglected for these short hops, and the existing conservative horizontal collision shapes remain in use.
+
+### Rover sensor and driving assumptions
+The NASA Space Exploration Vehicle concept reference describes a surface speed of about 10 km/h. The game's forward cap is 10 km/h; reverse is an authored 3 km/h. Acceleration (0.65 m/s²), service braking (1.8 m/s²) and handbraking (3 m/s²) are gameplay assumptions, not NASA specifications or a validated traction model.
+
+The roof sensor and cockpit/HUD lidar map are a simulated 2D collision scan, not a reproduction of NASA hardware. It scans 180 horizontal beams over 30 m at up to 8 Hz, retaining nearest returns. Non-traversable rocks and structures use the same collision boundaries as driving; the rover pad and traversable stones are excluded. Red contacts intersect the rover's predicted footprint over the next 12 m at its current steering angle and travel direction (forward when stationary); amber contacts are other detected obstacles. Distances are sampled in 0.25 m steps. Occlusion, finite angular resolution and the 2D model limit detection. Warnings do not apply automatic brakes or guarantee clearance.

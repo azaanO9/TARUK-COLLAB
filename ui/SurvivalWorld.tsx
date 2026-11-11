@@ -3,6 +3,7 @@ import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
 import { STATIONS } from "../content/survival";
+import { scanRoverLidar, type LidarScan } from "../game/roverLidar";
 import { stepMarsLocomotion } from "../game/marsLocomotion";
 import { spawnWalker, stepWalker, stepJump } from "../game/navigation";
 import { boxObstacle } from "../game/collision";
@@ -49,6 +50,7 @@ export type View = {
   roverSpeed?: number;
   roverGear?: RoverGear;
   mudDepth?: number;
+  lidar?: LidarScan;
 };
 type Props = {
   enabled: boolean;
@@ -320,6 +322,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let autoOcclusion = true;
       const desiredCamera = new T.Vector3();
       let orbitInitialized = false;
+      let lastLidarScan = -Infinity;
+      let lidar: LidarScan | undefined;
       function disposeEffects() {
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
         composer = null; occlusion = null; bloom = null;
@@ -711,6 +715,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             lastMouseMoveTime = performance.now();
           }
         }
+        if (rover.driving && time - lastLidarScan >= 125) {
+          lidar = scanRoverLidar(rover, model.obstacles);
+          lastLidarScan = time;
+        }
         if (bigRover) {
           const roverGround = rover.chassisY ?? model.heightAt(rover.x, rover.z);
           bigRover.update(
@@ -719,6 +727,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             dt,
             p.event === "night" || p.event === "eclipse",
             model.heightAt,
+            lidar,
           );
           if (rover.driving || Math.abs(rover.speed) > 0.1) {
             model.stampRoverTracks?.(renderer, rover);
@@ -1004,6 +1013,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             roverSpeed: Math.round(Math.abs(rover.speed) * 3.6),
             roverGear: getRoverGear(rover.speed),
             mudDepth: rover.mudDepth,
+            lidar: rover.driving ? lidar : undefined,
           });
         }
         renderer.info.reset();

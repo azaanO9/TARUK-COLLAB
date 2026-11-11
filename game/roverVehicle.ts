@@ -2,12 +2,12 @@
 import { boxObstacle, moveAndSlide, overlapBody, overlapDisc, type CollisionObstacle } from "./collision.ts";
 export const ROVER_LIMIT = 85;
 export const ROVER_ENTER_RADIUS = 4.8;
-export const ROVER_MAX_FORWARD = 13.5; // ~48.6 km/h illustrative top speed
-export const ROVER_MAX_REVERSE = 5.2;  // ~18.7 km/h illustrative reverse speed
-export const ROVER_ACCELERATION = 8.5; // m/s^2 forward drive
-export const ROVER_BRAKE = 14.0;       // m/s^2 active service brake
-export const ROVER_HANDBRAKE = 24.0;   // m/s^2 emergency stop
-export const ROVER_COAST_DRAG = 3.4;   // rolling friction m/s^2
+export const ROVER_MAX_FORWARD = 10 / 3.6; // NASA SEV concept surface speed: about 10 km/h
+export const ROVER_MAX_REVERSE = 3 / 3.6; // Authored cautious reverse limit: 3 km/h
+export const ROVER_ACCELERATION = .65; // Authored gradual acceleration in m/s^2
+export const ROVER_BRAKE = 1.8;        // m/s^2 active service brake
+export const ROVER_HANDBRAKE = 3.0;    // m/s^2 emergency stop
+export const ROVER_COAST_DRAG = .35;   // rolling friction m/s^2
 export const ROVER_STEER_MAX = 0.52;   // ~30 degrees max front wheel turn
 export const ROVER_STEER_SPEED = 3.4;  // rad/s steering response
 export const ROVER_WHEEL_BASE = 2.849;   // meters between front and rear axles
@@ -298,7 +298,7 @@ export function stepRoverVehicle(
   const rightKey = keys.has("d") || keys.has("arrowright");
   const handbrakeKey = keys.has(" ") || keys.has("space") || keys.has("handbrake");
 
-  let speed = rover.speed;
+  let speed = clamp(rover.speed, -ROVER_MAX_REVERSE, ROVER_MAX_FORWARD);
   const handbrake = handbrakeKey;
 
   // SnowRunner mud drag slows top cruise speed slightly in deep soft regolith while keeping torque high

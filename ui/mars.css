@@ -38,3 +38,6 @@
 @media(max-width:800px){.mars-header span{display:none}.mars-resources{top:110px;left:12px;width:125px}.mars-objective{top:66px;width:90vw;font-size:11px}.mars-light{top:315px;right:12px}.mars-sage{right:12px;bottom:48px;max-width:220px}.mars-menu{top:28%;left:6%;padding:20px}.mars-footer{max-width:180px;line-height:1.4}.mars-root .sv-look-controls{top:125px}.mars-header{left:12px;right:12px}}
 @media(max-width:800px){.mars-root .sv-look-controls{width:168px;right:12px;top:145px}.mars-root .mars-light{top:105px;right:12px}.mars-root .sv-world-message{bottom:140px;right:12px;max-width:180px}.mars-menu h1{font-size:42px}.mars-menu p{font-size:12px}.mars-menu{top:24%;padding:16px 22px}.mars-resources{width:110px}.mars-sage{font-size:11px}.mars-objective{font-size:11px;line-height:1.5}}
 @media(max-height:560px){.mars-menu{top:13%;padding:14px 22px}.mars-menu h1{font-size:38px;margin:8px 0}.mars-menu p{font-size:11px;margin:7px 0}.mars-resources{top:75px}.mars-root .sv-world-message{bottom:40px}}
+
+.gta-lidar-status { position: absolute; bottom: 5px; left: 7px; padding: 2px 5px; border-radius: 3px; background: #0b141ce8; font: 11px monospace; }
+.gta-lidar-status ~ .gta-mud-tag { bottom: auto; top: 6px; left: auto; right: 7px; }

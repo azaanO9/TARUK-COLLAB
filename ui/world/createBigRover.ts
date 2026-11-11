@@ -1,4 +1,5 @@
 import * as T from "three";
+import type { LidarScan } from "../../game/roverLidar";
 import { assetUrl } from "../../lib/assetUrl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
@@ -21,6 +22,7 @@ export type BigRoverHandle = {
     dt: number,
     isNight: boolean,
     heightAt?: (x: number, z: number) => number,
+    lidar?: LidarScan,
   ) => void;
   dispose: () => void;
 };
@@ -110,8 +112,8 @@ export function createBigRover(
   const headlightL = new T.SpotLight(0xfffae6, 3.5, 50, 0.55, 0.65, 1.2);
   const headlightR = new T.SpotLight(0xfffae6, 3.5, 50, 0.55, 0.65, 1.2);
 
-  headlightL.position.set(-0.85, 1.55, -2.45);
-  headlightR.position.set(0.85, 1.55, -2.45);
+  headlightL.position.set(-0.75, .96, -2.15);
+  headlightR.position.set(0.75, .96, -2.15);
 
   const targetL = new T.Object3D();
   targetL.position.set(-0.85, 0.4, -30);
@@ -131,17 +133,26 @@ export function createBigRover(
   root.add(headlightL);
   root.add(headlightR);
 
-  // Headlight physical glow fixtures
-  const lensMat = new T.MeshBasicMaterial({ color: 0xfffae6 });
-  const lensGeo = new T.CircleGeometry(0.12, 12);
-  const lensL = new T.Mesh(lensGeo, lensMat);
-  lensL.position.set(-0.85, 1.55, -2.48);
-  lensL.rotation.y = Math.PI;
-  const lensR = new T.Mesh(lensGeo, lensMat);
-  lensR.position.set(0.85, 1.55, -2.48);
-  lensR.rotation.y = Math.PI;
-  root.add(lensL);
-  root.add(lensR);
+  // Solid housings and brackets are attached to the measured body surface.
+  const fixtures = new T.Group(); fixtures.name = "mounted-lamps-and-lidar"; root.add(fixtures);
+  const fixtureMaterial = new T.MeshStandardMaterial({color:0x343b40,metalness:.6,roughness:.45});
+  const lensMat = new T.MeshStandardMaterial({color:0xe5e8df,emissive:0xffe3b5,emissiveIntensity:.15,roughness:.28});
+  const lenses: T.Mesh[] = [];
+  function boxPart(name: string, size: [number,number,number], position: [number,number,number], material = fixtureMaterial) {
+    const part = new T.Mesh(new T.BoxGeometry(...size), material);
+    part.name = name; part.position.set(...position); part.castShadow = true; fixtures.add(part); return part;
+  }
+  for (const side of [-1,1]) {
+    const x = side * .75;
+    boxPart("headlamp-bracket", [.11,.13,.25], [x,.92,-1.88]);
+    boxPart("headlamp-housing", [.28,.23,.20], [x,.96,-2.03]);
+    lenses.push(boxPart("recessed-headlamp-lens", [.21,.15,.012], [x,.96,-2.135], lensMat));
+  }
+  const lidarMount = boxPart("lidar-roof-mount", [.30,.08,.30], [0,2.62,-.35]);
+  const lidarHousing = new T.Mesh(new T.CylinderGeometry(.14,.16,.20,20),fixtureMaterial);
+  lidarHousing.name = "lidar-sensor"; lidarHousing.position.set(0,2.76,-.35); fixtures.add(lidarHousing);
+  const sensorBand = new T.Mesh(new T.CylinderGeometry(.145,.145,.055,20),new T.MeshStandardMaterial({color:0x145654,metalness:.4,roughness:.25}));
+  sensorBand.position.set(0,2.78,-.35); fixtures.add(sensorBand);
 
   // ==========================================
   // 3. TIRE REGOLITH DUST EMITTER
@@ -216,15 +227,26 @@ export function createBigRover(
       exteriorBody = partitioned.chassisMesh;
       exteriorBody.visible = !cockpitView;
       activeWheels = partitioned.wheels;
-      // Re-anchor high-power headlights to the scaled front bumper
-      const frontZ = -2.48;
-      const headlightY = 1.55;
-      headlightL.position.set(-0.85, headlightY, frontZ);
-      headlightR.position.set(0.85, headlightY, frontZ);
-      lensL.position.set(-0.85, headlightY, frontZ - 0.04);
-      lensR.position.set(0.85, headlightY, frontZ - 0.04);
-      targetL.position.set(-0.85, 0.4, -30);
-      targetR.position.set(0.85, 0.4, -30);
+      // Raycast the imported chassis once to attach fittings to its actual skin.
+      assembledGroup.updateMatrixWorld(true);
+      const mountRay = new T.Raycaster();
+      for (let i = 0; i < 2; i++) {
+        const x = (i === 0 ? -1 : 1) * .75;
+        mountRay.set(new T.Vector3(x,.92,-5),new T.Vector3(0,0,1));
+        const hit = mountRay.intersectObject(partitioned.chassisMesh,true)[0];
+        const surfaceZ = hit?.point.z ?? -1.78;
+        const bracket = fixtures.children[i*3];
+        bracket.position.z = surfaceZ - .10;
+        fixtures.children[i*3+1].position.z = surfaceZ - .26;
+        lenses[i].position.z = surfaceZ - .365;
+        const light = i === 0 ? headlightL : headlightR;
+        light.position.set(x,.96,surfaceZ - .38);
+      }
+      mountRay.set(new T.Vector3(0,5,-.35),new T.Vector3(0,-1,0));
+      const roof = mountRay.intersectObject(partitioned.chassisMesh,true)[0]?.point.y ?? 2.58;
+      lidarMount.position.y = roof + .04;
+      lidarHousing.position.y = roof + .18;
+      sensorBand.position.y = roof + .20;
 
       // Swap out procedural fallback with the authentic NASA SEV assembly
       root.remove(fallback);
@@ -252,12 +274,13 @@ export function createBigRover(
     dt: number,
     isNight: boolean,
     heightAt?: (x: number, z: number) => number,
+    lidar?: LidarScan,
   ) {
     // 1. Position & orientation of chassis in world coordinates
     root.position.set(rover.x, groundY, rover.z);
     root.rotation.set(rover.pitch, rover.yaw, rover.roll, "YXZ");
 
-    if (cockpitView) cockpit.update(rover);
+    if (cockpitView) cockpit.update(rover, lidar);
 
     // 2. Rotate tires with vehicle roll, steer front wheels, and calculate independent suspension travel
     const sinYaw = Math.sin(rover.yaw);
@@ -296,8 +319,7 @@ export function createBigRover(
     const lightLevel = isNight ? 8.5 : 2.8;
     headlightL.intensity = lightLevel;
     headlightR.intensity = lightLevel;
-    lensL.visible = isNight || rover.driving;
-    lensR.visible = isNight || rover.driving;
+    lensMat.emissiveIntensity = isNight ? 2 : rover.driving ? .6 : .15;
 
     // 4. Regolith & mud tire dust plume behind rear wheels
     const moving = Math.abs(rover.speed) > 0.8;
@@ -362,6 +384,7 @@ export function createBigRover(
       if (cockpitView === enabled) return;
       cockpitView = enabled;
       cockpit.root.visible = enabled;
+      fixtures.visible = !enabled;
       cockpit.cabinLight.intensity = enabled ? 2.4 : 0;
       if (exteriorBody) exteriorBody.visible = !enabled;
     },
