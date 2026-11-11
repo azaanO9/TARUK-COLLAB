@@ -207,3 +207,6 @@ Mars Sage starts at the home dock. `MarsGame` owns the follow setting and passes
 ## Rover cockpit presentation
 
 `BigRoverHandle.setCockpitView(enabled)` swaps the opaque exterior body for a fitted interior with open windshield and side-window cutouts. Switching back or exiting the rover restores the exterior, including when the model finishes loading during cockpit view. `positionCockpitCamera(camera, yaw, pitch)` accepts seat-relative look angles and follows the chassis position, heading, pitch and roll. `SurvivalWorld` resets the view forward on cockpit entry. The interior instruments display vehicle speed, gear, heading and brake state; they do not change mission resources.
+
+### Rover lidar presentation
+`View.lidar?: LidarScan` is present while driving. The pure `scanRoverLidar(rover, obstacles)` helper returns world-space contacts (`x`, `z`, collision radius, rock/structure kind and `inPath` flag), a 30 m range and nullable predicted contact distance. `SurvivalWorld` samples it at up to 8 Hz and shares the result with `BigRoverHandle.update` and the HUD. Both maps rotate with the rover heading, independent of camera look. Warnings do not steer, brake or change mission resources. See `ASSUMPTIONS.md` for detection limits.

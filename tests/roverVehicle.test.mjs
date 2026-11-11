@@ -45,7 +45,7 @@ test("accelerating with forward key increases speed up to max limit", () => {
   for (let i = 0; i < 60; i++) {
     rover = stepRoverVehicle(rover, new Set(["w"]), 0.05);
   }
-  assert.ok(rover.speed > 5);
+  assert.ok(rover.speed > 1.5);
   assert.ok(rover.speed <= ROVER_MAX_FORWARD);
   // Forward motion in coordinate system moves along -Z when yaw is 0
   assert.ok(rover.z < 0);
@@ -73,12 +73,13 @@ test("steering left and right turns the rover yaw and front wheel angles", () =>
 
 test("handbrake decelerates vehicle quickly", () => {
   let rover = enterRover(spawnRoverVehicle(0, 0, 0));
-  rover.speed = 10;
-  const initialSpeed = rover.speed;
-  for (let i = 0; i < 5; i++) {
+  rover.speed = ROVER_MAX_FORWARD;
+  const initialZ = rover.z;
+  for (let i = 0; i < 20; i++) {
     rover = stepRoverVehicle(rover, new Set([" "]), 0.05);
   }
-  assert.ok(rover.speed < initialSpeed - 4);
+  assert.equal(rover.speed, 0);
+  assert.ok(initialZ - rover.z < 1.4, "stops within 1.4 m on flat ground");
 });
 
 test("collision with obstacles stops or deflects rover", () => {
@@ -127,7 +128,7 @@ test("traversable rocks and rover pad do not block driving while suspension arti
   ];
   const rockBumpHeight = (x, z) => (Math.hypot(x - 17, z - 6) < 0.8 ? 0.3 : 0);
   let rover = enterRover(spawnRoverVehicle(17, 10, 0, rockBumpHeight));
-  for (let i = 0; i < 45; i++) {
+  for (let i = 0; i < 110; i++) {
     rover = stepRoverVehicle(rover, new Set(["w"]), 0.05, obstacles, rockBumpHeight);
   }
   assert.ok(rover.z < 5, `rover should drive seamlessly over its pad and traversable rocks, reached z=${rover.z}`);
@@ -139,4 +140,15 @@ test("traversable rocks and rover pad do not block driving while suspension arti
     art = stepRoverVehicle(art, new Set(), 0.05, [], leftRock);
   }
   assert.ok(art.leftRockerAngle > 0.02, `expected positive left rocker articulation, got ${art.leftRockerAngle}`);
+});
+
+
+test("forward and reverse speed caps are 10 and 3 km/h, including legacy overspeed", () => {
+  assert.equal(ROVER_MAX_FORWARD * 3.6, 10);
+  assert.equal(ROVER_MAX_REVERSE * 3.6, 3);
+  for (const [key, limit, initial] of [["w", ROVER_MAX_FORWARD, 13.6], ["s", -ROVER_MAX_REVERSE, -8]]) {
+    let rover = {...enterRover(spawnRoverVehicle(0,0)), speed: initial};
+    rover = stepRoverVehicle(rover, new Set([key]), .05);
+    assert.equal(rover.speed, limit);
+  }
 });

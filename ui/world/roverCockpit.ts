@@ -1,4 +1,5 @@
 import * as T from "three";
+import type { LidarScan } from "../../game/roverLidar";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { getRoverGear, type RoverVehicle } from "../../game/roverVehicle.ts";
@@ -147,26 +148,42 @@ export function createRoverCockpit() {
   // Keep the light outside the visibility-switched root to prevent shader stalls.
   const cabinLight = new T.PointLight(0xd9efff, 0, 4, 2); cabinLight.position.set(0, 2.30, -1.10);
   let lastReadout = "";
-  function update(rover: RoverVehicle) {
+  let lastScan: LidarScan | undefined;
+  function update(rover: RoverVehicle, scan?: LidarScan) {
     stick.rotation.z = -rover.steerAngle * .65;
     const speed = Math.round(Math.abs(rover.speed) * 3.6);
     const heading = T.MathUtils.euclideanModulo(Math.round(-rover.yaw * 180 / Math.PI), 360);
     const gear = getRoverGear(rover.speed), readout = `${speed}/${heading}/${gear}/${rover.handbrake}`;
-    if (lastReadout === readout) return; lastReadout = readout;
+    if (lastReadout === readout && lastScan === scan) return;
+    lastReadout = readout; lastScan = scan;
     context.fillStyle = "#07131d"; context.fillRect(0, 0, 1024, 512);
     context.fillStyle = "#a8f0f3"; context.font = "bold 45px monospace";
     context.fillText(`${String(speed).padStart(2, "0")} KM/H`, 24, 70);
     context.fillText(gear, 380, 70); context.fillText(`HDG ${String(heading).padStart(3, "0")}`, 545, 70);
     context.fillStyle = rover.handbrake ? "#ffb86c" : "#8de3c2"; context.font = "21px monospace";
-    context.fillText(rover.handbrake ? "PARK BRAKE" : "SURFACE MOBILITY / READY", 24, 111);
+    context.fillText(rover.handbrake ? "PARK BRAKE" : scan?.threatDistance != null ? `OBSTACLE / ${scan.threatDistance.toFixed(1)} m` : "SURFACE MOBILITY / READY", 24, 111);
     context.fillStyle = "#83b8c9"; context.font = "22px monospace";
-    context.fillText("TARUKH / NAVIGATION", 24, 167); context.fillText("VEHICLE / STATUS", 540, 167);
+    context.fillText("LIDAR / 30 m", 24, 167); context.fillText("VEHICLE / STATUS", 540, 167);
+    context.save(); context.beginPath(); context.rect(12,188,488,270); context.clip();
+    const mapScale = 3.6, mapX = 256, mapY = 330;
     context.strokeStyle = "#214453"; context.lineWidth = 2;
-    for (let i = 0; i < 6; i++) { context.beginPath(); context.moveTo(24, 205 + i * 49); context.lineTo(487, 205 + i * 49); context.stroke(); }
-    context.strokeStyle = "#80dbe9"; context.lineWidth = 3;
-    context.beginPath(); context.ellipse(256, 330, 155, 112, 0, 0, Math.PI * 2); context.stroke();
-    context.beginPath(); context.moveTo(256, 231); context.lineTo(231, 347); context.lineTo(256, 330); context.lineTo(281, 347); context.closePath(); context.stroke();
-    context.fillStyle = "#a8f0f3"; context.font = "26px monospace"; context.fillText(`${String(heading).padStart(3, "0")}°`, 215, 477);
+    for (const radius of [10,20,30]) {
+      context.beginPath(); context.arc(mapX,mapY,radius*mapScale,0,Math.PI*2); context.stroke();
+    }
+    const c = Math.cos(rover.yaw), s = Math.sin(rover.yaw);
+    for (const contact of scan?.contacts ?? []) {
+      const dx = contact.x-rover.x, dz = contact.z-rover.z;
+      const x = mapX+(dx*c-dz*s)*mapScale, y = mapY+(dx*s+dz*c)*mapScale;
+      context.fillStyle = contact.inPath ? "#ff6363" : "#efbb65";
+      context.beginPath(); context.arc(x,y,Math.max(3,Math.min(9,contact.radius*mapScale)),0,Math.PI*2); context.fill();
+    }
+    context.fillStyle = "#a8f0f3";
+    context.beginPath(); context.moveTo(mapX,mapY-10); context.lineTo(mapX-7,mapY+7); context.lineTo(mapX+7,mapY+7); context.closePath(); context.fill();
+    context.font = "22px monospace";
+    context.fillStyle = scan?.threatDistance != null ? "#ff6363" : "#8de3c2";
+    context.restore();
+    context.fillStyle = scan?.threatDistance != null ? "#ff8585" : "#a5ded0";
+    context.fillText(scan?.threatDistance != null ? `BLOCKED IN ${scan.threatDistance.toFixed(1)} m` : scan ? "PATH CLEAR / 12 m" : "SCANNING…",24,477);
     for (let i = 0; i < 6; i++) { context.fillStyle = "#83d6d2"; context.fillRect(562 + i % 2 * 48, 223 + Math.floor(i / 2) * 66, 29, 44); }
     context.fillStyle = "#b0d4da"; context.font = "22px monospace";
     context.fillText("6 WHEEL DRIVE", 708, 249); context.fillText("INDEPENDENT", 708, 301); context.fillText("SUSPENSION", 708, 334);

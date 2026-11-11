@@ -1558,3 +1558,17 @@
     bottom: 84px;
   }
 }
+
+/* Keep rover telemetry off the hazard map on narrow PC windows too. */
+@media (max-width: 800px) {
+  .junior-root .sv-rover-hud {
+    top: 200px; bottom: auto; left: auto; right: 10px; transform: none;
+    width: auto; max-width: calc(100vw - 20px); padding: 7px 10px; gap: 8px;
+  }
+  .junior-root .sv-rover-hud .sv-gear-rail,
+  .junior-root .sv-rover-hud .sv-rover-gearbox small,
+  .junior-root .sv-rover-hud .sv-rover-speedometer small { display: none; }
+  .junior-root .sv-rover-hud .sv-rover-gearbox,
+  .junior-root .sv-rover-hud .sv-rover-speedometer { display: flex; padding-right: 8px; }
+  .junior-root:has(.sv-rover-hud) .sv-world-message { top: 262px; bottom: auto; left: auto; right: 10px; max-width: 200px; }
+}

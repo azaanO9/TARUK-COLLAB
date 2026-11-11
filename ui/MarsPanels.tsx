@@ -49,7 +49,7 @@ function MarsRadarMinimap({
 
     const px = view?.x ?? 0;
     const pz = view?.z ?? 12;
-    const yaw = view?.yaw ?? 0;
+    const yaw = view?.roverDriving ? view.roverYaw ?? 0 : view?.yaw ?? 0;
     const scale = 2.05; // pixels per meter (~54m radius visible)
     const cx = w * 0.5;
     const cy = h * 0.52;
@@ -189,6 +189,13 @@ function MarsRadarMinimap({
       ctx.restore();
     }
 
+    // Lidar returns share the collision system used by the rover.
+    for (const contact of view?.lidar?.contacts ?? []) {
+      const [rx, ry] = toRadar(contact.x,contact.z);
+      ctx.fillStyle = contact.inPath ? "#ff6363" : "#efbb65";
+      ctx.beginPath(); ctx.arc(rx,ry,Math.max(2,Math.min(7,contact.radius*scale)),0,Math.PI*2); ctx.fill();
+    }
+
     // Subtle range vignette & player arrow in center
     ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
     ctx.lineWidth = 1;
@@ -237,8 +244,11 @@ function MarsRadarMinimap({
     <div className="gta-radar-frame" aria-label="Tactical Mars surface radar">
       <canvas ref={canvasRef} className="gta-radar-canvas" />
       <span className="gta-radar-tag">
-        {view?.roverDriving ? "ROVER GPS" : "EVA RADAR"}
+        {view?.roverDriving ? "LIDAR · 30 m" : "EVA RADAR"}
       </span>
+      {view?.roverDriving && <span className="gta-lidar-status" role="status" style={{color:view.lidar?.threatDistance != null ? "#ff8585" : "#a5ded0"}}>
+        {view.lidar?.threatDistance != null ? `Blocked in ${view.lidar.threatDistance.toFixed(1)} m` : view.lidar ? "Path clear · 12 m" : "Scanning…"}
+      </span>}
       {view?.mudDepth !== undefined && view.mudDepth > 0.32 && (
         <span className="gta-mud-tag">MUD ZONE</span>
       )}

@@ -1,3 +1,19 @@
+# Mars materials and outdoor lighting · 11 November 2026
+
+This pass targets a more realistic environment while preserving the current astronaut, rover, cockpit and vehicle simulation. It changes surface response and rendering rather than replacing those models.
+
+- Ground blends the existing scans by height and dust deposition, with mapped roughness, cavity shading and filtered fine relief. Rocks use triplanar scan detail; larger boulders have averaged shared-position normals with identical vertices, bounds and collision data. Grazing-angle bump perturbation is bounded to avoid bright cliff flecks.
+- Colony-owned coatings use a shared generated 128px microfinish texture, dielectric paint/ceramic response, exposed metallic alloy and irregular dust. Actor materials are separate and unchanged.
+- A small one-time outdoor PMREM replaces the indoor room environment. The sky halo, visible sun and directional shadows share a direction. Neutral fill keeps backlit hardware readable.
+- Auto has 1536px shadows and half-resolution GTAO capped at 768px on its longest edge, 8 samples and no bloom. High/Ultra use 2048px shadows and restrained bloom. Effect targets use 2x MSAA when supported. AO excludes transparent surfaces and does not rerender shadows. Performance keeps direct rendering without shadows/effects.
+- Auto sheds AO under sustained low FPS; with no active effects it bypasses the composer. Effect setup/render failures fall back to direct rendering. Visibility, shadow updates and override state are restored even on failure. Both rover cameras warm these paths during loading.
+
+The existing source scans are reused; no new downloaded assets, dependencies or extra geometry are added. This is still real-time procedural scenery, not an offline photorealistic render.
+
+Validation: all 93 tests, TypeScript, the Pages build and the original hosting build passed. Local 1280×720 Auto testing reported 60 FPS with contact shading active; the final cockpit switch submitted in 5.7 ms with zero new shader programs. Auto/High/Performance transitions rendered without console errors. The 390×844 layout had no horizontal overflow. Local startup samples ranged from 3.8 to 10.3 seconds across warm/cold shader runs; these figures are observations on the test machine, not promises for other laptops. Browser pointer lock is unavailable in the embedded test browser, so walking and camera checks used the supported keyboard fallback.
+
+## Earlier graphics work
+
 # Reference-driven Mars colony rebuild · 10 November 2026
 
 The Mars scene now uses `createMarsColony.ts` instead of the earlier generic outpost geometry. The supplied concept was used as the visual target for composition, warm lighting, readable shapes and hardware detail. All structures and characters remain interactive 3D geometry. This remains a stylised real-time interpretation, not a pixel-identical offline render.

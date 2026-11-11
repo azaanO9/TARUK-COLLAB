@@ -1,15 +1,5 @@
-/**
- * Procedural Mars-Walking Gait Engine
- *
- * Implements low-gravity (approx. 0.38g) locomotion physics with realistic
- * weight-transfer and character dynamics (GTA 5 inspired):
- * 1. Bounding / Floatiness: Slower, floating stride frequency with higher vertical
- *    oscillation (sinusoidal hip bounce with extended ballistic hang time).
- * 2. Foot Plant: Legs extend forward during strides to absorb forward momentum.
- * 3. Counter-Balance: Arms sway in opposition to the legs with space-suit lateral abduction.
- * 4. Grounding & Weight Transfer: Smooth foot arc, heel-strike, and lateral hip sway.
- * 5. Dynamic Speed Scaling: Smooth transitions between stationary breathing, walking,
- *    sprinting, and low-gravity jump/flight poses.
+/** Authored EVA animation: distance-based strides, continuous flight poses,
+ * and impact-weighted landing compression. World jump physics live in navigation.ts.
  */
 
 export type MarsGaitPose = {
@@ -56,6 +46,11 @@ export type MarsGaitState = {
   airborneBlend: number;  // Jump / airborne blend [0 = grounded, 1 = airborne]
   landingBlend: number;   // Landing compression blend [0 = recovered, 1 = max impact]
   prevAirborne: boolean;  // Tracks previous frame airborne state to detect touchdown
+  launchPhase: number;
+  launchSpeed: number;
+  impactSpeed: number;
+  landingTime: number;
+  landingStrength: number;
   time: number;           // Running time for idle oscillations
 };
 
@@ -66,6 +61,11 @@ export function createMarsGaitState(): MarsGaitState {
     airborneBlend: 0,
     landingBlend: 0,
     prevAirborne: false,
+    launchPhase: 0,
+    launchSpeed: 0,
+    impactSpeed: 0,
+    landingTime: 1,
+    landingStrength: 0,
     time: 0,
   };
 }
@@ -102,6 +102,7 @@ export function stepMarsGait(
   dt: number,
   options?: MarsGaitOptions,
   verticalVelocity = 0,
+  groundClearance = 1,
 ): MarsGaitPose {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const safeDt = Math.max(0, Math.min(dt, 0.1));
@@ -113,30 +114,31 @@ export function stepMarsGait(
   const blendRate = targetBlend > state.blend ? 8 : 5;
   state.blend += (targetBlend - state.blend) * (1 - Math.exp(-blendRate * safeDt));
 
-  // 2. Blend airborne state & detect touchdown impact
+  if (isAirborne && !state.prevAirborne) {
+    state.launchPhase = state.phase;
+    state.launchSpeed = speed;
+  }
+
+  // Capture descent speed before the jump integrator resets velocity at contact.
+  if (isAirborne) state.impactSpeed = Math.max(0, -verticalVelocity);
   if (state.prevAirborne && !isAirborne) {
-    // Astronaut just touched down onto the Martian regolith!
-    state.landingBlend = 1.0;
+    state.landingTime = 0;
+    state.landingStrength = Math.min(1, Math.max(state.impactSpeed, -verticalVelocity) / 4.2);
   }
   state.prevAirborne = isAirborne;
-
   const targetAirborne = isAirborne ? 1 : 0;
   state.airborneBlend += (targetAirborne - state.airborneBlend) * (1 - Math.exp(-12 * safeDt));
-
-  // Smoothly decay landing impact compression over ~0.35s
-  if (state.landingBlend > 0.001) {
-    state.landingBlend *= Math.exp(-9.0 * safeDt);
-    if (state.landingBlend < 0.005) state.landingBlend = 0;
-  } else {
-    state.landingBlend = 0;
-  }
+  // Compression builds after contact, then recovers over half a second.
+  state.landingTime += safeDt;
+  const contactPhase = Math.min(1, state.landingTime / .52);
+  state.landingBlend = Math.sin(Math.PI * contactPhase) ** 2 * state.landingStrength;
 
   // 3. Cadence & Phase Accumulation
-  // Synchronized directly to ground travel: ~1.9m stride distance per 2-step cycle.
-  // This grounds the boots against the Martian soil and eliminates foot sliding/skating.
-  const strideDistance = 1.95;
+  // Synchronized directly to ground travel: ~2.35m stride distance per 2-step cycle.
+  // Distance-based cadence reduces visible skating as movement speed changes.
+  const strideDistance = 2.35;
   const cadence = (Math.max(0.5, speed) / strideDistance) * (Math.PI * 2) * Math.sqrt(opts.gravityFactor / 0.38);
-  if (state.blend > 0.005) {
+  if (state.blend > 0.005 && !isAirborne) {
     state.phase = (state.phase + cadence * safeDt) % (Math.PI * 2);
   }
 
@@ -147,7 +149,7 @@ export function stepMarsGait(
 
   // 4. Low-Gravity Vertical Oscillation & Lateral Weight Shift
   // Parabolic float at the apex of each stride + lateral sway over stance leg
-  const rawBounce = Math.pow(Math.abs(Math.sin(p)), 0.85);
+  const rawBounce = Math.sin(p) ** 2;
   let hipOffsetY = rawBounce * opts.bounceAmplitude * groundBlend;
   const hipOffsetX = Math.sin(p) * 0.022 * groundBlend;
 
@@ -226,22 +228,24 @@ export function stepMarsGait(
 
   // 9. Low-Gravity Ballistic Jump Flight Dynamics (0.38g Mars Arc)
   if (ab > 0.01) {
-    const isAscent = verticalVelocity > 0.6;
-    const isDescent = verticalVelocity < -0.6;
+    const ascent = Math.max(0, Math.min(1, verticalVelocity / 2));
+    const descent = Math.max(0, Math.min(1, -verticalVelocity / 2));
 
-    // Relaxed trailing legs in low-gravity float (iconic Apollo / Mars astronaut float)
-    const floatLeftThigh = isAscent ? -0.24 : isDescent ? 0.08 : -0.12;
-    const floatRightThigh = isAscent ? -0.16 : isDescent ? -0.04 : 0.08;
+    const reach = descent * (1 - Math.min(1, Math.max(0, groundClearance / .65)));
+    const stagger = Math.sin(state.launchPhase) * Math.min(1, state.launchSpeed / 2.5) * (1 - reach);
+    // Both feet prepare for contact together; moving jumps retain the takeoff leg lead.
+    const floatLeftThigh = .10 + .16 * ascent + .08 * reach + .10 * stagger;
+    const floatRightThigh = .10 + .16 * ascent + .08 * reach - .10 * stagger;
 
     // Knees: flex during ascent & apex; extend downward anticipating landing on descent
-    const floatLeftKnee = isDescent ? 0.26 : 0.42;
-    const floatRightKnee = isDescent ? 0.22 : 0.36;
+    const floatLeftKnee = .48 + .12 * ascent - .30 * reach + .06 * stagger;
+    const floatRightKnee = .48 + .12 * ascent - .30 * reach - .06 * stagger;
 
     // Feet: push off (plantarflex) on ascent; toes tilt up (dorsiflex heel first) on descent
-    const floatAnkle = isAscent ? 0.20 : isDescent ? -0.18 : -0.06;
+    const floatAnkle = -.04 + .20 * ascent - .10 * reach;
 
     // Arms: float upward and outward in EVA pressurized balance posture
-    const floatArmPitch = isAscent ? -0.48 : isDescent ? -0.28 : -0.38;
+    const floatArmPitch = -.38 - .10 * ascent + .10 * descent;
     const floatArmRollExtra = 0.24;
     const floatForearm = 0.46;
 
@@ -259,7 +263,7 @@ export function stepMarsGait(
     leftArm.forearmPitch = leftArm.forearmPitch * (1 - ab) + floatForearm * ab;
     rightArm.forearmPitch = rightArm.forearmPitch * (1 - ab) + floatForearm * ab;
 
-    spinePitch += (isAscent ? -0.05 : isDescent ? 0.08 : 0) * ab;
+    spinePitch += (-.05 * ascent + .08 * descent) * ab;
   }
 
   // 10. Planetary Landing Impact Compression & Shock Absorption

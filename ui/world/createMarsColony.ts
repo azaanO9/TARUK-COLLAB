@@ -6,15 +6,16 @@ import { createColonyMaterials, colonyBuilder } from "./colonyMaterials";
 import { batchStaticMeshes } from "./batchStaticMeshes";
 import { createMarsSolarArray } from "./createMarsSolarArray";
 import type { MarsSurfaceTextures } from "./marsSurfaceTextures";
+import { createColonySurfaceShading } from "./colonySurfaceShading";
 
 /** Detailed original Mars colony. It shares station IDs and navigation with the existing game. */
 export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture) {
   const root=new T.Group();scene.add(root);
   const terrain=createMarsTerrain(root, surface), m=createColonyMaterials(panelSurface), b=colonyBuilder(m);
   // These material instances belong only to the buildings, not the astronaut/Sage.
-  m.ceramic.color.setHex(0xf0eee2);m.ceramic.bumpScale=.009;m.ceramic.roughness=.76;m.ceramic.metalness=.10;
-  m.orange.color.setHex(0xc8793e);m.orange.metalness=.22;m.orange.roughness=.62;
-  m.teal.color.setHex(0x24565a);m.teal.metalness=.3;m.teal.roughness=.44;
+  m.orange.color.setHex(0xc8793e);
+  m.teal.color.setHex(0x24565a);
+  const coating=createColonySurfaceShading(m);
   const targets:T.Group[]=[], indicators:Record<string,T.MeshStandardMaterial>={}, panels:T.Mesh[]=[], tanks:T.Mesh[]=[], foods:T.Mesh[]=[], wheelMeshes:T.Mesh[]=[];
   let dish:T.Object3D|null=null;
   const habitatWindow=new T.MeshStandardMaterial({color:0x74b5ad,metalness:.35,roughness:.22,emissive:0x65a89b,emissiveIntensity:.65});
@@ -87,7 +88,7 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
     }else if(station.id==="oxygen"||station.id==="water"){
       b.cylinder(g,1.8,.22,0,.14,0,m.alloy);
       for(const x of [-.65,.65]){
-        const tank=b.add(g,new T.CapsuleGeometry(.49,2.15,6,20),m.ceramic.clone(),x,1.65,0);tank.userData.system=station.id;tanks.push(tank);
+        const tank=b.add(g,new T.CapsuleGeometry(.49,2.15,6,20),coating.ceramic(m.ceramic.clone()),x,1.65,0);tank.userData.system=station.id;tanks.push(tank);
         for(const y of [.7,2.55])b.add(g,new T.TorusGeometry(.51,.037,6,20).rotateX(Math.PI/2),m.alloy,x,y,0);
         b.cylinder(g,.50,.14,x,1.25,0,m.orange);
         b.cylinder(g,.1,.3,x,3.12,0,m.graphite);

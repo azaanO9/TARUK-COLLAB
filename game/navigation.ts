@@ -10,10 +10,11 @@ export function stepJump(
   requested: boolean,
   seconds: number,
   gravity = 5.5,
+  launchSpeed = 4.2,
 ): JumpState {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   let velocity = state.velocity;
-  if (requested && state.height <= 0 && velocity <= 0) velocity = 4.2;
+  if (requested && state.height <= 0 && velocity <= 0) velocity = launchSpeed;
   velocity -= gravity * dt;
   const height = Math.max(0, state.height + velocity * dt);
   return height === 0 && velocity < 0
@@ -40,6 +41,7 @@ export function stepWalker(
   seconds: number,
   obstacles: readonly CollisionObstacle[] = [],
   speed = WALK_SPEED,
+  grounded = true,
 ): Walker {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (!dt) return w;
@@ -56,7 +58,7 @@ export function stepWalker(
   }
   const tx = (Math.cos(w.yaw) * side - Math.sin(w.yaw) * forward) * speed;
   const tz = (-Math.sin(w.yaw) * side - Math.cos(w.yaw) * forward) * speed;
-  const blend = 1 - Math.exp(-14 * dt),
+  const blend = grounded ? 1 - Math.exp(-14 * dt) : 0,
     vx = w.vx + (tx - w.vx) * blend,
     vz = w.vz + (tz - w.vz) * blend;
   const moved = moveAndSlide(w.x, w.z, vx * dt, vz * dt, [{x:0,z:0,radius:WALKER_RADIUS}], obstacles, WORLD_LIMIT);
