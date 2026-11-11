@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { stepMarsLocomotion } from '../game/marsLocomotion.ts';
+import { boxObstacle } from '../game/collision.ts';
+import { spawnWalker } from '../game/navigation.ts';
+const flat = () => 0;
+
+test('airborne movement ignores steering, sprint and camera yaw while preserving momentum', () => {
+  const walker = { ...spawnWalker(), vx: 1.5, vz: -2 };
+  const jump = { height: 1, velocity: .5 };
+  const neutral = stepMarsLocomotion(walker, jump, new Set(), .02, flat);
+  const steering = stepMarsLocomotion({ ...walker, yaw: Math.PI }, jump, new Set(['s', 'd', 'shift', 'jump']), .02, flat);
+  for (const key of ['x', 'z', 'vx', 'vz']) assert.equal(steering.walker[key], neutral.walker[key]);
+  assert.equal(steering.walker.vx, 1.5);
+  assert.equal(steering.walker.vz, -2);
+  assert.deepEqual(steering.jump, neutral.jump);
+});
+
+test('a stationary astronaut cannot start translating in mid-air', () => {
+  const result = stepMarsLocomotion(spawnWalker(), { height: .5, velocity: 1 }, new Set(['w']), .05, flat);
+  assert.equal(result.walker.z, 12);
+  assert.equal(result.walker.vz, 0);
+});
+
+test('jump altitude follows its world-space arc above sloped terrain', () => {
+  const walker = { ...spawnWalker(), x: 0, vx: 2 };
+  const slope = x => x * .5;
+  const result = stepMarsLocomotion(walker, { height: 2, velocity: 1 }, new Set(), .05, slope);
+  const actualWorldY = slope(result.walker.x) + result.jump.height;
+  assert.ok(Math.abs(actualWorldY - (2 + .05 - .5 * 3.71 * .05 ** 2)) < 1e-10);
+});
+
+test('ground contact ends flight and restores walking control', () => {
+  const landing = stepMarsLocomotion({ ...spawnWalker(), vx: 1 }, { height: .001, velocity: -2 }, new Set(['a']), .02, flat);
+  assert.deepEqual(landing.jump, { height: 0, velocity: 0 });
+  const walking = stepMarsLocomotion(landing.walker, landing.jump, new Set(['a']), .05, flat);
+  assert.ok(walking.walker.vx < landing.walker.vx);
+});
+
+test('airborne collision removes velocity into a wall', () => {
+  const wall = boxObstacle(1, 12, .1, 5);
+  let state = { walker: { ...spawnWalker(), vx: 4 }, jump: { height: 1, velocity: 0 } };
+  for (let i = 0; i < 8; i++) state = stepMarsLocomotion(state.walker, state.jump, new Set(), .02, flat, [wall]);
+  assert.ok(state.walker.x < .6);
+  assert.ok(Math.abs(state.walker.vx) < .001);
+});

@@ -278,6 +278,7 @@ export function createRiggedAstronaut(
         dt,
         undefined,
         verticalVelocity,
+        jumpHeight,
       );
 
       if (handle.isModelLoaded && bones.leftUpLeg && modelRef) {

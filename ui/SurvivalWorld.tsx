@@ -3,8 +3,8 @@ import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
 import { STATIONS } from "../content/survival";
+import { stepMarsLocomotion } from "../game/marsLocomotion";
 import { spawnWalker, stepWalker, stepJump } from "../game/navigation";
-import { MARS_PHYSICS } from "../game/marsConfig";
 import { boxObstacle } from "../game/collision";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
@@ -690,22 +690,15 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               : model.obstacles;
             walker.yaw = cameraYaw;
             for (let i = 0; i < steps; i++) {
-              walker = stepWalker(
-                walker,
-                keys,
-                step,
-                dynamicObstacles,
-                props.planet === "mars"
-                  ? (keys.has("shift") ? MARS_PHYSICS.sprintSpeed : MARS_PHYSICS.walkSpeed)
-                  : undefined,
-              );
-              jump = stepJump(
-                jump,
-                i === 0 && keys.has("jump"),
-                step,
-                props.planet === "mars" ? MARS_PHYSICS.gravity : undefined,
-                props.planet === "mars" ? MARS_PHYSICS.jumpSpeed : undefined,
-              );
+              if (props.planet === "mars") {
+                const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles);
+                walker = next.walker;
+                jump = next.jump;
+                keys.delete("jump");
+              } else {
+                walker = stepWalker(walker, keys, step, dynamicObstacles);
+                jump = stepJump(jump, i === 0 && keys.has("jump"), step);
+              }
             }
             keys.delete("jump");
           }
@@ -799,9 +792,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           // In 1st person: character faces camera direction.
           // In 3rd person: character turns smoothly towards movement direction when walking/sprinting;
           // when stationary (idle), character remains in place while the mouse freely orbits the camera 360 degrees.
-          if (!third) {
+          const airborne = props.planet === "mars" && (jump.height > 0 || jump.velocity > 0);
+          if (!airborne && !third) {
             characterYaw = cameraYaw;
-          } else if (speed > 0.15) {
+          } else if (!airborne && speed > 0.15) {
             const moveHeading = Math.atan2(-walker.vx, -walker.vz);
             const diff = shortestAngleDiff(characterYaw, moveHeading);
             characterYaw += diff * (1 - Math.exp(-14 * dt));
@@ -817,7 +811,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             marsAstronaut.update(
               dt,
               speed,
-              jump.height > 0.04,
+              jump.height > 0 || jump.velocity > 0,
               jump.height,
               jump.velocity,
             );
@@ -829,7 +823,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
           const back = props.planet === "mars" ? 5.2 : 4.3;
           const shoulder = props.planet === "mars" ? 0.28 : 0.6;
-          cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
+          if (airborne) cameraGround = groundHeight;
+          else cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
             // GTA 5 style spherical camera boom:
             // Target pivot on astronaut upper chest/shoulders

@@ -76,3 +76,5 @@ Starting supplies of 75, consumption of 7 per sol, the event costs, station reco
 
 
 Mars EVA motion uses an authored 2.8 m/s launch speed with 3.71 m/s² gravity, producing an approximately one-metre hop. Gait cadence, impact compression and visible wind wisps are artistic training-game choices, not validated EVA biomechanics or measured weather.
+
+Mars airborne movement conserves horizontal velocity until collision or landing. Camera rotation and movement keys cannot accelerate an airborne astronaut. Vertical flight is integrated in world coordinates above the changing terrain. Air drag is neglected for these short hops, and the existing conservative horizontal collision shapes remain in use.

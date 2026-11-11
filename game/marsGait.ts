@@ -46,6 +46,8 @@ export type MarsGaitState = {
   airborneBlend: number;  // Jump / airborne blend [0 = grounded, 1 = airborne]
   landingBlend: number;   // Landing compression blend [0 = recovered, 1 = max impact]
   prevAirborne: boolean;  // Tracks previous frame airborne state to detect touchdown
+  launchPhase: number;
+  launchSpeed: number;
   impactSpeed: number;
   landingTime: number;
   landingStrength: number;
@@ -59,6 +61,8 @@ export function createMarsGaitState(): MarsGaitState {
     airborneBlend: 0,
     landingBlend: 0,
     prevAirborne: false,
+    launchPhase: 0,
+    launchSpeed: 0,
     impactSpeed: 0,
     landingTime: 1,
     landingStrength: 0,
@@ -98,6 +102,7 @@ export function stepMarsGait(
   dt: number,
   options?: MarsGaitOptions,
   verticalVelocity = 0,
+  groundClearance = 1,
 ): MarsGaitPose {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const safeDt = Math.max(0, Math.min(dt, 0.1));
@@ -108,6 +113,11 @@ export function stepMarsGait(
   const targetBlend = speed > 0.12 && !isAirborne ? Math.min(speed / 1.5, 1) : 0;
   const blendRate = targetBlend > state.blend ? 8 : 5;
   state.blend += (targetBlend - state.blend) * (1 - Math.exp(-blendRate * safeDt));
+
+  if (isAirborne && !state.prevAirborne) {
+    state.launchPhase = state.phase;
+    state.launchSpeed = speed;
+  }
 
   // Capture descent speed before the jump integrator resets velocity at contact.
   if (isAirborne) state.impactSpeed = Math.max(0, -verticalVelocity);
@@ -221,16 +231,18 @@ export function stepMarsGait(
     const ascent = Math.max(0, Math.min(1, verticalVelocity / 2));
     const descent = Math.max(0, Math.min(1, -verticalVelocity / 2));
 
-    // Relaxed trailing legs in low-gravity float (iconic Apollo / Mars astronaut float)
-    const floatLeftThigh = -.12 - .12 * ascent + .20 * descent;
-    const floatRightThigh = .08 - .24 * ascent - .12 * descent;
+    const reach = descent * (1 - Math.min(1, Math.max(0, groundClearance / .65)));
+    const stagger = Math.sin(state.launchPhase) * Math.min(1, state.launchSpeed / 2.5) * (1 - reach);
+    // Both feet prepare for contact together; moving jumps retain the takeoff leg lead.
+    const floatLeftThigh = .10 + .16 * ascent + .08 * reach + .10 * stagger;
+    const floatRightThigh = .10 + .16 * ascent + .08 * reach - .10 * stagger;
 
     // Knees: flex during ascent & apex; extend downward anticipating landing on descent
-    const floatLeftKnee = .42 - .16 * descent;
-    const floatRightKnee = .36 - .14 * descent;
+    const floatLeftKnee = .48 + .12 * ascent - .30 * reach + .06 * stagger;
+    const floatRightKnee = .48 + .12 * ascent - .30 * reach - .06 * stagger;
 
     // Feet: push off (plantarflex) on ascent; toes tilt up (dorsiflex heel first) on descent
-    const floatAnkle = -.06 + .26 * ascent - .12 * descent;
+    const floatAnkle = -.04 + .20 * ascent - .10 * reach;
 
     // Arms: float upward and outward in EVA pressurized balance posture
     const floatArmPitch = -.38 - .10 * ascent + .10 * descent;
