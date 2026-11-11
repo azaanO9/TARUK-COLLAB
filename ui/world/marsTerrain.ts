@@ -202,8 +202,11 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       vec3 scannedColor=mix(dustScan.color,gravelScan.color,gravelField);
       // Desaturate green/yellow Earth-scan traces, then grade into an iron-dust palette.
       float luminance=dot(scannedColor,vec3(.2126,.7152,.0722));
-      vec3 soilColor=mix(vec3(luminance),scannedColor,.42)*vec3(1.23,.91,.72);
-      soilColor*=mix(.83,1.14,dustField);
+      vec3 soilColor=mix(vec3(luminance),scannedColor,.35)*vec3(1.34,.89,.65);
+      // Broad windblown deposits sit over the fine scan without a repeated tile edge.
+      float drift=smoothstep(.32,.76,soilNoise((soilP+warp)*.035+11.7));
+      soilColor*=mix(.86,1.10,dustField);
+      soilColor=mix(soilColor,soilColor*vec3(1.09,1.06,1.01),drift*.52);
       diffuseColor.rgb*=soilColor;
       float soilRoughness=mix(dustScan.relief.g,gravelScan.relief.g,gravelField);
       float soilRelief=mix(dustScan.relief.r*.028,gravelScan.relief.r*.075,gravelField)
@@ -258,7 +261,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       }`,
     );
   };
-  groundMat.customProgramCacheKey = () => "tarukh-scanned-stochastic-soil-v1";
+  groundMat.customProgramCacheKey = () => "tarukh-scanned-stochastic-soil-v2";
   const ground = new T.Mesh(geometry, groundMat);
   ground.receiveShadow = true;
   root.add(ground);
@@ -269,11 +272,11 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       vec3 scan=texture2D(map,vMapUv).rgb;
       float rockDetail=dot(scan,vec3(.2126,.7152,.0722));
       // Exposed dark stone with a warm dust coating, sharing the soil palette.
-      diffuseColor.rgb*=mix(vec3(.07,.043,.029),vec3(.38,.245,.145),smoothstep(.008,.085,rockDetail));
+      diffuseColor.rgb*=mix(vec3(.065,.039,.028),vec3(.34,.205,.125),smoothstep(.008,.085,rockDetail));
     `).replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
       roughnessFactor=max(.88,roughnessFactor);`);
   };
-  rockMat.customProgramCacheKey=()=>"tarukh-dust-coated-scan-rock-v1";
+  rockMat.customProgramCacheKey=()=>"tarukh-dust-coated-scan-rock-v2";
   const makeRock = (detail: number, variant: number) => {
     const geo = new T.IcosahedronGeometry(1, detail), p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {
@@ -352,7 +355,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
 
   // Scanned fracture detail on all cliff faces; one dust/stone palette throughout.
   const cliffMat = new T.MeshStandardMaterial({ vertexColors: true, map: surfaces.rock.color, bumpMap: surfaces.rock.relief, bumpScale: .1, roughness: .98 });
-  const close = new T.Color(0x93715a), lightStrata = new T.Color(0xc39874), dustHaze = new T.Color(0xba9277);
+  const close = new T.Color(0x89634d), lightStrata = new T.Color(0xc39a77), dustHaze = new T.Color(0xc09b80);
   const landscape = new T.PlaneGeometry(720, 720, 240, 240);
   landscape.rotateX(-Math.PI / 2);
   const lp = landscape.attributes.position, landColors = new Float32Array(lp.count * 3);
@@ -365,6 +368,9 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     const apron = smooth(110, 240, r);
     const rightWall = .72 + smooth(-20, 150, x) * .6;
     let height = (plateau * 57 + ridge * 14 + terrainNoise(x * .07, z * .07) * 3) * rightWall;
+    // Eroded flutes break up the distant escarpment; playable ground is untouched.
+    const drainage = Math.pow(.5 + .5 * Math.sin(x * .19 + z * .11 + broad * 9), 6);
+    height -= drainage * plateau * 4.8;
     const ledge = Math.floor(height / 2.4) * 2.4;
     height = height * .72 + ledge * .28;
     lp.setY(i, -9 + (height + 9) * apron);
@@ -393,9 +399,12 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       cliffGrain+=texture2D(map,cliffP.xz).rgb*blend.y;
       cliffGrain+=texture2D(map,cliffP.xy).rgb*blend.z;
       float detail=dot(cliffGrain,vec3(.2126,.7152,.0722));
-      float bands=sin(vCanyonPosition.y*.9+soilNoise(vCanyonPosition.xz*.08)*2.4);
+      float bands=sin(vCanyonPosition.y*.48+soilNoise(vCanyonPosition.xz*.05)*3.8);
       float dust=soilNoise(vCanyonPosition.xz*.025);
-      diffuseColor.rgb*=clamp(.55+detail*10.0,.55,1.2)*(.96+bands*.04)*mix(.85,1.12,dust);
+      float bedding=smoothstep(.65,.95,bands);
+      float ledgeDust=pow(max(normalize(vCanyonNormal).y,0.0),2.0);
+      diffuseColor.rgb*=clamp(.62+detail*8.0,.62,1.12)*(.97-bedding*.04)*mix(.90,1.10,dust);
+      diffuseColor.rgb*=mix(vec3(1.0),vec3(1.12,1.08,1.03),ledgeDust);
       float cliffRelief=texture2D(bumpMap,cliffP.yz).r*blend.x;
       cliffRelief+=texture2D(bumpMap,cliffP.xz).r*blend.y;
       cliffRelief+=texture2D(bumpMap,cliffP.xy).r*blend.z;
@@ -404,7 +413,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     shader.fragmentShader=shader.fragmentShader.replace("#include <normal_fragment_maps>",
       "normal=perturbNormalArb(-vViewPosition,normal,vec2(dFdx(cliffRelief),dFdy(cliffRelief)),faceDirection);");
   };
-  cliffMat.customProgramCacheKey = () => "tarukh-canyon-scanned-fractures-v1";
+  cliffMat.customProgramCacheKey = () => "tarukh-canyon-scanned-fractures-v2";
   const canyon = new T.Mesh(landscape, cliffMat);
   root.add(canyon);
 
@@ -453,12 +462,12 @@ export function createMarsSky(scene: T.Scene) {
     vertexShader: `varying vec3 direction; void main(){ direction=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `varying vec3 direction; uniform float night;
       void main(){ vec3 d=normalize(direction); float h=max(d.y,0.);
-        vec3 day=mix(vec3(.61,.30,.16),vec3(.29,.20,.18),pow(h,.54));
-        float sunAngle=max(dot(d,normalize(vec3(-.4,.23,-.8))),0.);
+        vec3 day=mix(vec3(.70,.43,.29),vec3(.34,.25,.22),pow(h,.54));
+        float sunAngle=max(dot(d,normalize(vec3(-80.,46.,-160.))),0.);
         float blueHalo=pow(sunAngle,32.) * .07;
         float sun=pow(sunAngle,140.);
         day=mix(day,vec3(.49,.56,.64),blueHalo);
-        day+=vec3(1.3,.63,.19)*sun + vec3(.26,.09,.025)*pow(sunAngle,18.);
+        day+=vec3(.95,.73,.40)*sun + vec3(.20,.14,.075)*pow(sunAngle,18.);
         vec3 dark=mix(vec3(.12,.10,.14),vec3(.012,.024,.054),pow(h,.45));
         gl_FragColor=vec4(mix(day,dark,night),1.);
         #include <tonemapping_fragment>
