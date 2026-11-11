@@ -51,3 +51,5 @@ Mars movement and airborne dust reference: [NASA Glenn Mars gravity](https://www
 
 
 Jump motion follows [projectile mechanics](https://openstax.org/books/university-physics-volume-1/pages/4-3-projectile-motion): horizontal momentum persists without an external force and vertical altitude follows gravity. [Pavei and Minetti, 2016](https://pubmed.ncbi.nlm.nih.gov/26635350/) studied human hopping in simulated Martian and lunar gravity. This research informs the movement direction, while the game’s specific skeletal poses remain authored animation.
+
+- NASA, Space Exploration Vehicle: https://science.nasa.gov/3d-resources/space-exploration-vehicle/ — identifies the crewed concept and describes approximately 10 km/h surface travel. Supports the forward speed target only, not the game's reverse, braking or simulated lidar parameters. Accessed 2026-11-11.
