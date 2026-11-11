@@ -11,6 +11,10 @@ import type { MarsSurfaceTextures } from "./marsSurfaceTextures";
 export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture) {
   const root=new T.Group();scene.add(root);
   const terrain=createMarsTerrain(root, surface), m=createColonyMaterials(panelSurface), b=colonyBuilder(m);
+  // These material instances belong only to the buildings, not the astronaut/Sage.
+  m.ceramic.color.setHex(0xf0eee2);m.ceramic.bumpScale=.009;m.ceramic.roughness=.76;m.ceramic.metalness=.10;
+  m.orange.color.setHex(0xc8793e);m.orange.metalness=.22;m.orange.roughness=.62;
+  m.teal.color.setHex(0x24565a);m.teal.metalness=.3;m.teal.roughness=.44;
   const targets:T.Group[]=[], indicators:Record<string,T.MeshStandardMaterial>={}, panels:T.Mesh[]=[], tanks:T.Mesh[]=[], foods:T.Mesh[]=[], wheelMeshes:T.Mesh[]=[];
   let dish:T.Object3D|null=null;
   const habitatWindow=new T.MeshStandardMaterial({color:0x74b5ad,metalness:.35,roughness:.22,emissive:0x65a89b,emissiveIntensity:.65});
@@ -53,6 +57,16 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
   for(const x of [-.65,.65])b.box(habitat,.035,2.3,.035,x,1.75,5.01,m.light,false);
   b.box(habitat,1.3,.035,.035,0,2.9,5.01,m.light,false);
   b.label(habitat,"HABITAT / H1",2.6,0,4.04,4.75);
+  // Service hatches and latches stay inside the existing habitat silhouette.
+  for (const side of [-1,1]) {
+    const x=side*1.65,z=Math.sqrt(radius*radius-x*x);
+    const hatch=new T.Group();hatch.position.set(x,1.7,z+.035);hatch.rotation.y=Math.atan2(x,z);habitat.add(hatch);
+    b.box(hatch,.82,1.05,.055,0,0,0,m.graphite);
+    b.box(hatch,.75,.98,.035,0,0,.04,m.ceramic);
+    b.bolts(hatch,.75,.98,0,0,.07);
+    b.box(hatch,.12,.055,.025,.22,.32,.075,m.orange);
+    b.box(habitat,.07,.19,.08,side*.73,1.65,5.02,m.alloy);
+  }
   for(let i=0;i<4;i++)b.box(habitat,2.5,.16,.48,0,.15+i*.14,5.9-i*.4,m.alloy);
   for(const x of [-2.4,2.4]){b.vent(habitat,.8,.65,x,1.2,4.05);b.pipe(habitat,[[x,3.8,3.95],[x,4.2,4.15],[x,1,4.3],[x+.45,.3,4.8]],.065,m.graphite);}
   contact(habitat,13,13);
@@ -99,6 +113,14 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
       b.box(g,station.id==="shelter"?6.1:5,.18,station.id==="shelter"?5.9:4.1,0,3.65,-.8,m.orange);
       b.label(g,station.id==="shelter"?"SHIELD / S1":"SCIENCE / R1",2.5,0,3.12,station.id==="shelter"?2.2:1.3);
       b.vent(g,.9,.7,station.id==="shelter"?2.25:1.7,2.5,station.id==="shelter"?2.17:1.27);
+      const faceZ=station.id==="shelter"?2.19:1.30;
+      for(const side of [-1,1]){
+        const x=side*(station.id==="shelter"?2.15:1.65);
+        b.box(g,.69,.88,.035,x,1.25,faceZ,m.alloy);
+        b.box(g,.63,.82,.025,x,1.25,faceZ+.026,m.ceramic);
+        b.bolts(g,.62,.81,x,1.25,faceZ+.046);
+        b.box(g,.12,.05,.02,x+.19,1.48,faceZ+.05,m.orange);
+      }
       for(const x of [-2.5,2.5])b.box(g,.06,2.9,.05,x,1.9,2.13,m.alloy,false);
       b.box(g,.64,.09,.08,-1.75,3.18,2.25,lamp);
       // Faceted radome and rooftop service equipment.
