@@ -14,8 +14,8 @@ The centre crosshair is the sole aim point for station raycasts in both views. S
 A full-scale, six-wheeled heavy exploration rover (`ui/world/createBigRover.ts`, `game/roverVehicle.ts`) is stationed at the Mars outpost base (`ROVER BAY · R-01`).
 - **Enter/Exit (`F` key or on-screen button)**: When on foot within 4.8m of the rover, pressing `F` places the astronaut into the driver's bucket seat inside the transparent cockpit cabin (open-world / GTA 5 style). Pressing `F` again safely dismounts the astronaut to the driver's side of the vehicle and parks the rover.
 - **Driving Controls**:
-  - `W` / `ArrowUp`: Accelerate forward up to illustrative top speed ~48.6 km/h (13.5 m/s).
-  - `S` / `ArrowDown`: Service brake when moving forward; reverses up to ~18.7 km/h when stopped.
+  - `W` / `ArrowUp`: Accelerate forward up to authored top speed 25 km/h (~6.94 m/s).
+  - `S` / `ArrowDown`: Service brake when moving forward; reverses up to 10 km/h (~2.78 m/s) when stopped.
   - `A` / `D` (`ArrowLeft` / `ArrowRight`): Steer front wheels up to ±30° using Ackermann vehicle kinematics.
   - `Space`: Emergency handbrake with rapid stopping deceleration.
   - `V`: Switch between third-person chase camera and first-person interior cockpit view.

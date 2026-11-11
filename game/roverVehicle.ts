@@ -2,12 +2,12 @@
 import { boxObstacle, moveAndSlide, overlapBody, overlapDisc, type CollisionObstacle } from "./collision.ts";
 export const ROVER_LIMIT = 85;
 export const ROVER_ENTER_RADIUS = 4.8;
-export const ROVER_MAX_FORWARD = 10 / 3.6; // NASA SEV concept surface speed: about 10 km/h
-export const ROVER_MAX_REVERSE = 3 / 3.6; // Authored cautious reverse limit: 3 km/h
-export const ROVER_ACCELERATION = .65; // Authored gradual acceleration in m/s^2
-export const ROVER_BRAKE = 1.8;        // m/s^2 active service brake
-export const ROVER_HANDBRAKE = 3.0;    // m/s^2 emergency stop
-export const ROVER_COAST_DRAG = .35;   // rolling friction m/s^2
+export const ROVER_MAX_FORWARD = 25 / 3.6; // Authored exploration rover top speed: 25 km/h (~6.94 m/s)
+export const ROVER_MAX_REVERSE = 10 / 3.6; // Authored exploration rover reverse limit: 10 km/h (~2.78 m/s)
+export const ROVER_ACCELERATION = 1.6; // Authored gradual acceleration in m/s^2
+export const ROVER_BRAKE = 4.5;        // m/s^2 active service brake
+export const ROVER_HANDBRAKE = 7.5;    // m/s^2 emergency stop
+export const ROVER_COAST_DRAG = 0.85;  // rolling friction m/s^2
 export const ROVER_STEER_MAX = 0.52;   // ~30 degrees max front wheel turn
 export const ROVER_STEER_SPEED = 3.4;  // rad/s steering response
 export const ROVER_WHEEL_BASE = 2.849;   // meters between front and rear axles
