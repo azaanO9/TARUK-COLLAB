@@ -13,6 +13,7 @@ import { loadMarsSurfaceTextures, disposeMarsSurfaceTextures } from "./world/mar
 import { createRiggedAstronaut } from "./world/createRiggedAstronaut";
 import { createBigRover } from "./world/createBigRover";
 import { graphicsTier } from "./world/graphicsTiers";
+import { createMarsEnvironment, MARS_SUN_DIRECTION } from "./world/marsAtmosphere";
 import {
   spawnRoverVehicle,
   stepRoverVehicle,
@@ -158,12 +159,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       };
       let environment: import("three").WebGLRenderTarget | null = null;
       if (props.planet === "mars") {
-        const { RoomEnvironment } = await import("three/examples/jsm/environments/RoomEnvironment.js");
-        if (cancelled) return;
-        const pmrem = new T.PMREMGenerator(renderer), room = new RoomEnvironment();
-        environment = pmrem.fromScene(room, .04);
-        scene.environment = environment.texture; scene.environmentIntensity = .38;
-        room.dispose(); pmrem.dispose();
+        environment = createMarsEnvironment(renderer);
+        scene.environment = environment.texture; scene.environmentIntensity = .85;
       }
       scene.background = new T.Color(0x090e18);
       scene.fog = new T.FogExp2(0x333b48, 0.0024);
@@ -172,7 +169,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const light = new T.DirectionalLight(0xffe5c7, 3.5);
       light.position.set(-55, props.planet === "mars" ? 28 : 60, -80);
       light.castShadow = true;
-      light.shadow.mapSize.set(props.planet === "mars" ? 1024 : 2048, props.planet === "mars" ? 1024 : 2048);
+      const shadowSize = props.planet === "mars" ? graphicsTier(cameraSettings.current.quality).shadowSize : 2048;
+      light.shadow.mapSize.set(shadowSize, shadowSize);
       Object.assign(light.shadow.camera, {
         left: props.planet === "mars" ? -34 : -55,
         right: props.planet === "mars" ? 34 : 55,
@@ -182,7 +180,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         far: 220,
       });
       light.shadow.bias = -0.00015;
-      light.shadow.normalBias = 0.035;
+      light.shadow.normalBias = props.planet === "mars" ? 0.022 : 0.035;
       scene.add(light);
       if (props.planet === "mars") scene.add(light.target);
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
@@ -305,9 +303,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if (marsAstronaut) { astronaut.clear(); astronaut.add(marsAstronaut.root); }
       const sun = new T.Mesh(
         new T.SphereGeometry(4, 24, 16),
-        new T.MeshBasicMaterial({ color: 0xfff1ce, fog: false, toneMapped: false }),
+        new T.MeshBasicMaterial({ color: props.planet === "mars" ? new T.Color(7, 5, 2.8) : 0xfff1ce, fog: false, toneMapped: props.planet === "mars" }),
       );
       sun.position.set(props.planet === "mars" ? -80 : -110, props.planet === "mars" ? 46 : 65, -160);
+      if (props.planet === "mars") sun.position.copy(MARS_SUN_DIRECTION).multiplyScalar(185);
       scene.add(sun);
       const earth = new T.Mesh(
         new T.SphereGeometry(5, 28, 20),
@@ -332,32 +331,49 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let occlusion: import("three/examples/jsm/postprocessing/GTAOPass.js").GTAOPass | null = null;
       let bloom: import("three/examples/jsm/postprocessing/UnrealBloomPass.js").UnrealBloomPass | null = null;
       let effectsLoading: Promise<void> | null = null;
+      let autoOcclusion = true;
+      function disposeEffects() {
+        if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
+        composer = null; occlusion = null; bloom = null;
+      }
+      function renderEffects() {
+        if (!composer || (!occlusion?.enabled && !bloom?.enabled)) return false;
+        try { composer.render(); return true; }
+        catch {
+          // Optional effects must not take the mission down on unsupported GPUs.
+          scene.overrideMaterial = null; renderer.setRenderTarget(null);
+          disposeEffects();
+          return false;
+        }
+      }
       const prepareEffects = () => effectsLoading ??= (async () => {
-        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { GTAOPass }] = await Promise.all([
+        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { BoundedGTAOPass }] = await Promise.all([
           import("three/examples/jsm/postprocessing/EffectComposer.js"),
           import("three/examples/jsm/postprocessing/RenderPass.js"),
           import("three/examples/jsm/postprocessing/UnrealBloomPass.js"),
           import("three/examples/jsm/postprocessing/OutputPass.js"),
-          import("three/examples/jsm/postprocessing/GTAOPass.js"),
+          import("./world/BoundedGTAOPass"),
         ]);
         if (cancelled) return;
-        composer = new EffectComposer(renderer);
+        const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: Math.min(2, renderer.capabilities.maxSamples) });
+        composer = new EffectComposer(renderer, target);
         composer.addPass(new RenderPass(scene, camera));
-        occlusion = new GTAOPass(scene, camera, 512, 512);
-        occlusion.updateGtaoMaterial({ radius: .55, thickness: .7, distanceFallOff: 1, samples: 8 });
-        occlusion.blendIntensity = .65; occlusion.enabled = false;
+        occlusion = new BoundedGTAOPass(scene, camera, 256, 256);
+        occlusion.updateGtaoMaterial({ radius: .48, thickness: .55, distanceFallOff: 1, samples: 8 });
+        occlusion.updatePdMaterial({ samples: 8, radius: 4, rings: 2 });
+        occlusion.blendIntensity = .48; occlusion.enabled = false;
         composer.addPass(occlusion);
-        bloom = new UnrealBloomPass(new T.Vector2(512, 512), .15, .5, 1.25);
+        bloom = new UnrealBloomPass(new T.Vector2(512, 512), .09, .45, 1.35);
         composer.addPass(bloom);
         composer.addPass(new OutputPass());
-      })();
+      })().catch(() => { disposeEffects(); });
       function configureEffects(render = false) {
         const preset = graphicsTier(cameraSettings.current.quality);
-        if (occlusion) occlusion.enabled = preset.ssao;
+        if (occlusion) occlusion.enabled = preset.ssao && (cameraSettings.current.quality !== "auto" || autoOcclusion);
         if (bloom) bloom.enabled = preset.bloom && !reduced.matches;
-        if (render && composer && ["high","ultra"].includes(cameraSettings.current.quality)) composer.render();
+        if (render && cameraSettings.current.quality !== "performance") renderEffects();
       }
-      if (props.planet === "mars" && ["high","ultra"].includes(cameraSettings.current.quality)) await prepareEffects();
+      if (props.planet === "mars" && cameraSettings.current.quality !== "performance") await prepareEffects();
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
@@ -609,6 +625,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           resolutionScale = Math.min(devicePixelRatio, props.planet === "mars" ? tier.resolutionCap : 1.5);
           renderer.setPixelRatio(resolutionScale);
           renderer.shadowMap.enabled = props.planet === "mars" ? tier.shadows : true;
+          autoOcclusion = true;
+          if (props.planet === "mars" && light.shadow.mapSize.x !== tier.shadowSize) {
+            light.shadow.mapSize.set(tier.shadowSize, tier.shadowSize);
+            light.shadow.map?.dispose(); light.shadow.map = null;
+          }
           if (bigRover) {
             bigRover.headlightL.castShadow = tier.shadows;
             bigRover.headlightR.castShadow = tier.shadows;
@@ -617,7 +638,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if (bloom) bloom.enabled = tier.bloom && !reduced.matches;
           if (smallRocks) smallRocks.count = tier.smallRocks;
           if (dust) dust.geometry.setDrawRange(0, tier.particles);
-          if (props.planet === "mars" && ["high","ultra"].includes(lastQuality) && !composer) {
+          if (props.planet === "mars" && lastQuality !== "performance" && !composer) {
             void prepareEffects().then(() => { if (!cancelled) {
               if (occlusion) occlusion.enabled = graphicsTier(cameraSettings.current.quality).ssao;
               if (bloom) bloom.enabled = graphicsTier(cameraSettings.current.quality).bloom && !reduced.matches;
@@ -853,18 +874,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           aim.current.style.top = "50%";
         }
         const eclipse = p.event === "eclipse" || p.event === "night";
-        light.intensity = eclipse ? .22 : props.planet === "mars" ? 4.1 : 3.5;
-        ambient.intensity = eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .64 : 1.65;
+        light.intensity = eclipse ? .22 : props.planet === "mars" ? 3.4 : 3.5;
+        ambient.intensity = eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .65 : 1.65;
         if (props.planet === "mars") {
-          ambient.color.setHex(eclipse ? 0x7f9dca : 0xd8c9b5);
+          ambient.color.setHex(eclipse ? 0x7f9dca : 0xc5ccd5);
           ambient.groundColor.setHex(eclipse ? 0x312a36 : 0x77543e);
           light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
-          scene.environmentIntensity = eclipse ? .16 : .24;
-          const shadowStep = 68 / 1024;
+          scene.environmentIntensity = eclipse ? .15 : .85;
+          const shadowStep = 68 / light.shadow.mapSize.x;
           const sx = Math.round((walker.x - Math.sin(cameraYaw) * 15) / shadowStep) * shadowStep;
           const sz = Math.round((walker.z - Math.cos(cameraYaw) * 15) / shadowStep) * shadowStep;
           light.target.position.set(sx, 0, sz);
-          light.position.set(sx - 55, 28, sz - 80);
+          light.position.copy(MARS_SUN_DIRECTION).multiplyScalar(100).add(light.target.position);
           starField.visible = eclipse; earth.visible = eclipse;
         }
         if (props.planet === "mars" && lastMarsNight !== eclipse) {
@@ -990,8 +1011,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           });
         }
         renderer.info.reset();
-        if (composer && (lastQuality === "high" || lastQuality === "ultra")) composer.render();
-        else renderer.render(scene, camera);
+        if (lastQuality === "performance" || !renderEffects()) renderer.render(scene, camera);
         if (cameraChanged) {
           element.dataset.cameraSwitchMs = (performance.now()-frameStarted).toFixed(1);
           element.dataset.cameraSwitchPrograms = String((renderer.info.programs?.length ?? 0)-programsBefore);
@@ -1007,11 +1027,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.sageScale = sage?.scale.x.toFixed(2) ?? "";
           element.dataset.sageFollowing = String(current.current.sageFollowing ?? false);
           element.dataset.resolutionScale = resolutionScale.toFixed(2);
+          element.dataset.contactShading = String(occlusion?.enabled ?? false);
           const fps = metricFrames * 1000 / (time - metricStart);
           if (debugPanel.current) debugPanel.current.textContent = `Frame: ${(1000 / fps).toFixed(1)} ms (${fps.toFixed(1)} fps)\nDraw calls: ${renderer.info.render.calls}\nTriangles: ${renderer.info.render.triangles}\nTextures: ${renderer.info.memory.textures}\nRender scale: ${resolutionScale.toFixed(2)}\nTier: ${lastQuality}`;
           slowWindows = fps < 44 ? slowWindows + 1 : 0;
           fastWindows = fps > 59 ? fastWindows + 1 : 0;
           if (lastQuality === "auto" && p.enabled && time - qualityStart > 5000 && (slowWindows >= 2 || fastWindows >= 8)) {
+            // Shed the extra geometry pass before sacrificing more image clarity.
+            if (slowWindows >= 2 && resolutionScale <= .85 && occlusion?.enabled) {
+              autoOcclusion = false; occlusion.enabled = false;
+            }
             const next = Math.max(.7, Math.min(devicePixelRatio, 1.25, resolutionScale + (slowWindows >= 2 ? -.1 : .1)));
             if (Math.abs(next - resolutionScale) > .01) { resolutionScale = next; renderer.setPixelRatio(next); resize(); }
             qualityStart = time; slowWindows = fastWindows = 0;
@@ -1032,7 +1057,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         document.removeEventListener("pointerlockchange", lockChange);
         if (document.pointerLockElement === element) document.exitPointerLock();
         renderer.dispose();
-        if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
+        disposeEffects();
         environment?.dispose();
         bigRover?.dispose();
         marsAstronaut?.dispose();
@@ -1074,9 +1099,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           await renderer.compileAsync(scene,camera); if(cancelled)return;
           // Upload both camera views while the loading screen is still covering them.
           bigRover?.setCockpitView(true);bigRover?.update(rover,rover.chassisY,0,false,model.roverHeightAt);
-          bigRover?.positionCockpitCamera(camera,0,-.04);renderer.render(scene,camera);
+          bigRover?.positionCockpitCamera(camera,0,-.04);renderer.render(scene,camera);configureEffects(true);
           bigRover?.setCockpitView(false);
-          camera.position.set(rover.x,rover.chassisY+4,rover.z+8);camera.lookAt(rover.x,rover.chassisY+1.8,rover.z);renderer.render(scene,camera);
+          camera.position.set(rover.x,rover.chassisY+4,rover.z+8);camera.lookAt(rover.x,rover.chassisY+1.8,rover.z);renderer.render(scene,camera);configureEffects(true);
           camera.position.set(.22,2.8,17.8);camera.rotation.set(pitch,0,0,"YXZ");renderer.render(scene,camera);
           configureEffects(true);
         }catch{/* A missing optional GPU feature must not prevent the basic scene from rendering. */}
