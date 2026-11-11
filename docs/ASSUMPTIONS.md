@@ -73,3 +73,6 @@ The certificate becomes available after six discoveries or ten sol shifts. The e
 ## Junior Astronaut Mars resource model
 
 Starting supplies of 75, consumption of 7 per sol, the event costs, station recovery of 18, and the radiation risk score are fictional gameplay points. Station work is required once per sol; repeated activities replenish their related supply. The alternating day/night setting is a player-paced visual cue, not a simulation of real elapsed time.
+
+
+Mars EVA motion uses an authored 2.8 m/s launch speed with 3.71 m/s² gravity, producing an approximately one-metre hop. Gait cadence, impact compression and visible wind wisps are artistic training-game choices, not validated EVA biomechanics or measured weather.

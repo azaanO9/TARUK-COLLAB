@@ -311,6 +311,12 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       vec2 stoneData=texture2D(bumpMap,stoneP.yz).rg*stoneWeights.x
         +texture2D(bumpMap,stoneP.xz).rg*stoneWeights.y
         +texture2D(bumpMap,stoneP.xy).rg*stoneWeights.z;
+      // A second, rotated fracture scale breaks up the repeated scan on boulders.
+      vec2 fractureUV = stoneWeights.y > .5 ? stoneP.xz : (stoneWeights.x > stoneWeights.z ? stoneP.yz : stoneP.xy);
+      fractureUV = mat2(.8,-.6,.6,.8) * fractureUV * .31 + vec2(7.3,19.1);
+      vec3 fractureColor = texture2D(map,fractureUV).rgb;
+      float fractureHeight = texture2D(bumpMap,fractureUV).r;
+      scan = mix(scan,fractureColor,.28);
       float stoneLuminance=dot(scan,vec3(.2126,.7152,.0722));
       // The scan is dark basalt in linear colour space. Preserve its dark pores
       // instead of clamping most of the scan to a single uniform brown.
@@ -323,8 +329,8 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       vec3 mineral=mix(vec3(.052,.034,.025),vec3(.36,.235,.145),stoneGrain);
       mineral*=mix(.78,1.16,mottling)*(1.0+(mineralGrit-.5)*.28*gritVisibility);
       vec3 deposited=vec3(.32,.176,.092)*(.65+stoneGrain*.55);
-      diffuseColor.rgb*=mix(mineral,deposited,stoneDust);
-      float stoneRelief=(stoneData.r*.045+(mineralGrit-.5)*.003*gritVisibility)
+      diffuseColor.rgb*=mix(mineral,deposited,stoneDust)*1.18;
+      float stoneRelief=(stoneData.r*.045+fractureHeight*.025+(mineralGrit-.5)*.003*gritVisibility)
         *(1.0-stoneDust*.6)*(1.0-smoothstep(.05,.18,stonePixel));
       float stoneCavity=mix(.68,1.0,smoothstep(.12,.65,stoneData.r));
     `).replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
@@ -337,7 +343,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
         reflectedLight.indirectDiffuse*=stoneCavity;
         reflectedLight.indirectSpecular*=mix(stoneCavity,1.0,.5);`);
   };
-  rockMat.customProgramCacheKey=()=>"tarukh-triplanar-mineral-rock-v4";
+  rockMat.customProgramCacheKey=()=>"tarukh-triplanar-mineral-rock-v5";
   const makeRock = (detail: number, variant: number) => {
     const geo = new T.IcosahedronGeometry(1, detail), p = geo.attributes.position;
     for (let i = 0; i < p.count; i++) {

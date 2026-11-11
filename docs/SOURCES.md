@@ -45,3 +45,6 @@ No NASA logos, external photos, or third-party 3D models are used. The lunar out
 - NASA Mars solar time: https://www.giss.nasa.gov/tools/mars24/help/notes.html (mean sol approximately 24 h 39 min 35 s).
 - NASA Mars gravity: https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/mars/ (approximately 3.7 m/s²).
 - NASA astronaut model: https://science.nasa.gov/3d-resources/astronaut/; asset details and usage in `ASSET_CREDITS.md`.
+
+
+Mars movement and airborne dust reference: [NASA Glenn Mars gravity](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/mars/) and [NASA Dusty Differences Between Mars and Earth](https://science.nasa.gov/earth/earth-observatory/dusty-differences-between-mars-and-earth-149926/). Existing Poly Haven CC0 scans remain the rock material source.
