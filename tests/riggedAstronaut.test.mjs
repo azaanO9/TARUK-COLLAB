@@ -122,8 +122,10 @@ test("Mars gait: touchdown triggers physical landing impact compression and reco
   assert.equal(state.landingBlend, 0, "No landing compression while airborne");
 
   // Touchdown onto Mars surface
-  const impactPose = stepMarsGait(state, 2.5, false, 0.016, undefined, -3.5);
-  assert.ok(state.landingBlend > 0.8, "Landing blend should fire upon touching down");
+  let impactPose = stepMarsGait(state, 2.5, false, 0.016, undefined, -3.5);
+  assert.ok(state.landingBlend < .05, "Compression should build smoothly after contact");
+  for (let i = 0; i < 15; i++) impactPose = stepMarsGait(state, 0, false, .016);
+  assert.ok(state.landingBlend > .8, "Landing compression should peak after contact");
   assert.ok(impactPose.leftKneePitch > 0.35, "Knees should flex deeply on landing impact");
   assert.ok(impactPose.hipOffsetY < 0, "Hips should compress downward on impact");
 
@@ -163,4 +165,26 @@ test("Rigged skeleton: bone matching and procedural Mars deformation", async () 
   assert.ok(hips.position.y >= 1.0, "Hips should oscillate at or above rest position");
   assert.ok(Math.abs(leftUpLeg.rotation.x) > 0.05, "Left leg should have non-zero pitch during walk");
   assert.ok(Math.abs(rightArm.rotation.x) > 0.05, "Right arm should have non-zero pitch during walk");
+});
+
+
+test("Mars flight pose crosses ascent thresholds without snapping", () => {
+  const before = createMarsGaitState();
+  before.airborneBlend = 1;
+  before.prevAirborne = true;
+  const after = { ...before };
+  const a = stepMarsGait(before, 0, true, 0, undefined, .601);
+  const b = stepMarsGait(after, 0, true, 0, undefined, .599);
+  for (const key of Object.keys(a)) assert.ok(Math.abs(a[key] - b[key]) < .002, key);
+});
+
+test("Mars landing captures descent velocity before ground integration resets it", () => {
+  const soft = createMarsGaitState(), hard = createMarsGaitState();
+  stepMarsGait(soft, 0, true, .016, undefined, -.5);
+  stepMarsGait(hard, 0, true, .016, undefined, -4);
+  for (let i = 0; i < 16; i++) {
+    stepMarsGait(soft, 0, false, .016);
+    stepMarsGait(hard, 0, false, .016);
+  }
+  assert.ok(hard.landingBlend > soft.landingBlend * 4);
 });

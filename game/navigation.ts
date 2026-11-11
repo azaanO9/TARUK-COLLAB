@@ -10,10 +10,11 @@ export function stepJump(
   requested: boolean,
   seconds: number,
   gravity = 5.5,
+  launchSpeed = 4.2,
 ): JumpState {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   let velocity = state.velocity;
-  if (requested && state.height <= 0 && velocity <= 0) velocity = 4.2;
+  if (requested && state.height <= 0 && velocity <= 0) velocity = launchSpeed;
   velocity -= gravity * dt;
   const height = Math.max(0, state.height + velocity * dt);
   return height === 0 && velocity < 0
