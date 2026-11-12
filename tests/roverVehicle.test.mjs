@@ -179,3 +179,13 @@ test("analog rover steering, throttle, reverse and handbrake respond proportiona
   assert.equal(braked.handbrake, true);
   assert.ok(Math.abs(braked.speed) < Math.abs(reversing.speed));
 });
+
+test("cruising widens the turn radius and eases motor pull compared with low speed", () => {
+  const drive = speed => stepRoverVehicle(
+    {...enterRover(spawnRoverVehicle(0,0)), speed, steerAngle:0.3},
+    new Set(["w","a"]), 0.05
+  );
+  const slow = drive(1), fast = drive(7);
+  assert.ok(slow.steerAngle > fast.steerAngle);
+  assert.ok(slow.speed - 1 > fast.speed - 7);
+});

@@ -1,3 +1,4 @@
+import { createRoverDust } from "./roverDust";
 import * as T from "three";
 import type { LidarScan } from "../../game/roverLidar";
 import { assetUrl } from "../../lib/assetUrl";
@@ -14,6 +15,7 @@ export type BigRoverHandle = {
   setCockpitView: (enabled: boolean) => void;
   positionCockpitCamera: (camera: T.Camera, yaw: number, pitch: number) => void;
   root: T.Group;
+  dust: T.Mesh;
   headlightL: T.SpotLight;
   headlightR: T.SpotLight;
   isModelLoaded: boolean;
@@ -159,31 +161,7 @@ export function createBigRover(
   // ==========================================
   // 3. TIRE REGOLITH DUST EMITTER
   // ==========================================
-  const dustCount = 48;
-  const dustPos = new Float32Array(dustCount * 3);
-  const dustVel = new Float32Array(dustCount * 3);
-  const dustLife = new Float32Array(dustCount);
-
-  for (let i = 0; i < dustCount; i++) {
-    dustPos[i * 3 + 1] = -100;
-    dustLife[i] = 0;
-  }
-
-  const dustGeo = new T.BufferGeometry();
-  dustGeo.setAttribute("position", new T.BufferAttribute(dustPos, 3));
-  const dustMat = new T.PointsMaterial({
-    color: 0xc87d4f,
-    size: 0.35,
-    transparent: true,
-    opacity: 0.55,
-    depthWrite: false,
-  });
-  const dustSystem = new T.Points(dustGeo, dustMat);
-  dustSystem.frustumCulled = false;
-  root.add(dustSystem);
-
-  let dustIndex = 0;
-  let dustDirty = false;
+  const tireDust = createRoverDust();
 
   const contactShadow = createSoftContactShadow({
     width: 4.1,
@@ -339,46 +317,7 @@ export function createBigRover(
     lensMat.emissiveIntensity = isNight ? 2 : rover.driving ? .6 : .15;
     contactShadow.material.opacity = (shadowsEnabled ? 0.24 : 0.56) * (isNight ? 0.45 : 1);
 
-    // 4. Regolith & mud tire dust plume behind rear wheels
-    const moving = Math.abs(rover.speed) > 0.8;
-    const mud = rover.mudDepth ?? 0;
-    dustMat.color.setHex(mud > 0.3 ? 0x6e4731 : 0xc87d4f);
-    dustMat.size = 0.35 + mud * 0.15;
-
-    if (moving && dt > 0) {
-      for (let k = 0; k < 2; k++) {
-        const i = dustIndex;
-        dustIndex = (dustIndex + 1) % dustCount;
-        const side = k === 0 ? -1.42 : 1.42;
-        dustPos[i * 3] = side + (Math.random() - 0.5) * 0.3;
-        dustPos[i * 3 + 1] = 0.12;
-        dustPos[i * 3 + 2] = 1.82 + Math.random() * 0.35;
-        dustVel[i * 3] = (Math.random() - 0.5) * 0.7;
-        dustVel[i * 3 + 1] = 0.45 + Math.random() * 0.6;
-        dustVel[i * 3 + 2] = 1.1 + Math.random() * 1.5;
-        dustLife[i] = 1.0;
-      }
-      dustDirty = true;
-    }
-
-    let anyAlive = false;
-    for (let i = 0; i < dustCount; i++) {
-      if (dustLife[i] > 0) {
-        anyAlive = true;
-        dustLife[i] -= dt * 1.8;
-        dustPos[i * 3] += dustVel[i * 3] * dt;
-        dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
-        dustPos[i * 3 + 2] += dustVel[i * 3 + 2] * dt;
-        if (dustLife[i] <= 0) {
-          dustPos[i * 3 + 1] = -100;
-        }
-        dustDirty = true;
-      }
-    }
-    if (dustDirty) {
-      dustGeo.attributes.position.needsUpdate = true;
-      dustDirty = anyAlive;
-    }
+    tireDust.update(rover, dt);
   }
 
   // ==========================================
@@ -386,6 +325,7 @@ export function createBigRover(
   // ==========================================
   function dispose() {
     disposed = true;
+    tireDust.dispose();
     cockpit.texture.dispose();
     contactShadow.material.map?.dispose();
     dracoLoader.dispose();
@@ -419,6 +359,7 @@ export function createBigRover(
       positionRoverCockpitCamera(camera, root, yaw, pitch);
     },
     root,
+    dust: tireDust.mesh,
     headlightL,
     headlightR,
     get isModelLoaded() {

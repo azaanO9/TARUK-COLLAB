@@ -211,7 +211,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         loadMarsSurfaceTextures(),
         new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
       ]) : Promise.resolve([undefined,undefined] as const);
-      if (bigRover) scene.add(bigRover.root);
+      if (bigRover) scene.add(bigRover.root, bigRover.dust);
       if (curiosityRover) scene.add(curiosityRover.root);
       // Covers leaving the mission while imports/downloads are still pending.
       dispose = () => {

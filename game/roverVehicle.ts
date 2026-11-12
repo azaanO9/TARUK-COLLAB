@@ -321,7 +321,11 @@ export function stepRoverVehicle(
   // Steering angle rate of change
   const analogSteer = clamp(analog?.steer ?? 0, -1, 1);
   const steerInput = clamp((Number(leftKey) - Number(rightKey)) + analogSteer, -1, 1);
-  const targetSteer = steerInput * ROVER_STEER_MAX;
+  // Keep a tight turning circle at parking speeds, then widen it smoothly.
+  // Bicycle model lateral acceleration is speed² * tan(angle) / wheelbase.
+  const steerLimit = Math.atan2(Math.tan(ROVER_STEER_MAX),
+    1 + speed * speed * Math.tan(ROVER_STEER_MAX) / (4 * ROVER_WHEEL_BASE));
+  const targetSteer = steerInput * steerLimit;
   const steerDiff = targetSteer - rover.steerAngle;
   const steerStep = ROVER_STEER_SPEED * dt;
   let steerAngle = rover.steerAngle;
@@ -344,7 +348,8 @@ export function stepRoverVehicle(
     if (speed < 0) {
       speed = Math.min(0, speed + ROVER_BRAKE * forwardMag * dt);
     } else {
-      speed = Math.min(effectiveMaxForward, speed + ROVER_ACCELERATION * forwardMag * dt);
+      const motorPull = ROVER_ACCELERATION * (1 - 0.3 * speed / effectiveMaxForward);
+      speed = Math.min(effectiveMaxForward, speed + motorPull * forwardMag * dt);
     }
   } else if (reverseMag > 0 && forwardMag === 0) {
     if (speed > 0) {
