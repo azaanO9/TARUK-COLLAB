@@ -40,13 +40,15 @@ test("Curiosity executes full stop-and-scan crouch cycle (deploy + crouch -> las
   let sawStow = false;
   let maxArm = 0;
   let maxCrouch = 0;
+  let laserSteps = 0;
 
-  for (let i = 0; i < 420; i++) {
+  for (let i = 0; i < 800; i++) {
     state = stepCuriosityRover(state, 0.05, [smallRock], () => 0);
     if (state.phase === "scanning") {
       if (state.scanStage === "deploy") sawDeploy = true;
       if (state.scanStage === "laser") {
         sawLaser = true;
+        laserSteps += 1;
         assert.equal(state.laserActive, true);
         assert.ok(state.scanCrouch > 0.75, `Expected chassis crouched during laser scan, got ${state.scanCrouch}`);
       }
@@ -60,6 +62,7 @@ test("Curiosity executes full stop-and-scan crouch cycle (deploy + crouch -> las
   assert.equal(sawDeploy, true);
   assert.equal(sawLaser, true);
   assert.equal(sawStow, true);
+  assert.ok(laserSteps * 0.05 <= 1.5, `Expected subtle short laser pulse (<= 1.5s), got ${(laserSteps * 0.05).toFixed(2)}s`);
   assert.ok(maxArm > 0.85);
   assert.ok(maxCrouch > 0.85);
   assert.ok(state.scanCount >= 1);
@@ -86,7 +89,7 @@ test("Curiosity steers cleanly around boulders/buildings and conducts scans pred
   let prevScans = 0;
   let farScans = 0;
 
-  for (let i = 0; i < 2400; i++) {
+  for (let i = 0; i < 3200; i++) {
     state = stepCuriosityRover(state, 0.05, obstacles, smoothHill);
     assert.ok(Math.abs(state.speed) <= CURIOSITY_MAX_SPEED + 0.05);
     assert.ok(Math.abs(state.x) <= CURIOSITY_LIMIT && Math.abs(state.z) <= CURIOSITY_LIMIT);
@@ -314,4 +317,48 @@ test("Curiosity escapes a 3-sided rock trap via alternating reverse turns and ta
     state.targetX !== initialTargetX || state.targetZ !== initialTargetZ,
     "Expected trapped rover to reroute to a new reachable destination",
   );
+});
+
+test("Curiosity escapes tight obstacle wall with rear boulders without left-right/back-forth oscillation", () => {
+  const staticColony = colonyCollision(STATIONS);
+  // Wide blocking boulder cluster right ahead of nose + a rock 3.8m behind rear bumper
+  const obstacles = [
+    ...staticColony,
+    { x: -17, z: 6.2, radius: 1.7, traversable: false },
+    { x: -19.8, z: 7.4, radius: 1.7, traversable: false },
+    { x: -14.2, z: 7.4, radius: 1.7, traversable: false },
+    { x: -17, z: 15.0, radius: 1.3, traversable: false },
+  ];
+  let state = spawnCuriosityRover(obstacles, () => 0, { seed: 31415, allowColonyTargets: true });
+  state = {
+    ...state,
+    x: -17,
+    z: 9.85,
+    yaw: 0,
+    targetX: -17,
+    targetZ: -25,
+    stuckAnchorX: -17,
+    stuckAnchorZ: 9.85,
+  };
+
+  for (let i = 0; i < 600; i++) {
+    state = stepCuriosityRover(state, 0.05, obstacles, () => 0);
+  }
+  const escapeDist = Math.hypot(state.x - (-17), state.z - 9.85);
+  assert.ok(escapeDist > 8.0, `Expected rover to escape obstacle pocket cleanly without looping, moved ${escapeDist.toFixed(2)}m`);
+
+  // Verify sustained multi-minute roam across colony & rocks makes net window progress without freezing
+  let anchorX = state.x;
+  let anchorZ = state.z;
+  let stalledWindows = 0;
+  for (let w = 0; w < 8; w++) {
+    for (let i = 0; i < 600; i++) {
+      state = stepCuriosityRover(state, 0.05, obstacles, () => 0);
+    }
+    const movedInWindow = Math.hypot(state.x - anchorX, state.z - anchorZ);
+    if (movedInWindow < 2.5 && state.phase === "driving") stalledWindows += 1;
+    anchorX = state.x;
+    anchorZ = state.z;
+  }
+  assert.equal(stalledWindows, 0, `Expected zero 30s stalled driving windows, saw ${stalledWindows}`);
 });

@@ -11,16 +11,25 @@ export function createMarsSkyMaterial(environment = false) {
     fragmentShader: `varying vec3 direction; uniform float night; uniform float environment; uniform vec3 sunDirection;
       void main(){
         vec3 d=normalize(direction); float h=max(d.y,0.0);
-        vec3 sky=mix(vec3(.57,.32,.20),vec3(.24,.18,.16),pow(h,.45));
+        vec3 horizon=mix(vec3(.57,.32,.20),vec3(.62,.36,.23),environment);
+        vec3 zenith=mix(vec3(.24,.18,.16),vec3(.30,.22,.19),environment);
+        vec3 sky=mix(horizon,zenith,pow(h,.45));
         float mu=max(dot(d,sunDirection),0.0);
-        sky+=vec3(.34,.29,.20)*pow(mu,20.0)+vec3(.65,.57,.38)*pow(mu,170.0);
-        // The lower environment hemisphere reflects dusty ground, not studio lightboxes.
-        vec3 ground=mix(vec3(.16,.075,.037),vec3(.085,.043,.025),clamp(-d.y,0.0,1.0));
+        // Keep the visible sky glow intact and focus the specular sun peak along sunDirection.
+        float glarePower=mix(20.0,54.0,environment);
+        float glareStrength=mix(1.0,0.45,environment);
+        float sunPower=mix(170.0,360.0,environment);
+        float sunStrength=mix(1.0,1.85,environment);
+        sky+=vec3(.34,.29,.20)*glareStrength*pow(mu,glarePower)+vec3(.65,.57,.38)*sunStrength*pow(mu,sunPower);
+        // The lower environment hemisphere reflects sunlit dusty regolith so shadow-facing surfaces stay readable.
+        vec3 ground=mix(vec3(.26,.13,.068),vec3(.15,.080,.045),clamp(-d.y,0.0,1.0));
         sky=mix(sky,ground,environment*(1.0-smoothstep(-.12,.025,d.y)));
         vec3 dark=mix(vec3(.055,.040,.052),vec3(.006,.012,.028),pow(h,.45));
         gl_FragColor=vec4(mix(sky,dark,night),1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
+        ${environment
+          // PMREMGenerator captures linear radiance directly; skip double-tonemap and double-sRGB encoding.
+          ? ""
+          : "#include <tonemapping_fragment>\n        #include <colorspace_fragment>"}
       }`,
   });
 }

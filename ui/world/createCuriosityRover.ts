@@ -196,14 +196,14 @@ export function createCuriosityRover(
   root.add(spotlight, spotTarget);
   spotlight.target = spotTarget;
 
-  // Subtle ChemCam LIBS beam + realistic pinpoint plasma dot & soft regolith bounce
-  const laserGeo = new T.CylinderGeometry(0.0035, 0.0055, 1, 8, 1, true);
+  // Hair-thin, subtle ChemCam LIBS optical trace + soft pinpoint dot
+  const laserGeo = new T.CylinderGeometry(0.0014, 0.0022, 1, 6, 1, true);
   laserGeo.translate(0, 0.5, 0);
   laserGeo.rotateX(Math.PI / 2); // +Z axis = length 1 beam ready for lookAt()
   const laserMat = new T.MeshBasicMaterial({
     color: 0xa2ecff,
     transparent: true,
-    opacity: 0.28,
+    opacity: 0.08,
     side: T.DoubleSide,
     depthWrite: false,
     blending: T.AdditiveBlending,
@@ -221,21 +221,21 @@ export function createCuriosityRover(
     const gCtx = glowCanvas.getContext("2d");
     if (gCtx) {
       const grad = gCtx.createRadialGradient(32, 32, 1, 32, 32, 30);
-      grad.addColorStop(0, "rgba(180, 240, 255, 0.52)");
-      grad.addColorStop(0.35, "rgba(125, 218, 250, 0.18)");
+      grad.addColorStop(0, "rgba(180, 240, 255, 0.28)");
+      grad.addColorStop(0.35, "rgba(125, 218, 250, 0.09)");
       grad.addColorStop(1, "rgba(125, 218, 250, 0)");
       gCtx.fillStyle = grad;
       gCtx.fillRect(0, 0, 64, 64);
     }
     glowTex = new T.CanvasTexture(glowCanvas);
   }
-  const scanGlowGeo = new T.PlaneGeometry(0.28, 0.28);
+  const scanGlowGeo = new T.PlaneGeometry(0.14, 0.14);
   scanGlowGeo.rotateX(-Math.PI / 2);
   const scanGlowMat = new T.MeshBasicMaterial({
     color: 0xa8ecff,
     map: glowTex,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.12,
     depthWrite: false,
     blending: T.AdditiveBlending,
   });
@@ -243,11 +243,11 @@ export function createCuriosityRover(
   scanGlow.visible = false;
   root.add(scanGlow);
 
-  const scanDotGeo = new T.SphereGeometry(0.015, 10, 8);
+  const scanDotGeo = new T.SphereGeometry(0.008, 8, 6);
   const scanDotMat = new T.MeshBasicMaterial({
     color: 0xeafaff,
     transparent: true,
-    opacity: 0.72,
+    opacity: 0.35,
     depthWrite: false,
     blending: T.AdditiveBlending,
   });
@@ -255,7 +255,7 @@ export function createCuriosityRover(
   scanDot.visible = false;
   root.add(scanDot);
 
-  const scanSpotLight = new T.PointLight(0x8de6ff, 0, 1.85, 2);
+  const scanSpotLight = new T.PointLight(0x8de6ff, 0, 1.1, 2);
   root.add(scanSpotLight);
 
   // Subtle rear-wheel Mars dust emitter when cruising (soft radial particle sprite)
@@ -550,7 +550,7 @@ export function createCuriosityRover(
       const deployT = state.armDeploy;
       const microSweep =
         state.phase === "scanning" && state.scanStage === "laser" && !reducedMotion
-          ? Math.sin(state.scanTimer * 2.2) * 0.08
+          ? Math.sin(state.scanTimer * 1.4) * 0.045
           : 0;
       for (let i = 0; i < rig.armNodes.length; i++) {
         const node = rig.armNodes[i];
@@ -579,25 +579,25 @@ export function createCuriosityRover(
 
       const dist = vLocalA.distanceTo(vLocalB);
       if (dist > 0.15 && dist < 8) {
-        const pulseScale = reducedMotion ? 0.85 : 0.72 + state.laserPulse * 0.28;
+        const pulseScale = reducedMotion ? 0.8 : 0.7 + state.laserPulse * 0.25;
         laserBeam.visible = true;
         laserBeam.position.copy(vLocalA);
         laserBeam.lookAt(vWorldB);
         laserBeam.scale.set(pulseScale, pulseScale, dist);
-        laserMat.opacity = reducedMotion ? 0.24 : 0.14 + state.laserPulse * 0.18;
+        laserMat.opacity = reducedMotion ? 0.07 : 0.035 + state.laserPulse * 0.08;
 
         scanGlow.visible = true;
         scanGlow.position.copy(vLocalB);
-        scanGlow.scale.setScalar(reducedMotion ? 0.85 : 0.78 + state.laserPulse * 0.22);
-        scanGlowMat.opacity = reducedMotion ? 0.28 : 0.18 + state.laserPulse * 0.2;
+        scanGlow.scale.setScalar(reducedMotion ? 0.8 : 0.72 + state.laserPulse * 0.22);
+        scanGlowMat.opacity = reducedMotion ? 0.09 : 0.045 + state.laserPulse * 0.085;
 
         scanDot.visible = true;
         scanDot.position.copy(vLocalB);
-        scanDot.scale.setScalar(reducedMotion ? 0.85 : 0.65 + state.laserPulse * 0.4);
-        scanDotMat.opacity = reducedMotion ? 0.65 : 0.48 + state.laserPulse * 0.4;
+        scanDot.scale.setScalar(reducedMotion ? 0.8 : 0.65 + state.laserPulse * 0.35);
+        scanDotMat.opacity = reducedMotion ? 0.3 : 0.18 + state.laserPulse * 0.3;
 
-        scanSpotLight.position.set(vLocalB.x, vLocalB.y + 0.18, vLocalB.z);
-        scanSpotLight.intensity = reducedMotion ? 0.3 : 0.18 + state.laserPulse * 0.3;
+        scanSpotLight.position.set(vLocalB.x, vLocalB.y + 0.16, vLocalB.z);
+        scanSpotLight.intensity = reducedMotion ? 0.08 : 0.04 + state.laserPulse * 0.1;
       }
     } else {
       laserBeam.visible = false;

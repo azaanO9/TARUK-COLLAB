@@ -28,8 +28,8 @@
 .mars-objective { position:absolute; top:72px; left:50%; transform:translateX(-50%); width:min(520px,50vw); text-align:center; color:#fff; font:700 13px Arial,sans-serif; text-shadow:0 1px 3px #000,0 0 8px #000; }
 .mars-objective span { color:#ffd6a5; }
 .mars-light { position:absolute; right:20px; top:245px; color:#fff; background:#14212bdc; border:1px solid #ffffff55; padding:9px; font-size:10px; }
-.mars-target { position:absolute; top:55%; left:50%; transform:translateX(-50%); background:#13212dde; padding:10px 14px; display:grid; gap:5px; text-align:center; }
-.mars-target span { font-size:11px; } .mars-target button { padding:6px; }
+.mars-target { position:absolute; top:55%; left:50%; transform:translateX(-50%); background:#13212dde; padding:10px 14px; display:grid; gap:5px; text-align:center; pointer-events:none; }
+.mars-target span { font-size:11px; } .mars-target button { padding:6px; pointer-events:auto; }
 .mars-sage { position:absolute; right:20px; bottom:54px; max-width:300px; background:#15202bea; border-left:2px solid #eaae7d; padding:12px 14px; font:12px/1.5 Arial,sans-serif; } .mars-sage b { color:#eab48c; }
 .mars-footer { position:absolute; bottom:15px; left:20px; font:9px Consolas,monospace; color:#e4d5cc; text-shadow:0 1px 3px #000; }
 .mars-dialog-backdrop { position:absolute; inset:0; z-index:6; background:#10172099; display:grid; place-items:center; padding:20px; }

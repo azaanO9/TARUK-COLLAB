@@ -1,37 +1,1037 @@
-.junior-briefing{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 75% 25%,#a45c37,#2d2525 45%,#101b25);color:#f6eee4}.junior-card{width:min(650px,100%);background:#101e29ed;border:1px solid #e8bd8a55;padding:clamp(24px,5vw,48px);box-shadow:0 25px 80px #0008}.junior-card h1{font:clamp(36px,5vw,60px)/1.05 Georgia,serif;margin:15px 0}.junior-card p{color:#d5d3cb}.junior-card label,.junior-dialog label{display:grid;gap:8px;margin:18px 0;font-size:12px;letter-spacing:.05em}.junior-card input{color:white;background:#263541;border:1px solid #b7c8c477;padding:13px;font-size:16px}.junior-card fieldset{padding:0;border:0;margin:20px 0}.junior-card legend{font:700 10px monospace;letter-spacing:.12em;color:#e9b387;margin-bottom:10px}.junior-patches{display:flex;gap:10px}.junior-patches button{background:#29353b;color:#f4c292;border:1px solid #ffffff44;border-radius:50%;width:48px;height:48px;font-size:24px}.junior-patches button[aria-pressed=true],.junior-choice[aria-pressed=true]{border-color:#ffbd80;background:#5a463a}.junior-choice{width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;color:white;background:#202f38;border:1px solid #ffffff33;padding:15px;margin-bottom:8px;font-size:11px}.junior-choice span{color:#bec7c5}.junior-launch,.junior-shift{background:#eab285;color:#18252b;border:0;padding:14px 20px;font-weight:700;cursor:pointer}.junior-control-copy{font-size:11px}.junior-header{position:absolute;z-index:4;top:16px;left:20px;right:20px;display:flex;align-items:center;justify-content:space-between;gap:10px;font:700 11px monospace;text-shadow:0 1px 4px black}.junior-header span{color:#ebba91}.junior-header strong{background:#172532dc;padding:10px}.junior-header button,.junior-hud button,.mars-sage button{color:#f8e5d1;background:#1c303c;border:1px solid #ffffff55;padding:8px;cursor:pointer}.junior-hud{position:absolute;z-index:3;left:20px;top:65px;width:155px;background:#172532e8;border-left:2px solid #edac7c;padding:12px;font:11px monospace}.junior-hud>div:not(.junior-rank){display:flex;justify-content:space-between;padding:4px 0;text-transform:capitalize}.junior-hud small{font-size:9px;color:#c5c4bc}.junior-hud button{width:100%;margin-top:6px;font:10px monospace}.junior-rank{display:grid;gap:4px;margin-top:12px;color:#f3c299}.junior-rank progress{width:100%;height:5px;accent-color:#e9ad7d}.junior-compass{position:absolute;z-index:3;top:67px;left:50%;transform:translateX(-50%);background:#172532db;padding:9px 18px;color:#fff;font:700 11px monospace;white-space:nowrap}.junior-shift{position:absolute;z-index:3;bottom:28px;left:50%;transform:translateX(-50%);font-size:11px}.junior-dialog{max-height:85vh;overflow:auto}.junior-dialog button{margin:6px 5px 6px 0}.junior-dialog button:disabled{opacity:.45}.junior-dialog input[type=range]{width:100%;accent-color:#eab080}.junior-panel{padding:35px 12px;text-align:center;touch-action:none;user-select:none;border:2px solid #c3ac94;font:700 12px monospace}.junior-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.junior-grid div{display:grid;gap:5px;padding:10px;background:#29414a;text-align:center;font-size:10px}.junior-grid span{font-size:30px;color:#f7bd78}.junior-grid .locked{opacity:.45}.junior-certificate{text-align:center;background:#f7efe0;color:#20343c}.junior-certificate h1{font:40px Georgia}.junior-patch{font-size:60px;color:#be6a40}@media(max-width:800px){.junior-header{left:10px;right:10px;font-size:9px}.junior-header span{display:none}.junior-hud{left:10px;top:105px;width:115px;padding:8px;font-size:9px}.junior-compass{top:62px;font-size:9px}.junior-shift{bottom:12px}.junior-choice{display:grid}.junior-root .mars-sage{bottom:65px;max-width:190px}}@media print{body *{visibility:hidden}.junior-certificate,.junior-certificate *{visibility:visible}.junior-certificate{position:fixed;inset:0;width:100%;max-height:none}.junior-certificate button{display:none}}
+.junior-briefing {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 75% 25%, #a45c37, #2d2525 45%, #101b25);
+  color: #f6eee4
+}
 
-.junior-certificate-button{position:absolute;bottom:80px;left:20px;z-index:3;background:#eab285;color:#18252b;border:0;padding:10px;cursor:pointer}
-.sage-controls{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px}.sage-controls .sage-follow{background:#eab285;color:#18252b;border-color:#eab285;font-weight:700}.sage-controls small{color:#d7e4d8;font-size:10px}.sage-controls button{font-size:10px}.sage-controls button:focus-visible{outline:2px solid #b8f3df;outline-offset:2px}
-@media (pointer:coarse){.junior-root .sv-world{touch-action:none}.junior-root .sv-touch-controls{left:12px;right:auto;bottom:calc(14px + env(safe-area-inset-bottom));z-index:5;grid-template-columns:repeat(3,48px);gap:4px}.junior-root .sv-touch-controls button{width:48px;height:48px;touch-action:none;font-size:20px}.junior-root .sv-rover-touch-controls{bottom:calc(14px + env(safe-area-inset-bottom));justify-content:space-between;gap:4px}.junior-root .sv-rover-touch-controls button{min-height:48px;min-width:48px;padding:8px;touch-action:none}.junior-root .mars-sage{bottom:calc(70px + env(safe-area-inset-bottom));right:8px;max-width:145px;padding:8px;font-size:10px}.junior-root .junior-shift{left:auto;right:8px;bottom:calc(12px + env(safe-area-inset-bottom));transform:none;padding:10px;font-size:10px}.junior-root .junior-hud{top:100px}.junior-root .mars-target{top:48%;max-width:48vw}.junior-root .sv-rover-hud{bottom:165px;left:auto;right:8px;max-width:160px}.junior-root .sv-rover-prompt{bottom:170px}.junior-dialog button{min-height:44px}}
-@media (pointer:coarse){.junior-root .sv-rover-prompt{top:200px;bottom:auto;left:auto;right:8px;transform:none;max-width:165px;font-size:10px;padding:9px}.junior-root:has(.sv-rover-touch-controls) .mars-sage,.junior-root:has(.sv-rover-touch-controls) .junior-shift{display:none}.junior-root .sv-rover-hud{top:200px;bottom:auto;right:8px;left:auto;transform:none;width:auto;min-width:100px;padding:8px}.junior-root .sv-rover-hud .sv-rover-exit-btn{display:none}.junior-root .sv-rover-touch-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));left:10px;right:10px}.junior-root .sv-rover-touch-controls button{width:100%;min-height:48px}}
+.junior-card {
+  width: min(650px, 100%);
+  background: #101e29ed;
+  border: 1px solid #e8bd8a55;
+  padding: clamp(24px, 5vw, 48px);
+  box-shadow: 0 25px 80px #0008
+}
 
-.junior-device-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.junior-device-choices button{display:grid;gap:5px;text-align:left;color:#fff;background:#202f38;border:1px solid #ffffff55;padding:14px;cursor:pointer}.junior-device-choices button[aria-pressed=true]{border-color:#ffbd80;background:#5a463a}.junior-device-choices span{color:#bec7c5;font-size:11px}.junior-launch:disabled{opacity:.45;cursor:not-allowed}
+.junior-card h1 {
+  font: clamp(36px, 5vw, 60px)/1.05 Georgia, serif;
+  margin: 15px 0
+}
 
-.junior-hint{position:absolute;z-index:8;top:110px;left:50%;transform:translateX(-50%);width:min(90%,460px);padding:14px;background:#152b38ef;color:white;border:1px solid #ffd09d;font-size:14px}.junior-hint button,.junior-random{min-height:44px;padding:8px 14px}.junior-dialog{font-size:16px}.junior-dialog button{min-height:44px}.junior-header,.junior-hud,.junior-compass,.mars-sage,.mars-target{font-size:14px}.junior-hud button,.junior-header button,.mars-sage button,.junior-shift,.mars-target button{min-height:44px}.junior-hud small,.junior-hud button{font-size:14px}@media(max-width:800px){.junior-header{font-size:14px}.junior-hud{top:105px;width:130px;font-size:14px;max-height:35vh;overflow:auto}.junior-compass{font-size:14px}.junior-root .mars-sage{font-size:14px;max-width:150px}.junior-hint{top:65px}.junior-shift{font-size:14px}}
+.junior-card p {
+  color: #d5d3cb
+}
 
-.junior-dialog button,.junior-dialog input,.junior-dialog select{font-size:16px}@media(max-width:800px){.junior-root .junior-shift,.junior-root .mars-sage,.junior-root .sv-rover-prompt{font-size:14px}}
+.junior-card label,
+.junior-dialog label {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+  font-size: 12px;
+  letter-spacing: .05em
+}
 
-.mars-debug{position:absolute;z-index:9;right:8px;top:260px;margin:0;padding:8px;background:#101b25e8;color:#fff;font:12px/1.4 monospace;pointer-events:none}
+.junior-card input {
+  color: white;
+  background: #263541;
+  border: 1px solid #b7c8c477;
+  padding: 13px;
+  font-size: 16px
+}
 
-.junior-restart{min-height:44px;margin-left:10px;padding:10px 14px;color:#f8e5d1;background:#263b47;border:1px solid #ead3b7;cursor:pointer}.junior-root .sv-world-message{z-index:7;font-size:14px;line-height:1.4}
+.junior-card fieldset {
+  padding: 0;
+  border: 0;
+  margin: 20px 0
+}
+
+.junior-card legend {
+  font: 700 10px monospace;
+  letter-spacing: .12em;
+  color: #e9b387;
+  margin-bottom: 10px
+}
+
+.junior-patches {
+  display: flex;
+  gap: 10px
+}
+
+.junior-patches button {
+  background: #29353b;
+  color: #f4c292;
+  border: 1px solid #ffffff44;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 24px
+}
+
+.junior-patches button[aria-pressed=true],
+.junior-choice[aria-pressed=true] {
+  border-color: #ffbd80;
+  background: #5a463a
+}
+
+.junior-choice {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  color: white;
+  background: #202f38;
+  border: 1px solid #ffffff33;
+  padding: 15px;
+  margin-bottom: 8px;
+  font-size: 11px
+}
+
+.junior-choice span {
+  color: #bec7c5
+}
+
+.junior-launch,
+.junior-shift {
+  background: #eab285;
+  color: #18252b;
+  border: 0;
+  padding: 14px 20px;
+  font-weight: 700;
+  cursor: pointer
+}
+
+.junior-control-copy {
+  font-size: 11px
+}
+
+.junior-header {
+  position: absolute;
+  z-index: 4;
+  top: 16px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font: 700 11px monospace;
+  text-shadow: 0 1px 4px black
+}
+
+.junior-header span {
+  color: #ebba91
+}
+
+.junior-header strong {
+  background: #172532dc;
+  padding: 10px
+}
+
+.junior-header button,
+.junior-hud button,
+.mars-sage button {
+  color: #f8e5d1;
+  background: #1c303c;
+  border: 1px solid #ffffff55;
+  padding: 8px;
+  cursor: pointer
+}
+
+.junior-hud {
+  position: absolute;
+  z-index: 3;
+  left: 20px;
+  top: 65px;
+  width: 155px;
+  background: #172532e8;
+  border-left: 2px solid #edac7c;
+  padding: 12px;
+  font: 11px monospace
+}
+
+.junior-hud>div:not(.junior-rank) {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  text-transform: capitalize
+}
+
+.junior-hud small {
+  font-size: 9px;
+  color: #c5c4bc
+}
+
+.junior-hud button {
+  width: 100%;
+  margin-top: 6px;
+  font: 10px monospace
+}
+
+.junior-rank {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  color: #f3c299
+}
+
+.junior-rank progress {
+  width: 100%;
+  height: 5px;
+  accent-color: #e9ad7d
+}
+
+.junior-compass {
+  position: absolute;
+  z-index: 3;
+  top: 67px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #172532db;
+  padding: 9px 18px;
+  color: #fff;
+  font: 700 11px monospace;
+  white-space: nowrap
+}
+
+.junior-shift {
+  position: absolute;
+  z-index: 3;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px
+}
+
+.junior-dialog {
+  max-height: 85vh;
+  overflow: auto
+}
+
+.junior-dialog button {
+  margin: 6px 5px 6px 0
+}
+
+.junior-dialog button:disabled {
+  opacity: .45
+}
+
+.junior-dialog input[type=range] {
+  width: 100%;
+  accent-color: #eab080
+}
+
+.junior-panel {
+  padding: 35px 12px;
+  text-align: center;
+  touch-action: none;
+  user-select: none;
+  border: 2px solid #c3ac94;
+  font: 700 12px monospace
+}
+
+.junior-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px
+}
+
+.junior-grid div {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  background: #29414a;
+  text-align: center;
+  font-size: 10px
+}
+
+.junior-grid span {
+  font-size: 30px;
+  color: #f7bd78
+}
+
+.junior-grid .locked {
+  opacity: .45
+}
+
+.junior-certificate {
+  text-align: center;
+  background: #f7efe0;
+  color: #20343c
+}
+
+.junior-certificate h1 {
+  font: 40px Georgia
+}
+
+.junior-patch {
+  font-size: 60px;
+  color: #be6a40
+}
+
+@media(max-width:800px) {
+  .junior-header {
+    left: 10px;
+    right: 10px;
+    font-size: 9px
+  }
+
+  .junior-header span {
+    display: none
+  }
+
+  .junior-hud {
+    left: 10px;
+    top: 105px;
+    width: 115px;
+    padding: 8px;
+    font-size: 9px
+  }
+
+  .junior-compass {
+    top: 62px;
+    font-size: 9px
+  }
+
+  .junior-shift {
+    bottom: 12px
+  }
+
+  .junior-choice {
+    display: grid
+  }
+
+  .junior-root .mars-sage {
+    bottom: 65px;
+    max-width: 190px
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden
+  }
+
+  .junior-certificate,
+  .junior-certificate * {
+    visibility: visible
+  }
+
+  .junior-certificate {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-height: none
+  }
+
+  .junior-certificate button {
+    display: none
+  }
+}
+
+.junior-certificate-button {
+  position: absolute;
+  bottom: 80px;
+  left: 20px;
+  z-index: 3;
+  background: #eab285;
+  color: #18252b;
+  border: 0;
+  padding: 10px;
+  cursor: pointer
+}
+
+.sage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px
+}
+
+.sage-controls .sage-follow {
+  background: #eab285;
+  color: #18252b;
+  border-color: #eab285;
+  font-weight: 700
+}
+
+.sage-controls small {
+  color: #d7e4d8;
+  font-size: 10px
+}
+
+.sage-controls button {
+  font-size: 10px
+}
+
+.sage-controls button:focus-visible {
+  outline: 2px solid #b8f3df;
+  outline-offset: 2px
+}
+
+@media (pointer:coarse) {
+  .junior-root .sv-world {
+    touch-action: none
+  }
+
+  .junior-root .sv-touch-controls {
+    left: 12px;
+    right: auto;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 5;
+    grid-template-columns: repeat(3, 48px);
+    gap: 4px
+  }
+
+  .junior-root .sv-touch-controls button {
+    width: 48px;
+    height: 48px;
+    touch-action: none;
+    font-size: 20px
+  }
+
+  .junior-root .sv-rover-touch-controls {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    justify-content: space-between;
+    gap: 4px
+  }
+
+  .junior-root .sv-rover-touch-controls button {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 8px;
+    touch-action: none
+  }
+
+  .junior-root .mars-sage {
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    right: 8px;
+    max-width: 145px;
+    padding: 8px;
+    font-size: 10px
+  }
+
+  .junior-root .junior-shift {
+    left: auto;
+    right: 8px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    transform: none;
+    padding: 10px;
+    font-size: 10px
+  }
+
+  .junior-root .junior-hud {
+    top: 100px
+  }
+
+  .junior-root .mars-target {
+    top: 48%;
+    max-width: 48vw
+  }
+
+  .junior-root .sv-rover-hud {
+    bottom: 165px;
+    left: auto;
+    right: 8px;
+    max-width: 160px
+  }
+
+  .junior-root .sv-rover-prompt {
+    bottom: 170px
+  }
+
+  .junior-dialog button {
+    min-height: 44px
+  }
+}
+
+@media (pointer:coarse) {
+  .junior-root .sv-rover-prompt {
+    top: 200px;
+    bottom: auto;
+    left: auto;
+    right: 8px;
+    transform: none;
+    max-width: 165px;
+    font-size: 10px;
+    padding: 9px
+  }
+
+  .junior-root:has(.sv-rover-touch-controls) .mars-sage,
+  .junior-root:has(.sv-rover-touch-controls) .junior-shift {
+    display: none
+  }
+
+  .junior-root .sv-rover-hud {
+    top: 200px;
+    bottom: auto;
+    right: 8px;
+    left: auto;
+    transform: none;
+    width: auto;
+    min-width: 100px;
+    padding: 8px
+  }
+
+  .junior-root .sv-rover-hud .sv-rover-exit-btn {
+    display: none
+  }
+
+  .junior-root .sv-rover-touch-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    left: 10px;
+    right: 10px
+  }
+
+  .junior-root .sv-rover-touch-controls button {
+    width: 100%;
+    min-height: 48px
+  }
+}
+
+.junior-device-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px
+}
+
+.junior-device-choices button {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  color: #fff;
+  background: #202f38;
+  border: 1px solid #ffffff55;
+  padding: 14px;
+  cursor: pointer
+}
+
+.junior-device-choices button[aria-pressed=true] {
+  border-color: #ffbd80;
+  background: #5a463a
+}
+
+.junior-device-choices span {
+  color: #bec7c5;
+  font-size: 11px
+}
+
+.junior-launch:disabled {
+  opacity: .45;
+  cursor: not-allowed
+}
+
+.junior-hint {
+  position: absolute;
+  z-index: 8;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90%, 460px);
+  padding: 14px;
+  background: #152b38ef;
+  color: white;
+  border: 1px solid #ffd09d;
+  font-size: 14px
+}
+
+.junior-hint button,
+.junior-random {
+  min-height: 44px;
+  padding: 8px 14px
+}
+
+.junior-dialog {
+  font-size: 16px
+}
+
+.junior-dialog button {
+  min-height: 44px
+}
+
+.junior-header,
+.junior-hud,
+.junior-compass,
+.mars-sage,
+.mars-target {
+  font-size: 14px
+}
+
+.junior-hud button,
+.junior-header button,
+.mars-sage button,
+.junior-shift,
+.mars-target button {
+  min-height: 44px
+}
+
+.junior-hud small,
+.junior-hud button {
+  font-size: 14px
+}
+
+@media(max-width:800px) {
+  .junior-header {
+    font-size: 14px
+  }
+
+  .junior-hud {
+    top: 105px;
+    width: 130px;
+    font-size: 14px;
+    max-height: 35vh;
+    overflow: auto
+  }
+
+  .junior-compass {
+    font-size: 14px
+  }
+
+  .junior-root .mars-sage {
+    font-size: 14px;
+    max-width: 150px
+  }
+
+  .junior-hint {
+    top: 65px
+  }
+
+  .junior-shift {
+    font-size: 14px
+  }
+}
+
+.junior-dialog button,
+.junior-dialog input,
+.junior-dialog select {
+  font-size: 16px
+}
+
+@media(max-width:800px) {
+
+  .junior-root .junior-shift,
+  .junior-root .mars-sage,
+  .junior-root .sv-rover-prompt {
+    font-size: 14px
+  }
+}
+
+.mars-debug {
+  position: absolute;
+  z-index: 9;
+  right: 8px;
+  top: 260px;
+  margin: 0;
+  padding: 8px;
+  background: #101b25e8;
+  color: #fff;
+  font: 12px/1.4 monospace;
+  pointer-events: none
+}
+
+.junior-restart {
+  min-height: 44px;
+  margin-left: 10px;
+  padding: 10px 14px;
+  color: #f8e5d1;
+  background: #263b47;
+  border: 1px solid #ead3b7;
+  cursor: pointer
+}
+
+.junior-root .sv-world-message {
+  z-index: 7;
+  font-size: 14px;
+  line-height: 1.4
+}
+
 /* Mars expedition HUD: compact warm instrument panels, matching the visual reference. */
-.junior-root{font-family:Arial,sans-serif}
-.junior-root .junior-header{top:18px;left:24px;right:24px;text-shadow:none;font:600 14px Arial,sans-serif}
-.junior-header>b{background:#272622eb;padding:12px 17px;border:1px solid #b9997444;border-radius:9px;letter-spacing:.035em;box-shadow:0 4px 14px #1c130d18}
-.junior-header>b span{color:#e79d5c;margin-left:9px}
-.junior-header>strong{position:absolute;left:50%;transform:translateX(-50%);border-radius:25px;background:#272622ed;border:1px solid #b9997433;min-width:218px;text-align:center;padding:12px 18px;letter-spacing:.07em;font-size:15px;color:#f6ebd8}
-.junior-header>button{margin-left:auto;border-radius:7px;background:#272622dd;border-color:#d4b58d44}
-.junior-root .junior-hud{top:78px;left:24px;width:172px;padding:9px 12px;border:1px solid #b9997444;border-radius:9px;background:#302a23e8;font:14px/1.4 Arial,sans-serif;max-height:none;overflow:visible;box-shadow:0 5px 20px #1c130d18}
-.junior-hud>div:not(.junior-rank){padding:4px 0;border-bottom:1px solid #e0c49f18;align-items:center}.junior-hud>div:last-child{border:0}.junior-hud>div>span{display:flex;align-items:center;gap:10px}.junior-hud strong{font-size:15px;color:#fff4de}.resource-icon{font:700 19px Arial,sans-serif;font-style:normal;width:23px;text-align:center;color:#ead9b8}.resource-power,.resource-risk{color:#f5c166}.resource-water{color:#a3e1e4}
-.junior-root .junior-compass{top:81px;background:#302a23ce;border:1px solid #d9c1a22b;border-radius:20px;padding:8px 18px;font:12px Arial,sans-serif;letter-spacing:.025em}
-.mars-mission-tools{position:absolute;left:24px;bottom:24px;z-index:3;padding:13px 15px;border:1px solid #b9997444;border-radius:9px;background:#302a23dc;width:213px;color:#e9dcc7;font:14px Arial,sans-serif}.mars-mission-tools .junior-rank{margin:0;grid-template-columns:1fr auto;gap:7px}.mars-mission-tools progress{grid-column:1/-1;accent-color:#e8b371}.mars-notebook-actions{display:flex;gap:7px;margin-top:8px}.mars-notebook-actions button{min-height:44px;border:1px solid #b9997444;background:#41382e;color:#f2e4d0;border-radius:5px;font:13px Arial,sans-serif;padding:6px}.mars-mission-tools small{display:block;font-size:10px;opacity:.65;margin-top:5px}
-.junior-root .mars-sage{right:24px;bottom:24px;max-width:345px;padding:13px 15px;background:#2c2924e8;border:1px solid #b9997433;border-radius:9px;box-shadow:0 4px 20px #1c130d18;font:14px/1.45 Arial,sans-serif}.sage-comms{display:flex;gap:12px;align-items:flex-start}.sage-comms p{margin:0}.sage-comms b{color:#fff0d7}.sage-face{border:2px solid #b8e9e0;border-radius:16px;white-space:nowrap;font-size:12px;color:#8ae8d8;padding:5px;line-height:14px;margin-top:2px}.sage-options{margin-top:9px}.sage-options summary{font-size:12px;cursor:pointer;color:#d7c8b4;min-height:24px}.sage-options .sage-controls{margin-top:5px}.junior-root .sage-controls button{border-radius:5px;font-size:12px}
-.junior-root .junior-shift{bottom:25px;border:1px solid #c79e7055;border-radius:8px;background:#e3ac73;color:#2b2119;padding:13px 20px;font-size:13px}.junior-root .junior-shift:disabled{background:#302a23bb;color:#eee0ca;opacity:.7}
-.junior-root .sv-look-controls{top:130px;background:#302a23dd;border:1px solid #b9997433;border-radius:8px}.junior-root .sv-look-controls summary{font-family:Arial,sans-serif}
-@media(max-width:1050px){.junior-header>b span{display:none}.junior-header>strong{font-size:13px;min-width:180px}.junior-root .mars-sage{max-width:260px}.mars-mission-tools{width:180px}.junior-root .junior-shift{max-width:230px}}
-@media(max-width:800px){.junior-root .junior-header{left:10px;right:10px;top:10px;font-size:13px}.junior-header>b{padding:10px}.junior-header>strong{left:50%;min-width:145px;padding:10px;font-size:12px}.junior-header>button{font-size:12px;min-height:38px;padding:7px}.junior-root .junior-hud{left:10px;top:65px;width:135px;font-size:14px;padding:5px 9px}.junior-hud>div:not(.junior-rank){padding:2px 0}.junior-root .junior-compass{top:61px;left:auto;right:10px;transform:none;max-width:44vw;white-space:normal;font-size:12px;padding:9px}.mars-mission-tools{left:10px;bottom:175px;width:155px;padding:8px;font-size:12px}.mars-notebook-actions button{font-size:12px;flex:1}.mars-mission-tools small{display:none}.junior-root .mars-sage{right:10px;bottom:75px;max-width:185px;font-size:14px;padding:9px}.junior-root .sage-face{display:none}.junior-root .sage-options summary{font-size:12px}.junior-root .sv-look-controls{top:110px;max-width:165px}.junior-root .junior-shift{right:10px;left:auto;transform:none;bottom:14px;max-width:190px;font-size:12px;padding:10px}.junior-root .junior-hint{top:245px}}
+.junior-root {
+  font-family: Arial, sans-serif
+}
 
-@media(max-width:800px){.junior-root .sage-options summary{min-height:44px;display:flex;align-items:center}.junior-root .mars-sage{max-height:35vh;overflow:auto}}
+.junior-root .junior-header {
+  top: 18px;
+  left: 24px;
+  right: 24px;
+  text-shadow: none;
+  font: 600 14px Arial, sans-serif
+}
+
+.junior-header>b {
+  background: #272622eb;
+  padding: 12px 17px;
+  border: 1px solid #b9997444;
+  border-radius: 9px;
+  letter-spacing: .035em;
+  box-shadow: 0 4px 14px #1c130d18
+}
+
+.junior-header>b span {
+  color: #e79d5c;
+  margin-left: 9px
+}
+
+.junior-header>strong {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 25px;
+  background: #272622ed;
+  border: 1px solid #b9997433;
+  min-width: 218px;
+  text-align: center;
+  padding: 12px 18px;
+  letter-spacing: .07em;
+  font-size: 15px;
+  color: #f6ebd8
+}
+
+.junior-header>button {
+  margin-left: auto;
+  border-radius: 7px;
+  background: #272622dd;
+  border-color: #d4b58d44
+}
+
+.junior-root .junior-hud {
+  top: 78px;
+  left: 24px;
+  width: 172px;
+  padding: 9px 12px;
+  border: 1px solid #b9997444;
+  border-radius: 9px;
+  background: #302a23e8;
+  font: 14px/1.4 Arial, sans-serif;
+  max-height: none;
+  overflow: visible;
+  box-shadow: 0 5px 20px #1c130d18
+}
+
+.junior-hud>div:not(.junior-rank) {
+  padding: 4px 0;
+  border-bottom: 1px solid #e0c49f18;
+  align-items: center
+}
+
+.junior-hud>div:last-child {
+  border: 0
+}
+
+.junior-hud>div>span {
+  display: flex;
+  align-items: center;
+  gap: 10px
+}
+
+.junior-hud strong {
+  font-size: 15px;
+  color: #fff4de
+}
+
+.resource-icon {
+  font: 700 19px Arial, sans-serif;
+  font-style: normal;
+  width: 23px;
+  text-align: center;
+  color: #ead9b8
+}
+
+.resource-power,
+.resource-risk {
+  color: #f5c166
+}
+
+.resource-water {
+  color: #a3e1e4
+}
+
+.junior-root .junior-compass {
+  top: 81px;
+  background: #302a23ce;
+  border: 1px solid #d9c1a22b;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font: 12px Arial, sans-serif;
+  letter-spacing: .025em
+}
+
+.mars-mission-tools {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 3;
+  padding: 13px 15px;
+  border: 1px solid #b9997444;
+  border-radius: 9px;
+  background: #302a23dc;
+  width: 213px;
+  color: #e9dcc7;
+  font: 14px Arial, sans-serif
+}
+
+.mars-mission-tools .junior-rank {
+  margin: 0;
+  grid-template-columns: 1fr auto;
+  gap: 7px
+}
+
+.mars-mission-tools progress {
+  grid-column: 1/-1;
+  accent-color: #e8b371
+}
+
+.mars-notebook-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px
+}
+
+.mars-notebook-actions button {
+  min-height: 44px;
+  border: 1px solid #b9997444;
+  background: #41382e;
+  color: #f2e4d0;
+  border-radius: 5px;
+  font: 13px Arial, sans-serif;
+  padding: 6px
+}
+
+.mars-mission-tools small {
+  display: block;
+  font-size: 10px;
+  opacity: .65;
+  margin-top: 5px
+}
+
+.junior-root .mars-sage {
+  right: 24px;
+  bottom: 24px;
+  max-width: 345px;
+  padding: 13px 15px;
+  background: #2c2924e8;
+  border: 1px solid #b9997433;
+  border-radius: 9px;
+  box-shadow: 0 4px 20px #1c130d18;
+  font: 14px/1.45 Arial, sans-serif
+}
+
+.sage-comms {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start
+}
+
+.sage-comms p {
+  margin: 0
+}
+
+.sage-comms b {
+  color: #fff0d7
+}
+
+.sage-face {
+  border: 2px solid #b8e9e0;
+  border-radius: 16px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #8ae8d8;
+  padding: 5px;
+  line-height: 14px;
+  margin-top: 2px
+}
+
+.sage-options {
+  margin-top: 9px
+}
+
+.sage-options summary {
+  font-size: 12px;
+  cursor: pointer;
+  color: #d7c8b4;
+  min-height: 24px
+}
+
+.sage-options .sage-controls {
+  margin-top: 5px
+}
+
+.junior-root .sage-controls button {
+  border-radius: 5px;
+  font-size: 12px
+}
+
+.junior-root .junior-shift {
+  bottom: 25px;
+  border: 1px solid #c79e7055;
+  border-radius: 8px;
+  background: #e3ac73;
+  color: #2b2119;
+  padding: 13px 20px;
+  font-size: 13px
+}
+
+.junior-root .junior-shift.field-objective {
+  pointer-events: none
+}
+
+.junior-root .junior-shift:disabled {
+  background: #302a23bb;
+  color: #eee0ca;
+  opacity: .7
+}
+
+.junior-root .sv-look-controls {
+  top: 130px;
+  background: #302a23dd;
+  border: 1px solid #b9997433;
+  border-radius: 8px
+}
+
+.junior-root .sv-look-controls summary {
+  font-family: Arial, sans-serif
+}
+
+@media(max-width:1050px) {
+  .junior-header>b span {
+    display: none
+  }
+
+  .junior-header>strong {
+    font-size: 13px;
+    min-width: 180px
+  }
+
+  .junior-root .mars-sage {
+    max-width: 260px
+  }
+
+  .mars-mission-tools {
+    width: 180px
+  }
+
+  .junior-root .junior-shift {
+    max-width: 230px
+  }
+}
+
+@media(max-width:800px) {
+  .junior-root .junior-header {
+    left: 10px;
+    right: 10px;
+    top: 10px;
+    font-size: 13px
+  }
+
+  .junior-header>b {
+    padding: 10px
+  }
+
+  .junior-header>strong {
+    left: 50%;
+    min-width: 145px;
+    padding: 10px;
+    font-size: 12px
+  }
+
+  .junior-header>button {
+    font-size: 12px;
+    min-height: 38px;
+    padding: 7px
+  }
+
+  .junior-root .junior-hud {
+    left: 10px;
+    top: 65px;
+    width: 135px;
+    font-size: 14px;
+    padding: 5px 9px
+  }
+
+  .junior-hud>div:not(.junior-rank) {
+    padding: 2px 0
+  }
+
+  .junior-root .junior-compass {
+    top: 61px;
+    left: auto;
+    right: 10px;
+    transform: none;
+    max-width: 44vw;
+    white-space: normal;
+    font-size: 12px;
+    padding: 9px
+  }
+
+  .mars-mission-tools {
+    left: 10px;
+    bottom: 175px;
+    width: 155px;
+    padding: 8px;
+    font-size: 12px
+  }
+
+  .mars-notebook-actions button {
+    font-size: 12px;
+    flex: 1
+  }
+
+  .mars-mission-tools small {
+    display: none
+  }
+
+  .junior-root .mars-sage {
+    right: 10px;
+    bottom: 75px;
+    max-width: 185px;
+    font-size: 14px;
+    padding: 9px
+  }
+
+  .junior-root .sage-face {
+    display: none
+  }
+
+  .junior-root .sage-options summary {
+    font-size: 12px
+  }
+
+  .junior-root .sv-look-controls {
+    top: 110px;
+    max-width: 165px
+  }
+
+  .junior-root .junior-shift {
+    right: 10px;
+    left: auto;
+    transform: none;
+    bottom: 14px;
+    max-width: 190px;
+    font-size: 12px;
+    padding: 10px
+  }
+
+  .junior-root .junior-hint {
+    top: 245px
+  }
+}
+
+@media(max-width:800px) {
+  .junior-root .sage-options summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center
+  }
+
+  .junior-root .mars-sage {
+    max-height: 35vh;
+    overflow: auto
+  }
+}
 
 /* === AAA GTA V Tactical Radar & Mars Survival HUD === */
 .junior-root .junior-certificate-button {
@@ -226,6 +1226,7 @@
   .gta-hud-cluster {
     width: 196px;
   }
+
   .gta-radar-frame {
     width: 196px;
     height: 118px;
@@ -239,20 +1240,25 @@
     width: 168px;
     gap: 4px;
   }
+
   .gta-radar-frame {
     width: 168px;
     height: 98px;
   }
+
   .gta-rank-strip {
     padding: 6px;
   }
+
   .gta-rank-strip .mars-notebook-actions button {
     font-size: 11px;
     min-height: 34px;
   }
+
   .gta-secondary-res small {
     display: none;
   }
+
   .junior-root .junior-certificate-button {
     top: 66px;
     left: 10px;
@@ -264,6 +1270,7 @@
     left: 10px;
     bottom: 152px;
   }
+
   .junior-root .sv-rover-hud {
     top: 120px;
     bottom: auto;
@@ -302,7 +1309,8 @@
   display: none;
 }
 
-@media (pointer: coarse) and (max-height: 560px), (max-width: 920px) and (max-height: 540px) {
+@media (pointer: coarse) and (max-height: 560px),
+(max-width: 920px) and (max-height: 540px) {
   .junior-root .junior-header {
     top: max(6px, env(safe-area-inset-top));
     left: max(10px, env(safe-area-inset-left));
@@ -310,21 +1318,23 @@
     gap: 6px;
     font-size: 11px;
   }
-  .junior-root .junior-header > b {
+
+  .junior-root .junior-header>b {
     padding: 5px 9px;
     border-radius: 6px;
     font-size: 11px;
     white-space: nowrap;
   }
-  .junior-root .junior-header > b span {
+
+  .junior-root .junior-header>b span {
     display: none;
   }
-  .junior-root .junior-header > strong {
+
+  .junior-root .junior-header>strong {
     position: static;
     left: auto;
     transform: none;
-    flex: 0 1 auto;
-    margin-inline: auto;
+    flex: 1;
     min-width: 0;
     padding: 5px 10px;
     font-size: 11px;
@@ -333,7 +1343,8 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .junior-root .junior-header > button {
+
+  .junior-root .junior-header>button {
     min-height: 34px;
     padding: 5px 10px;
     font-size: 11px;
@@ -349,12 +1360,14 @@
     gap: 4px;
     z-index: 4;
   }
+
   .junior-root .gta-mobile-bar {
     display: flex;
     align-items: center;
     gap: 4px;
     pointer-events: auto;
   }
+
   .junior-root .gta-mobile-toggle {
     flex: 1;
     min-height: 30px;
@@ -368,6 +1381,7 @@
     white-space: nowrap;
     cursor: pointer;
   }
+
   .junior-root .gta-mobile-quick {
     min-height: 30px;
     min-width: 34px;
@@ -380,27 +1394,34 @@
     white-space: nowrap;
     cursor: pointer;
   }
+
   .junior-root .gta-hud-cluster.is-collapsed .gta-radar-frame {
     display: none;
   }
+
   .junior-root .gta-radar-frame {
     width: 154px;
     height: 74px;
   }
+
   .junior-root .gta-rank-strip,
   .junior-root .gta-secondary-res {
     display: none;
   }
+
   .junior-root .gta-vitals-bars {
     padding: 4px 6px;
     gap: 3px;
   }
+
   .junior-root .gta-bar-col {
     gap: 5px;
   }
+
   .junior-root .gta-bar-label {
     font-size: 9px;
   }
+
   .junior-root .gta-bar-track {
     height: 5px;
   }
@@ -432,12 +1453,14 @@
     border-radius: 8px;
     z-index: 4;
   }
+
   .junior-root .sv-rover-hud .sv-gear-rail,
   .junior-root .sv-rover-hud .sv-rover-gearbox small,
   .junior-root .sv-rover-hud .sv-rover-speedometer small,
   .junior-root .sv-rover-hud .sv-rover-hints {
     display: none;
   }
+
   .junior-root .sv-rover-hud .sv-gear-active,
   .junior-root .sv-rover-hud .sv-rover-speedometer strong {
     font-size: 17px;
@@ -456,6 +1479,7 @@
     box-shadow: none;
     z-index: 7;
   }
+
   .mars-root.junior-root .sv-look-controls details,
   .junior-root .sv-look-controls details {
     width: auto;
@@ -466,6 +1490,7 @@
     max-height: calc(100dvh - 104px);
     overflow-y: auto;
   }
+
   .mars-root.junior-root .sv-look-controls details[open],
   .junior-root .sv-look-controls details[open] {
     width: 215px;
@@ -473,6 +1498,7 @@
     padding: 8px 10px;
     z-index: 9;
   }
+
   .mars-root.junior-root .sv-look-controls summary,
   .junior-root .sv-look-controls summary {
     min-height: 26px;
@@ -483,6 +1509,7 @@
     white-space: nowrap;
     cursor: pointer;
   }
+
   .mars-root.junior-root .sv-look-controls button,
   .junior-root .sv-look-controls button {
     min-height: 34px;
@@ -502,6 +1529,7 @@
     z-index: 5;
     overflow: visible;
   }
+
   .junior-root .mars-sage-toggle {
     display: flex;
     align-items: center;
@@ -518,9 +1546,11 @@
     white-space: nowrap;
     cursor: pointer;
   }
+
   .junior-root .mars-sage.sage-collapsed .mars-sage-body {
     display: none;
   }
+
   .junior-root .mars-sage.sage-open {
     width: 248px;
     max-width: min(260px, 46vw);
@@ -529,19 +1559,23 @@
     z-index: 8;
     padding: 6px 9px 9px;
   }
+
   .junior-root .mars-sage.sage-open .mars-sage-toggle {
     padding: 0 0 6px;
     border-bottom: 1px solid #415967;
     margin-bottom: 6px;
     min-height: 28px;
   }
+
   .junior-root .mars-sage .sage-face {
     display: none;
   }
+
   .junior-root .mars-sage .sage-options summary {
     min-height: 32px;
     font-size: 11px;
   }
+
   .junior-root .mars-sage button {
     min-height: 34px;
     padding: 5px 8px;
@@ -560,6 +1594,7 @@
     font-size: 10px;
     z-index: 4;
   }
+
   .junior-root .junior-certificate-button {
     top: calc(max(6px, env(safe-area-inset-top)) + 122px);
     bottom: auto;
@@ -575,27 +1610,26 @@
     right: auto;
     transform: translateX(-50%);
     width: auto;
+    max-width: min(370px, calc(100vw - 360px));
     max-width: min(370px, calc(100vw - 380px));
     padding: 7px 12px;
     min-height: 36px;
-    display: grid;
-    text-align: left;
-    border-radius: 10px;
-    background: #142530db;
-    color: #fff;
-    border-inline-start: 3px solid #f8b377;
+    display: flex;
     align-items: center;
     gap: 6px;
     font-size: 11px;
     z-index: 4;
   }
+
   .junior-root .field-objective small {
     display: none;
   }
+
   .junior-root .field-objective strong {
     white-space: nowrap;
     font-size: 11px;
   }
+
   .junior-root .field-objective span {
     white-space: nowrap;
     overflow: hidden;
@@ -609,6 +1643,8 @@
     bottom: 54px;
     left: 50%;
     transform: translateX(-50%);
+    max-width: calc(100vw - 360px);
+    padding: 6px 12px;
     max-width: min(320px, calc(100vw - 380px));
     padding: 5px 10px;
     font-size: 11px;
@@ -618,11 +1654,14 @@
     align-items: center;
     gap: 4px 6px;
   }
+
   .junior-root .mars-target strong,
   .junior-root .mars-target span {
     width: 100%;
   }
+
   .junior-root .mars-target button {
+    min-height: 36px;
     min-height: 34px;
     padding: 4px 10px;
     font-size: 11px;
@@ -630,12 +1669,10 @@
 
   .junior-root .mars-dialog-backdrop {
     padding:
-      max(10px, env(safe-area-inset-top))
-      max(12px, env(safe-area-inset-right))
-      max(10px, env(safe-area-inset-bottom))
-      max(12px, env(safe-area-inset-left));
+      max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     z-index: 20;
   }
+
   .junior-root .mars-dialog {
     width: min(540px, 100%);
     max-height: 92dvh;
@@ -643,15 +1680,18 @@
     padding: 16px 18px;
     font-size: 14px;
   }
+
   .junior-root .mars-dialog h2 {
     font-size: 20px;
     margin: 4px 0 8px;
   }
+
   .junior-root .mars-dialog button {
     min-height: 40px;
     padding: 8px 12px;
     font-size: 13px;
   }
+
   .junior-root .junior-grid {
     gap: 6px;
   }

@@ -148,14 +148,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [loadingProgress, setLoadingProgress] = useState(10),
     [loaded, setLoaded] = useState(false),
     [locked, setLocked] = useState(false),
+    [cursorFree, setCursorFree] = useState(false),
     [message, setMessage] = useState(""),
     [thirdPerson, setThirdPerson] = useState(true),
     [sensitivity, setSensitivity] = useState(1),
     [quality, setQuality] = useState(props.initialQuality ?? (props.planet === "mars" ? "auto" : "high"));
   const [autoLabel,setAutoLabel]=useState("Detecting");
-  const cameraSettings = useRef({ thirdPerson, sensitivity, quality });
-  cameraSettings.current = { thirdPerson, sensitivity, quality };
+  const cursorReleased = useRef(false);
+  const cameraSettings = useRef({ thirdPerson, sensitivity, quality, touchControlsActive });
+  cameraSettings.current = { thirdPerson, sensitivity, quality, touchControlsActive };
   useEffect(() => {
+    cursorReleased.current = false;
+    setCursorFree(false);
     if (props.enabled) host.current?.focus({ preventScroll: true });
     else {
       controls.current.clear();
@@ -485,8 +489,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         range = Infinity,
         previousDay = -1,
         lastMarsNight: boolean | null = null,
-        captureDenied = false,
-        lastMouseMoveTime = 0;
+        captureUnsupported = false,
+        captureFailureCount = 0,
+        lockInFlight = false,
+        lastLockReleaseAt = 0,
+        lastMouseMoveTime = 0,
+        hoverPx: number | null = null,
+        hoverPy: number | null = null;
       toggleRoverAction.current = () => {
         if (!current.current.enabled || current.current.planet !== "mars") return;
         if (!rover.driving) {
@@ -538,12 +547,114 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           current.current.onInspect(hover);
       };
       inspectAction.current = inspect;
+      let discardCapturedMove = false,
+        wasCaptured = document.pointerLockElement === element,
+        releaseMsgTimer: number | null = null;
+      const UI_CONTROL_SELECTOR =
+        "button, input, select, summary, details, a, dialog, [role='dialog'], .flight-pad, .sv-touch-stick, .sv-touch-actions, .sv-rover-touch-pedals, .sv-rover-touch-controls, .sv-look-controls, .sv-rover-hud, .sv-rover-prompt, .junior-hud, .junior-panel, .junior-top-bar, .mars-target, .sv-hud, .sv-status, .sv-target";
+      const isUiControlTarget = (el: HTMLElement | null) =>
+        Boolean(el?.closest?.(UI_CONTROL_SELECTOR));
+      const isSceneTarget = (el: HTMLElement | null) =>
+        el !== null && !isUiControlTarget(el) && (el === renderer.domElement || element.contains(el));
+      const resetHover = () => {
+        hoverPx = null;
+        hoverPy = null;
+      };
+      const clearNoticeTimer = () => {
+        if (releaseMsgTimer !== null) {
+          window.clearTimeout(releaseMsgTimer);
+          releaseMsgTimer = null;
+        }
+      };
+      const showTransientNotice = (text: string, prefix: string, ms = 2600) => {
+        clearNoticeTimer();
+        setMessage(text);
+        releaseMsgTimer = window.setTimeout(() => {
+          setMessage((prev) => (prev.startsWith(prefix) ? "" : prev));
+          releaseMsgTimer = null;
+        }, ms);
+      };
+      const setCursorMode = (free: boolean, notify = false) => {
+        cursorReleased.current = free;
+        setCursorFree(free);
+        clearNoticeTimer();
+        if (free) {
+          resetHover();
+          // Exiting via Esc or releasing cursor resets prior capture blocks so the next scene click retries.
+          captureFailureCount = 0;
+          if (notify) {
+            showTransientNotice(
+              "Cursor free for UI — click the 3D view to resume mouse look.",
+              "Cursor free for UI",
+            );
+          }
+        } else {
+          setMessage((prev) =>
+            prev.startsWith("Cursor free for UI") || prev.startsWith("Click the 3D view once more")
+              ? ""
+              : prev,
+          );
+        }
+      };
+      const requestLockCapture = (options?: { silent?: boolean; forceRetry?: boolean }) => {
+        element.focus({ preventScroll: true });
+        if (document.pointerLockElement === element || captureUnsupported) return;
+        if (options?.forceRetry) captureFailureCount = 0;
+        if (lockInFlight) return;
+        if (!element.requestPointerLock) {
+          captureUnsupported = true;
+          if (!options?.silent) {
+            showTransientNotice("Drag the view to look around. WASD still works.", "Drag the view");
+          }
+          return;
+        }
+        lockInFlight = true;
+        const onLockRejected = (err?: unknown) => {
+          lockInFlight = false;
+          const errName = err instanceof DOMException ? err.name : "";
+          if (errName === "NotSupportedError") {
+            captureUnsupported = true;
+            if (!options?.silent) {
+              showTransientNotice("Drag the view to look around. WASD still works.", "Drag the view");
+            }
+            return;
+          }
+          const duringCooldown = lastLockReleaseAt > 0 && performance.now() - lastLockReleaseAt < 1550;
+          if (duringCooldown) {
+            // Browsers enforce a ~1.3s cooldown after Esc releases Pointer Lock; keep look active and invite one more click.
+            if (!options?.silent) {
+              showTransientNotice(
+                "Click the 3D view once more to lock the cursor — mouse look active.",
+                "Click the 3D view once more",
+              );
+            }
+            return;
+          }
+          captureFailureCount += 1;
+          if (!options?.silent && captureFailureCount === 1) {
+            showTransientNotice(
+              "Mouse capture is unavailable here. Drag or move mouse to look; WASD walks.",
+              "Mouse capture is unavailable",
+            );
+          }
+        };
+        try {
+          const request = element.requestPointerLock();
+          if (request && typeof request.then === "function") {
+            void request.then(
+              () => { lockInFlight = false; },
+              (err) => { onLockRejected(err); },
+            );
+          } else {
+            lockInFlight = false;
+          }
+        } catch (err) {
+          onLockRejected(err);
+        }
+      };
       const down = (e: PointerEvent) => {
-        if (
-          (e.target as HTMLElement).closest(
-            "button, input, select, summary, details, .flight-pad, .sv-touch-stick, .sv-touch-actions, .sv-rover-touch-pedals",
-          )
-        ) {
+        const targetEl = e.target as HTMLElement | null;
+        if (isUiControlTarget(targetEl)) {
           return;
         }
         const rect = element.getBoundingClientRect();
@@ -551,18 +662,45 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           ((e.clientX - rect.left) / rect.width) * 2 - 1,
           -((e.clientY - rect.top) / rect.height) * 2 + 1,
         );
-        element.focus();
+        element.focus({ preventScroll: true });
         if (!current.current.enabled) return;
+        const onScene = isSceneTarget(targetEl);
+        const resuming = cursorReleased.current;
+        if (e.pointerType === "mouse" && onScene) {
+          setCursorMode(false);
+        }
         if (dragging) return;
         dragging = true;
         lookPointer = e.pointerId;
         px = e.clientX;
         py = e.clientY;
-        if (e.pointerType === "mouse" && e.target === renderer.domElement && document.pointerLockElement !== element && !captureDenied) lockAction.current();
+        if (
+          e.pointerType === "mouse" &&
+          !cameraSettings.current.touchControlsActive &&
+          onScene &&
+          document.pointerLockElement !== element
+        ) {
+          requestLockCapture({ forceRetry: resuming });
+        }
       };
-      let discardCapturedMove = false;
+      const sceneClick = (e: MouseEvent) => {
+        if (!current.current.enabled || cameraSettings.current.touchControlsActive) return;
+        // Ignore synthetic Enter/Space clicks while still handling real pointer clicks after Esc or cooldown.
+        if (e.detail === 0) return;
+        const targetEl = e.target as HTMLElement | null;
+        if (!isSceneTarget(targetEl)) return;
+        const resuming = cursorReleased.current;
+        setCursorMode(false);
+        if (document.pointerLockElement !== element) {
+          requestLockCapture({ forceRetry: resuming, silent: true });
+        }
+      };
       const move = (e: PointerEvent) => {
-        if ((e.target as HTMLElement).closest?.(".sv-target")) return;
+        const targetEl = e.target as HTMLElement | null;
+        if (targetEl?.closest?.(".sv-target")) {
+          resetHover();
+          return;
+        }
         if (dragging || document.pointerLockElement === element) {
           lastMouseMoveTime = performance.now();
         }
@@ -571,11 +709,15 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           ((e.clientX - rect.left) / rect.width) * 2 - 1,
           (-(e.clientY - rect.top) / rect.height) * 2 + 1,
         );
-        if (!current.current.enabled) return;
+        if (!current.current.enabled) {
+          resetHover();
+          return;
+        }
         const isThird = cameraSettings.current.thirdPerson;
         const minPitch = isThird ? -1.1 : -1.35;
         const maxPitch = isThird ? 0.85 : 1.35;
         if (document.pointerLockElement === element) {
+          resetHover();
           if (discardCapturedMove) { discardCapturedMove = false; return; }
           cameraYaw -=
             Math.max(-180, Math.min(180, e.movementX)) * 0.0023 * cameraSettings.current.sensitivity;
@@ -601,6 +743,34 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           );
           px = e.clientX;
           py = e.clientY;
+          hoverPx = e.clientX;
+          hoverPy = e.clientY;
+        } else if (e.pointerType === "mouse" && !cameraSettings.current.touchControlsActive && !cursorReleased.current) {
+          const overScene = isSceneTarget(targetEl);
+          if (!overScene) {
+            resetHover();
+          } else if (hoverPx === null || hoverPy === null) {
+            hoverPx = e.clientX;
+            hoverPy = e.clientY;
+          } else {
+            const dx = Math.max(-120, Math.min(120, e.clientX - hoverPx));
+            const dy = Math.max(-120, Math.min(120, e.clientY - hoverPy));
+            hoverPx = e.clientX;
+            hoverPy = e.clientY;
+            if (dx !== 0 || dy !== 0) {
+              lastMouseMoveTime = performance.now();
+              cameraYaw -= dx * 0.0023 * cameraSettings.current.sensitivity;
+              pitch = Math.max(
+                minPitch,
+                Math.min(
+                  maxPitch,
+                  pitch - dy * 0.0023 * cameraSettings.current.sensitivity,
+                ),
+              );
+            }
+          }
+        } else if (e.pointerType === "mouse") {
+          resetHover();
         }
       };
       const up = (e: PointerEvent) => {
@@ -611,6 +781,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const active = document.activeElement as HTMLElement | null;
         const tag = active?.tagName;
         if (active?.closest?.("dialog, [role='dialog']")) return;
+        if (e.key === "Escape" && !e.repeat) {
+          e.preventDefault();
+          if (document.pointerLockElement === element) {
+            document.exitPointerLock();
+          } else {
+            setCursorMode(true, true);
+          }
+          keys.clear();
+          return;
+        }
         if (tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable) return;
         if (
           tag === "INPUT" &&
@@ -670,40 +850,45 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (e.key.toLowerCase() === "r") keys.delete("look-right");
       };
       const blur = () => {
+        lockInFlight = false;
         keys.clear();
         dragging = false;
         lookPointer = null;
+        resetHover();
       };
       const lockChange = () => {
+        lockInFlight = false;
         dragging = false;
         lookPointer = null;
+        resetHover();
         const captured = document.pointerLockElement === element;
+        const releasedFromLock = wasCaptured && !captured;
+        wasCaptured = captured;
         discardCapturedMove = captured;
         setLocked(captured);
-        if (captured) { captureDenied = false; setMessage(""); }
+        if (captured) {
+          captureFailureCount = 0;
+          setCursorMode(false);
+          setMessage("");
+        } else if (releasedFromLock) {
+          lastLockReleaseAt = performance.now();
+          if (current.current.enabled) setCursorMode(true, true);
+        }
         keys.clear();
       };
+      const lockError = () => {
+        lockInFlight = false;
+      };
       lockAction.current = () => {
-        element.focus();
+        element.focus({ preventScroll: true });
         if (document.pointerLockElement === element) {
+          lastLockReleaseAt = performance.now();
+          setCursorMode(true, true);
           document.exitPointerLock();
           return;
         }
-        if (!element.requestPointerLock) {
-          captureDenied = true;
-          setMessage("Drag the view to look around. WASD still works.");
-          return;
-        }
-        try {
-          const request = element.requestPointerLock();
-          request?.catch(() => {
-            captureDenied = true;
-            setMessage("Mouse capture is unavailable here. Drag to look; use WASD to walk.");
-          });
-        } catch {
-          captureDenied = true;
-          setMessage("Drag to look; use WASD to walk.");
-        }
+        setCursorMode(false);
+        requestLockCapture({ forceRetry: true });
       };
       const lost = (e: Event) => {
         e.preventDefault();
@@ -725,6 +910,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (document.hidden) saveCuriosityNow();
       };
       element.addEventListener("pointerdown", down);
+      element.addEventListener("click", sceneClick);
+      element.addEventListener("pointerleave", resetHover);
+      document.addEventListener("mouseleave", resetHover);
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
@@ -733,6 +921,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       window.addEventListener("blur", blur);
       element.addEventListener("blur", blur);
       document.addEventListener("pointerlockchange", lockChange);
+      document.addEventListener("pointerlockerror", lockError);
       window.addEventListener("pagehide", saveCuriosityNow);
       window.addEventListener("beforeunload", saveCuriosityNow);
       document.addEventListener("visibilitychange", saveOnHide);
@@ -1278,9 +1467,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       dispose = () => {
         saveCuriosityNow();
+        clearNoticeTimer();
         cancelAnimationFrame(frame);
         observer.disconnect();
         element.removeEventListener("pointerdown", down);
+        element.removeEventListener("click", sceneClick);
+        element.removeEventListener("pointerleave", resetHover);
+        document.removeEventListener("mouseleave", resetHover);
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
@@ -1289,6 +1482,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         window.removeEventListener("blur", blur);
         element.removeEventListener("blur", blur);
         document.removeEventListener("pointerlockchange", lockChange);
+        document.removeEventListener("pointerlockerror", lockError);
         window.removeEventListener("pagehide", saveCuriosityNow);
         window.removeEventListener("beforeunload", saveCuriosityNow);
         document.removeEventListener("visibilitychange", saveOnHide);
@@ -1395,6 +1589,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     <div
       ref={host}
       className="sv-world"
+      data-cursor-free={cursorFree ? "true" : "false"}
       role="application"
       aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. ${touchControlsActive ? "Use the left thumbstick to move, drag the screen to look around, and tap the right buttons to jump or inspect." : "WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects."}`}
       tabIndex={0}
@@ -1415,9 +1610,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             {!touchControlsActive && (
               <>
                 <button onClick={() => lockAction.current()}>
-                  {locked ? "Release mouse · Esc" : "Capture mouse for 360° look"}
+                  {locked ? "Release mouse · Esc" : cursorFree ? "Resume mouse look" : "Capture mouse for 360° look"}
                 </button>
-                <span>Drag to look, or capture the mouse · Q/R turn · V changes view</span>
+                <span>{cursorFree ? "Cursor free for UI · click the 3D view to resume look" : "Move mouse or drag to look, or click view for 360° capture · Esc frees cursor · Q/R turn · V changes view"}</span>
               </>
             )}
             <label>

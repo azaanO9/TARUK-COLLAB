@@ -203,7 +203,20 @@ export function createBigRover(
             if (mat instanceof T.MeshStandardMaterial) {
               if (mat.map) mat.map.colorSpace = T.SRGBColorSpace;
               if (mat.emissiveMap) mat.emissiveMap.colorSpace = T.SRGBColorSpace;
-              mat.roughness = Math.max(0.28, mat.roughness);
+              // The exported MMSEV binds a grayscale bump heightmap to normalMap with scale 0;
+              // because mapN.z = 2*B - 1 goes negative in dark regions, leaving it in normalMap
+              // flips normals 180 deg toward/away from the sun. Move it to bumpMap and tune sheen.
+              if (mat.normalMap && !mat.bumpMap && mat.normalScale.x === 0 && mat.normalScale.y === 0) {
+                mat.bumpMap = mat.normalMap;
+                mat.bumpScale = 0.009;
+                mat.normalMap = null;
+                mat.normalScale.set(1, 1);
+              }
+              mat.roughness = Math.max(0.54, mat.roughness);
+              mat.envMapIntensity = Math.min(mat.envMapIntensity, 0.95);
+              if (mat instanceof T.MeshPhysicalMaterial) {
+                mat.specularIntensity = Math.min(mat.specularIntensity, 0.72);
+              }
               mat.side = T.DoubleSide;
               mat.needsUpdate = true;
             }
