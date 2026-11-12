@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { Camera, ChevronsUp, ChevronsDown, CircleStop, ArrowUpFromLine } from "lucide-react";
+import { Camera, ChevronsUp, ChevronsDown, ArrowUpFromLine } from "lucide-react";
 import type { MoveAxes } from "../../game/navigation";
 import type { RoverAnalogInput } from "../../game/roverVehicle";
 
@@ -40,7 +40,7 @@ export function TouchControlsOverlay({
   const stickPointer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0, radius: 38 });
   const stickSteer = useRef(0);
-  const driveState = useRef({ gas: false, rev: false, brake: false });
+  const driveState = useRef({ gas: false, rev: false });
 
   const pushDriveState = useCallback(() => {
     const d = driveState.current;
@@ -48,7 +48,7 @@ export function TouchControlsOverlay({
     onDriveAxes({
       steer: stickSteer.current,
       throttle,
-      handbrake: d.brake,
+      handbrake: false,
     });
   }, [onDriveAxes]);
 
@@ -68,7 +68,7 @@ export function TouchControlsOverlay({
   }, [onWalkAxes, pushDriveState]);
 
   const releaseAll = useCallback(() => {
-    driveState.current = { gas: false, rev: false, brake: false };
+    driveState.current = { gas: false, rev: false };
     onHoldKey("jump", false);
     resetStick();
   }, [onHoldKey, resetStick]);
@@ -135,7 +135,7 @@ export function TouchControlsOverlay({
     }
   };
 
-  const holdDriveButton = (which: "gas" | "rev" | "brake", active: boolean) => {
+  const holdDriveButton = (which: "gas" | "rev", active: boolean) => {
     driveState.current[which] = active;
     pushDriveState();
   };
@@ -272,30 +272,8 @@ export function TouchControlsOverlay({
           <div className="sv-pedal-row">
             <button
               type="button"
-              className="sv-pedal brake"
-              aria-label="Handbrake"
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                e.currentTarget.setPointerCapture(e.pointerId);
-                holdDriveButton("brake", true);
-              }}
-              onPointerUp={(e) => {
-                e.stopPropagation();
-                holdDriveButton("brake", false);
-              }}
-              onPointerCancel={(e) => {
-                e.stopPropagation();
-                holdDriveButton("brake", false);
-              }}
-              onLostPointerCapture={() => holdDriveButton("brake", false)}
-            >
-              <CircleStop aria-hidden="true" /><span>Brake</span>
-            </button>
-            <button
-              type="button"
               className="sv-pedal rev"
-              aria-label="Reverse"
+              aria-label="Brake and reverse"
               onPointerDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
@@ -312,7 +290,7 @@ export function TouchControlsOverlay({
               }}
               onLostPointerCapture={() => holdDriveButton("rev", false)}
             >
-              <ChevronsDown aria-hidden="true" /><span>Reverse</span>
+              <ChevronsDown aria-hidden="true" /><span>Rev / Brk</span>
             </button>
             <button
               type="button"

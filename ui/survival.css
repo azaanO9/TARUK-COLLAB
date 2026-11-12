@@ -1769,15 +1769,8 @@
   font: 700 9px/1 Consolas, monospace;
   letter-spacing: 0.08em;
 }
-.sv-pedal.brake {
-  width: 48px;
-  height: 54px;
-  background: rgba(68, 25, 25, 0.88);
-  border-color: rgba(252, 165, 165, 0.65);
-  color: #fecaca;
-}
 .sv-pedal.rev {
-  width: 54px;
+  width: 58px;
   height: 60px;
   background: rgba(58, 35, 19, 0.88);
   border-color: rgba(253, 186, 116, 0.7);
@@ -1998,17 +1991,25 @@
   .sv-pedal {
     height: 58px;
   }
-  .sv-pedal.brake {
-    width: 44px;
-    height: 50px;
-  }
   .sv-pedal.rev {
-    width: 50px;
+    width: 54px;
     height: 54px;
   }
   .sv-pedal.gas {
-    width: 56px;
+    width: 58px;
     height: 62px;
+  }
+  .sv-target {
+    top: auto;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-width: min(360px, calc(100vw - 260px));
+    padding: 8px 14px;
+    border-radius: 16px;
+    background: linear-gradient(155deg, rgba(24, 46, 62, 0.40), rgba(10, 22, 32, 0.26));
+    backdrop-filter: blur(20px) saturate(165%);
+    -webkit-backdrop-filter: blur(20px) saturate(165%);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.32);
   }
   .sv-dialog {
     padding: 18px 20px;

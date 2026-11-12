@@ -36,7 +36,7 @@
 }
 .flight-stores span {display:flex;align-items:center;gap:4px}
 .flight-stores meter {width:28px;height:9px}
-.flight-pad {left:0;bottom:0;width:39%;height:53%;touch-action:none;user-select:none;overflow:clip}
+.flight-pad {left:0;bottom:0;width:min(36%,225px);height:53%;touch-action:none;user-select:none;overflow:clip}
 .flight-pad i {position:absolute;left:calc(var(--left) + 56px);top:calc(100% - var(--bottom) - 48px);translate:-50% -50%;width:79px;height:79px;border-radius:50%;border:1px solid var(--rim);background:#11243250;display:grid;place-items:center;color:#fff}
 .flight-pad[data-held] i {left:var(--x);top:var(--y);border-color:#bcf0dc}
 .flight-pad i svg {background:#142c38ba;border:1px solid var(--rim);border-radius:50%;padding:8px;box-sizing:content-box}
@@ -52,15 +52,38 @@
 .junior-root[data-controls="mobile"] .sv-world .sv-look-controls {top:max(10px,env(safe-area-inset-top));right:calc(max(14px,env(safe-area-inset-right)) + 51px);left:auto;width:auto;z-index:8}
 .junior-root[data-controls="mobile"] .sv-look-controls summary {display:grid;place-items:center;width:44px;height:44px;min-width:0;padding:0;margin-left:auto;border-radius:50%;color:white;background:#10222ccc}
 .junior-root[data-controls="mobile"] .sv-look-controls details:not([open]) {padding:0;background:none;border:0}
-.junior-root[data-controls="mobile"] .sv-world .sv-rover-hud {left:50%;right:auto;top:auto;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:auto;pointer-events:none}
+.junior-root[data-controls="mobile"] .sv-world .sv-rover-hud {
+  left:50%; right:auto; top:auto; bottom:max(10px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:auto; pointer-events:none;
+  background:linear-gradient(155deg,rgba(24,46,62,.42),rgba(10,22,32,.26));
+  backdrop-filter:blur(20px) saturate(165%); -webkit-backdrop-filter:blur(20px) saturate(165%);
+  border:1px solid rgba(255,255,255,.28); border-radius:16px;
+  box-shadow:0 10px 28px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.32);
+}
 .junior-root[data-controls="mobile"] .sv-rover-exit-btn,.junior-root[data-controls="mobile"] .sv-gear-rail {display:none}
 .junior-root[data-controls="mobile"] .mars-target {
-  top:calc(max(10px,env(safe-area-inset-top)) + 50px); bottom:auto; left:50%; transform:translateX(-50%);
-  max-width:min(320px,calc(100vw - 48px)); padding:6px 12px; border-radius:12px; z-index:7;
-  display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px 8px; font-size:12px;
+  top:auto; bottom:max(12px,env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+  width:max-content; max-width:min(380px,calc(100vw - 260px)); padding:8px 14px; border-radius:18px; z-index:7;
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:3px 8px; font-size:12px; text-align:center;
+  color:#f4faff;
+  background:linear-gradient(155deg,rgba(24,46,62,.40),rgba(10,22,32,.26));
+  backdrop-filter:blur(20px) saturate(165%); -webkit-backdrop-filter:blur(20px) saturate(165%);
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 12px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.34), inset 0 -1px 0 rgba(255,255,255,.08);
 }
 .junior-root[data-controls="mobile"] .mars-target strong,.junior-root[data-controls="mobile"] .mars-target span {width:100%}
-.junior-root[data-controls="mobile"] .mars-target button {min-height:36px; padding:5px 12px; border-radius:8px; font-size:12px}
+.junior-root[data-controls="mobile"] .mars-target strong {font-size:12px; line-height:1.25; text-shadow:0 1px 6px rgba(0,0,0,.45)}
+.junior-root[data-controls="mobile"] .mars-target span {font-size:11px; color:rgba(236,246,252,.9)}
+.junior-root[data-controls="mobile"] .mars-target button {
+  min-height:34px; padding:5px 14px; border-radius:10px; font-size:12px;
+  background:rgba(235,178,128,.92); color:#15202a; border:1px solid rgba(255,232,204,.55);
+  box-shadow:0 4px 12px rgba(0,0,0,.22);
+}
+@media (max-width:540px) {
+  .junior-root[data-controls="mobile"] .mars-target {
+    bottom:calc(max(12px,env(safe-area-inset-bottom)) + 102px);
+    max-width:min(340px,calc(100vw - 28px));
+  }
+}
 .flight-sheet dl,.flight-menu-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .flight-sheet dl div {border-bottom:1px solid #7896a55e;padding:4px}
 .flight-sheet dt {font-size:12px;text-transform:capitalize}
@@ -69,16 +92,15 @@
 .wheel-controls {position:absolute;z-index:6;bottom:max(14px,env(safe-area-inset-bottom));display:flex;align-items:flex-end;gap:9px;pointer-events:none}
 .wheel-steering {left:max(16px,env(safe-area-inset-left))}
 .wheel-pedals {right:max(16px,env(safe-area-inset-right))}
-.wheel-controls button {pointer-events:auto;touch-action:none;user-select:none;display:grid;place-content:center;justify-items:center;gap:5px;padding:4px;background:#13252ed9;color:#fff;border:1px solid #c9e1e4ad;border-radius:14px;box-shadow:inset 0 -4px #07131880}
+.wheel-controls button {pointer-events:auto;touch-action:none;user-select:none;display:grid;place-content:center;justify-items:center;gap:5px;padding:4px;background:linear-gradient(155deg,rgba(22,42,54,.6),rgba(10,22,32,.45));backdrop-filter:blur(12px) saturate(140%);-webkit-backdrop-filter:blur(12px) saturate(140%);color:#fff;border:1px solid #c9e1e4ad;border-radius:14px;box-shadow:inset 0 -4px #07131880}
 .wheel-steering button {width:clamp(52px,9vw,72px);height:54px}
 .wheel-steering svg {width:29px;height:29px}
-.wheel-controls .wheel-brake {width:58px;height:54px;border-color:#f0b297}
-.wheel-controls .wheel-rev {width:52px;height:62px;border-color:#f4cc8a}
-.wheel-controls .wheel-gas {width:54px;height:74px;border-color:#ace4cd}
+.wheel-controls .wheel-rev {width:62px;height:62px;border-color:#f4cc8a}
+.wheel-controls .wheel-gas {width:60px;height:74px;border-color:#ace4cd}
 .wheel-pedals i {width:28px;height:16px;border-radius:3px;background:repeating-linear-gradient(0deg,#b8c8c9 0 2px,transparent 2px 5px)}
-.wheel-rev i {width:22px;height:24px}
-.wheel-gas i {width:21px;height:34px}
-.wheel-pedals small {font:700 9px system-ui;letter-spacing:.08em}
+.wheel-rev i {width:24px;height:24px}
+.wheel-gas i {width:22px;height:34px}
+.wheel-pedals small {font:700 8px system-ui;letter-spacing:.06em;white-space:nowrap}
 .wheel-tools {position:absolute;bottom:81px;right:0;display:flex;gap:6px}
 .wheel-tools button {width:44px;height:44px;border-radius:50%}
 .wheel-tools svg {width:18px}
