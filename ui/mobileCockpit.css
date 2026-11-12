@@ -58,3 +58,19 @@
 .flight-sheet dl div {border-bottom:1px solid #7896a55e;padding:4px}
 .flight-sheet dt {font-size:12px;text-transform:capitalize}
 .flight-sheet dd {font-weight:700;margin:0}
+
+.wheel-controls {position:absolute;z-index:6;bottom:max(14px,env(safe-area-inset-bottom));display:flex;align-items:flex-end;gap:9px;pointer-events:none}
+.wheel-steering {left:max(16px,env(safe-area-inset-left))}
+.wheel-pedals {right:max(16px,env(safe-area-inset-right))}
+.wheel-controls button {pointer-events:auto;touch-action:none;user-select:none;display:grid;place-content:center;justify-items:center;gap:5px;padding:4px;background:#13252ed9;color:#fff;border:1px solid #c9e1e4ad;border-radius:14px;box-shadow:inset 0 -4px #07131880}
+.wheel-steering button {width:clamp(52px,9vw,72px);height:54px}
+.wheel-steering svg {width:29px;height:29px}
+.wheel-controls .wheel-brake {width:65px;height:54px;border-color:#f0b297}
+.wheel-controls .wheel-gas {width:53px;height:74px;border-color:#ace4cd}
+.wheel-pedals i {width:30px;height:16px;border-radius:3px;background:repeating-linear-gradient(0deg,#b8c8c9 0 2px,transparent 2px 5px)}
+.wheel-gas i {width:21px;height:34px}
+.wheel-pedals small {font:700 9px system-ui;letter-spacing:.08em}
+.wheel-tools {position:absolute;bottom:81px;right:0;display:flex;gap:6px}
+.wheel-tools button {width:44px;height:44px;border-radius:50%}
+.wheel-tools svg {width:18px}
+.wheel-controls button:active,.wheel-tools button[aria-pressed="true"] {background:#40675f;transform:translateY(2px)}

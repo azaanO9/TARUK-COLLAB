@@ -11,6 +11,7 @@ import { boxObstacle } from "../game/collision";
 import { isCoarsePointerDevice } from "./mobileDevice";
 import { TouchControlsOverlay } from "./world/TouchControlsOverlay";
 import { MarsTouchDeck } from "./world/MarsTouchDeck";
+import { RoverTouchDeck } from "./world/RoverTouchDeck";
 import { Settings2 } from "lucide-react";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
@@ -114,7 +115,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const [autoCoarse, setAutoCoarse] = useState(false);
   const [touchOverride, setTouchOverride] = useState<boolean | null>(null);
   const touchControlsActive = touchOverride ?? (props.showTouchControls || autoCoarse);
-  const TouchDeck = props.planet === "mars" ? MarsTouchDeck : TouchControlsOverlay;
   useEffect(() => {
     const syncCoarse = () => setAutoCoarse(isCoarsePointerDevice());
     syncCoarse();
@@ -132,6 +132,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [roverGear, setRoverGear] = useState<RoverGear>("N"),
     [roverMud, setRoverMud] = useState(false),
     [roverHandbrake, setRoverHandbrake] = useState(false);
+  const TouchDeck = props.planet === "mars" ? (roverDriving ? RoverTouchDeck : MarsTouchDeck) : TouchControlsOverlay;
   useImperativeHandle(
     ref,
     () => ({
