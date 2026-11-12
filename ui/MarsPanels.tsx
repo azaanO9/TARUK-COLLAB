@@ -15,7 +15,7 @@ const RADAR_CRATERS: readonly [number, number, number][] = [
   [51, 57, 22],
 ];
 
-function MarsRadarMinimap({
+export function MarsRadarMinimap({
   view,
   target,
   found,

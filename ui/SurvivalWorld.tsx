@@ -10,6 +10,8 @@ import { spawnWalker, stepWalker, stepJump, WALKER_RADIUS, type MoveAxes } from 
 import { boxObstacle } from "../game/collision";
 import { isCoarsePointerDevice } from "./mobileDevice";
 import { TouchControlsOverlay } from "./world/TouchControlsOverlay";
+import { MarsTouchDeck } from "./world/MarsTouchDeck";
+import { Settings2 } from "lucide-react";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints } from "./world/marsTerrain";
@@ -112,6 +114,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const [autoCoarse, setAutoCoarse] = useState(false);
   const [touchOverride, setTouchOverride] = useState<boolean | null>(null);
   const touchControlsActive = touchOverride ?? (props.showTouchControls || autoCoarse);
+  const TouchDeck = props.planet === "mars" ? MarsTouchDeck : TouchControlsOverlay;
   useEffect(() => {
     const syncCoarse = () => setAutoCoarse(isCoarsePointerDevice());
     syncCoarse();
@@ -514,7 +517,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const down = (e: PointerEvent) => {
         if (
           (e.target as HTMLElement).closest(
-            "button, input, select, summary, details, .sv-touch-stick, .sv-touch-actions, .sv-rover-touch-pedals",
+            "button, input, select, summary, details, .flight-pad, .sv-touch-stick, .sv-touch-actions, .sv-rover-touch-pedals",
           )
         ) {
           return;
@@ -1340,7 +1343,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           </div>
           <div className="sv-look-controls">
             <details open={props.planet !== "mars" && !touchControlsActive ? true : undefined}>
-            <summary>Camera &amp; graphics</summary>
+            <summary aria-label="Camera and graphics">{touchControlsActive && props.planet==="mars" ? <Settings2 size={19}/> : "Camera & graphics"}</summary>
             {!touchControlsActive && (
               <>
                 <button onClick={() => lockAction.current()}>
@@ -1423,7 +1426,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             </div>
           )}
           {touchControlsActive && (
-            <TouchControlsOverlay
+            <TouchDeck
               enabled={props.enabled}
               roverDriving={roverDriving}
               roverNear={roverNear}

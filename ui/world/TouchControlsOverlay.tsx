@@ -5,7 +5,7 @@ import { Camera, ChevronsUp, ChevronsDown, CircleStop, ArrowUpFromLine } from "l
 import type { MoveAxes } from "../../game/navigation";
 import type { RoverAnalogInput } from "../../game/roverVehicle";
 
-type Props = {
+export type TouchControlProps = {
   enabled: boolean;
   roverDriving: boolean;
   roverNear: boolean;
@@ -34,7 +34,7 @@ export function TouchControlsOverlay({
   onToggleView,
   onToggleRover,
   onInspectNearby,
-}: Props) {
+}: TouchControlProps) {
   const baseRef = useRef<HTMLDivElement>(null);
   const puckRef = useRef<HTMLDivElement>(null);
   const stickPointer = useRef<number | null>(null);

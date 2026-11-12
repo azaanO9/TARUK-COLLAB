@@ -1,0 +1,60 @@
+.flight-mobile, .flight-actions, .flight-pad {
+  --ink: #10222ccc;
+  --rim: #cfebed8a;
+  --left: max(14px,env(safe-area-inset-left));
+  --right: max(14px,env(safe-area-inset-right));
+  --top: max(10px,env(safe-area-inset-top));
+  --bottom: max(12px,env(safe-area-inset-bottom));
+  position:absolute;
+  z-index:6;
+}
+.flight-mobile { inset:0; pointer-events:none; }
+.flight-mobile button, .flight-actions button {
+  position:absolute; pointer-events:auto; touch-action:manipulation;
+  display:grid; place-items:center; padding:0;
+  background:var(--ink); color:#eefcff; border:1px solid var(--rim);
+  border-radius:50%; width:44px; height:44px;
+}
+.flight-mobile .flight-scope {
+  width:clamp(70px,21dvh,92px); height:clamp(70px,21dvh,92px);
+  top:var(--top); left:var(--left); overflow:hidden;
+  border:2px solid #e7d6ae; box-shadow:0 0 0 3px #15232aa3;
+}
+.junior-root .flight-scope .gta-radar-frame {width:158%;height:100%;position:absolute;inset:0 auto 0 -29%;border:0;border-radius:0}
+.flight-scope .gta-radar-frame span {display:none}
+.flight-mobile .flight-track {
+  display:flex; justify-content:center; gap:6px; width:auto; min-width:70px;
+  top:var(--top); left:50%; transform:translateX(-50%); height:44px;
+  border:0; border-radius:18px; background:linear-gradient(#122632bd,#12263270);
+  font:700 13px system-ui; font-variant-numeric:tabular-nums;
+}
+.flight-track svg {color:#a8f3d5}
+.flight-menu {right:var(--right);top:var(--top)}
+.flight-mobile .flight-stores {
+  top:var(--top);left:calc(var(--left) + clamp(70px,21dvh,92px) + 7px);
+  width:60px;height:48px;border:0;border-radius:10px;gap:1px;padding:4px 6px;
+}
+.flight-stores span {display:flex;align-items:center;gap:4px}
+.flight-stores meter {width:28px;height:9px}
+.flight-pad {left:0;bottom:0;width:39%;height:53%;touch-action:none;user-select:none;overflow:clip}
+.flight-pad i {position:absolute;left:calc(var(--left) + 56px);top:calc(100% - var(--bottom) - 48px);translate:-50% -50%;width:79px;height:79px;border-radius:50%;border:1px solid var(--rim);background:#11243250;display:grid;place-items:center;color:#fff}
+.flight-pad[data-held] i {left:var(--x);top:var(--y);border-color:#bcf0dc}
+.flight-pad i svg {background:#142c38ba;border:1px solid var(--rim);border-radius:50%;padding:8px;box-sizing:content-box}
+.flight-pad[data-held] svg {translate:var(--dx) var(--dy)}
+.flight-actions {right:var(--right);bottom:var(--bottom);width:159px;height:120px;pointer-events:none}
+.flight-actions button {touch-action:none}
+.flight-actions .flight-main {right:0;bottom:0;width:66px;height:66px;background:#183337c7;border:2px solid #bfead9;box-shadow:inset 0 0 0 4px #b1ffe11c}
+.flight-main svg {width:30px;height:30px}
+.flight-view {bottom:0;right:78px}
+.flight-board {right:2px;bottom:75px}
+.flight-actions .flight-use {right:78px;bottom:55px;background:#6b4b28dd;border-color:#ffd699}
+.flight-actions button:active,.flight-mobile button:active {background:#43706a}
+.junior-root[data-controls="mobile"] .sv-world .sv-look-controls {top:max(10px,env(safe-area-inset-top));right:calc(max(14px,env(safe-area-inset-right)) + 51px);left:auto;width:auto;z-index:8}
+.junior-root[data-controls="mobile"] .sv-look-controls summary {display:grid;place-items:center;width:44px;height:44px;min-width:0;padding:0;margin-left:auto;border-radius:50%;color:white;background:#10222ccc}
+.junior-root[data-controls="mobile"] .sv-look-controls details:not([open]) {padding:0;background:none;border:0}
+.junior-root[data-controls="mobile"] .sv-world .sv-rover-hud {left:50%;right:auto;top:auto;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:auto;pointer-events:none}
+.junior-root[data-controls="mobile"] .sv-rover-exit-btn,.junior-root[data-controls="mobile"] .sv-gear-rail {display:none}
+.flight-sheet dl,.flight-menu-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.flight-sheet dl div {border-bottom:1px solid #7896a55e;padding:4px}
+.flight-sheet dt {font-size:12px;text-transform:capitalize}
+.flight-sheet dd {font-weight:700;margin:0}
