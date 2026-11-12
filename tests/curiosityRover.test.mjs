@@ -6,6 +6,7 @@ import {
   spawnCuriosityRover,
   stepCuriosityRover,
   curiosityFootprint,
+  exportCuriositySave,
   CURIOSITY_PATROL_WAYPOINTS,
   CURIOSITY_MAX_SPEED,
   CURIOSITY_LIMIT,
@@ -260,4 +261,57 @@ test("NASA Curiosity GLB asset exists in public/models with expected rig nodes",
   ]) {
     assert.equal(nodeNames.has(required), true, `Missing required GLB rig node: ${required}`);
   }
+});
+
+test("Different seeds produce different initial headings and non-repeating full-map scan areas", () => {
+  const staticColony = colonyCollision(STATIONS);
+  const a = spawnCuriosityRover(staticColony, () => 0, { seed: 101, allowColonyTargets: true });
+  const b = spawnCuriosityRover(staticColony, () => 0, { seed: 99991, allowColonyTargets: true });
+  assert.ok(
+    Math.hypot(a.targetX - b.targetX, a.targetZ - b.targetZ) > 5 || Math.abs(a.yaw - b.yaw) > 0.2,
+    "Expected distinct seeds to send Curiosity along different initial routes",
+  );
+
+  let state = a;
+  const scanPoints = [];
+  let prevScans = 0;
+  for (let i = 0; i < 3600; i++) {
+    state = stepCuriosityRover(state, 0.05, staticColony, () => 0);
+    if (state.scanCount > prevScans) {
+      prevScans = state.scanCount;
+      scanPoints.push([state.x, state.z]);
+    }
+  }
+  assert.ok(scanPoints.length >= 3, `Expected multiple scans during free-roam tour, got ${scanPoints.length}`);
+  for (let i = 1; i < scanPoints.length; i++) {
+    const d = Math.hypot(scanPoints[i][0] - scanPoints[i - 1][0], scanPoints[i][1] - scanPoints[i - 1][1]);
+    assert.ok(d > 8, `Expected subsequent scan to pick a different area, moved only ${d.toFixed(2)}m`);
+  }
+});
+
+test("Curiosity escapes a 3-sided rock trap via alternating reverse turns and target rerouting", () => {
+  let state = spawnCuriosityRover([], () => 0, { seed: 42, allowColonyTargets: true });
+  // Place Curiosity facing North (-Z) inside a tight U-pocket of boulders
+  const trap = [
+    { x: -17, z: 5.5, radius: 1.8, traversable: false },
+    { x: -20.6, z: 8.5, radius: 1.7, traversable: false },
+    { x: -13.4, z: 8.5, radius: 1.7, traversable: false },
+  ];
+  state = { ...state, x: -17, z: 10, yaw: 0, targetX: -17, targetZ: -25, stuckAnchorX: -17, stuckAnchorZ: 10 };
+  const initialTargetX = state.targetX;
+  const initialTargetZ = state.targetZ;
+
+  for (let i = 0; i < 500; i++) {
+    state = stepCuriosityRover(state, 0.05, trap, () => 0);
+    const hull = curiosityFootprint(0, 0, state.yaw);
+    for (const o of trap) {
+      assert.equal(overlapBody(state.x, state.z, hull, o), null, "Must not clip boulders during trap escape");
+    }
+  }
+  const escapedDist = Math.hypot(state.x - (-17), state.z - 10);
+  assert.ok(escapedDist > 4.5, `Expected Curiosity to back out & escape pocket, moved only ${escapedDist.toFixed(2)}m`);
+  assert.ok(
+    state.targetX !== initialTargetX || state.targetZ !== initialTargetZ,
+    "Expected trapped rover to reroute to a new reachable destination",
+  );
 });

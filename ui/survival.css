@@ -2017,6 +2017,33 @@
   .sv-fullmap {
     height: min(48dvh, 220px);
   }
+  .sv-arrival {
+    left: 50%;
+    top: calc(max(6px, env(safe-area-inset-top)) + 48px);
+    transform: translateX(-50%);
+    width: min(460px, calc(100vw - 320px));
+    max-height: calc(100dvh - 76px);
+    overflow-y: auto;
+    padding-right: 0;
+  }
+  .sv-arrival h1 {
+    font-size: 28px;
+    margin: 4px 0 6px;
+  }
+  .sv-arrival > p:not(.sv-eyebrow) {
+    font-size: 12px;
+    max-width: none;
+  }
+  .sv-arrival-controls {
+    margin: 10px 0;
+    gap: 6px 12px;
+    font-size: 10px;
+  }
+  .sv-arrival .sv-primary {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
 }
 
 /* Stack multi-button contextual actions vertically on compact landscape phones

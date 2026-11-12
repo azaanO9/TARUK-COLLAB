@@ -59,6 +59,48 @@ export const CURIOSITY_PATROL_WAYPOINTS: readonly CuriosityWaypoint[] = [
   { x: -26, z: 32, zone: "plains" },
 ];
 
+/** Open colony paths & station approaches Curiosity can also inspect when full-map exploration is enabled. */
+export const CURIOSITY_COLONY_WAYPOINTS: readonly CuriosityWaypoint[] = [
+  { x: -17, z: 10, zone: "colony" },
+  { x: -16, z: -4, zone: "colony" },
+  { x: -1, z: -15, zone: "colony" },
+  { x: 9, z: -2, zone: "colony" },
+  { x: -7, z: -24, zone: "colony" },
+  { x: 25, z: -11, zone: "colony" },
+  { x: 25, z: 11, zone: "colony" },
+  { x: -27, z: -15, zone: "colony" },
+];
+
+export type CuriosityPoint = {
+  readonly x: number;
+  readonly z: number;
+};
+
+export type SavedCuriosityState = {
+  version: 1;
+  x: number;
+  z: number;
+  yaw: number;
+  targetX: number;
+  targetZ: number;
+  targetZone: CuriosityZone;
+  phase: CuriosityPhase;
+  scanStage: CuriosityScanStage;
+  scanTimer: number;
+  driveTimer: number;
+  nextScanAfter: number;
+  scanCount: number;
+  lastScanSample: string;
+  rngSeed: number;
+  recentTargets: CuriosityPoint[];
+};
+
+export type CuriositySpawnOptions = {
+  seed?: number;
+  allowColonyTargets?: boolean;
+  saved?: SavedCuriosityState | null;
+};
+
 const MARS_SAMPLE_NOTES = [
   "Olivine-rich basalt pebble · Mg/Fe spectral peak detected",
   "Wind-sorted ferric regolith · low sulfur, fine grain coat",
@@ -98,6 +140,16 @@ export type CuriosityRoverState = {
   scanTargetY: number;
   scanTargetZ: number;
   waypointIndex: number;
+  targetX: number;
+  targetZ: number;
+  targetZone: CuriosityZone;
+  allowColonyTargets: boolean;
+  rngSeed: number;
+  recentTargets: CuriosityPoint[];
+  stuckTimer: number;
+  stuckAnchorX: number;
+  stuckAnchorZ: number;
+  stuckAttempts: number;
   scanCount: number;
   currentZone: CuriosityZone;
   lastScanSample: string;
@@ -106,6 +158,11 @@ export type CuriosityRoverState = {
 };
 
 const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+function nextRandom(seed: number): [number, number] {
+  const next = (Math.imul(seed >>> 0, 1664525) + 1013904223) >>> 0;
+  return [next / 0x100000000, next];
+}
 
 function normalizeAngle(angle: number): number {
   let a = angle;
@@ -224,12 +281,226 @@ function findNearestFreePoint(
   return { x: startX, z: startZ };
 }
 
+function isTargetAccessible(
+  tx: number,
+  tz: number,
+  obstacles: readonly CollisionObstacle[],
+  heightAt: (wx: number, wz: number) => number,
+): boolean {
+  if (Math.abs(tx) > CURIOSITY_LIMIT - 6 || Math.abs(tz) > CURIOSITY_LIMIT - 6) return false;
+  const solid = obstacles.filter((o) => o.id !== "curiosity" && !o.traversable);
+  const hull = paddedCuriosityHull(0, 0.45);
+  if (solid.some((o) => overlapBody(tx, tz, hull, o))) return false;
+  const h0 = heightAt(tx, tz);
+  for (const [dx, dz] of [[2.2, 0], [-2.2, 0], [0, 2.2], [0, -2.2]]) {
+    if (Math.abs(heightAt(tx + dx, tz + dz) - h0) / 2.2 > 0.30) return false;
+  }
+  return true;
+}
+
+function appendRecentTarget(
+  recent: readonly CuriosityPoint[],
+  x: number,
+  z: number,
+): CuriosityPoint[] {
+  const filtered = recent.filter((p) => Math.hypot(p.x - x, p.z - z) >= 8);
+  return [...filtered.slice(-7), { x: Number(x.toFixed(2)), z: Number(z.toFixed(2)) }];
+}
+
+function pickExplorationTarget(
+  fromX: number,
+  fromZ: number,
+  rngSeed: number,
+  allowColonyTargets: boolean,
+  recentTargets: readonly CuriosityPoint[],
+  obstacles: readonly CollisionObstacle[],
+  heightAt: (wx: number, wz: number) => number,
+  preferYaw?: number,
+): { x: number; z: number; zone: CuriosityZone; rngSeed: number } {
+  let seed = rngSeed >>> 0;
+  const candidates: { x: number; z: number; zone: CuriosityZone }[] = [];
+
+  // Sample varied outer-plains & crater-rim sectors across all directions
+  for (let i = 0; i < 16; i++) {
+    const [uA, s1] = nextRandom(seed);
+    const [uR, s2] = nextRandom(s1);
+    seed = s2;
+    const angle = uA * Math.PI * 2;
+    const radius = 28 + uR * 36;
+    const cx = clamp(Math.cos(angle) * radius, -(CURIOSITY_LIMIT - 8), CURIOSITY_LIMIT - 8);
+    const cz = clamp(-6 + Math.sin(angle) * radius, -(CURIOSITY_LIMIT - 8), CURIOSITY_LIMIT - 8);
+    candidates.push({ x: cx, z: cz, zone: "plains" });
+  }
+
+  // Mix in curated plains/crater waypoints and (when enabled) colony paths
+  for (const wp of CURIOSITY_PATROL_WAYPOINTS) {
+    if (wp.zone === "plains" || allowColonyTargets) {
+      candidates.push({ x: wp.x, z: wp.z, zone: wp.zone });
+    }
+  }
+  if (allowColonyTargets) {
+    for (const wp of CURIOSITY_COLONY_WAYPOINTS) {
+      candidates.push({ x: wp.x, z: wp.z, zone: "colony" });
+    }
+  }
+
+  let best: { x: number; z: number; zone: CuriosityZone } | null = null;
+  let bestScore = -Infinity;
+
+  for (const cand of candidates) {
+    const [uJ, sNext] = nextRandom(seed);
+    seed = sNext;
+    const settled = findNearestFreePoint(cand.x, cand.z, 0, obstacles);
+    if (!isTargetAccessible(settled.x, settled.z, obstacles, heightAt)) continue;
+
+    const travelDist = Math.hypot(settled.x - fromX, settled.z - fromZ);
+    if (travelDist < 12) continue;
+
+    let minRecent = 50;
+    for (const prev of recentTargets) {
+      const d = Math.hypot(settled.x - prev.x, settled.z - prev.z);
+      if (d < minRecent) minRecent = d;
+    }
+
+    const yawToCand = Math.atan2(-(settled.x - fromX), -(settled.z - fromZ));
+    const headingAlign = preferYaw !== undefined ? Math.cos(normalizeAngle(yawToCand - preferYaw)) : 0;
+    const score =
+      Math.min(minRecent, 32) * 2.2 +
+      Math.min(travelDist, 55) * 0.45 +
+      headingAlign * 48 +
+      uJ * 12 -
+      (minRecent < 18 ? 45 : 0);
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = { x: settled.x, z: settled.z, zone: cand.zone };
+    }
+  }
+
+  if (best) return { ...best, rngSeed: seed };
+
+  // Guaranteed clear fallback on open western plains
+  const fallback = findNearestFreePoint(-34, 10, 0, obstacles);
+  return { x: fallback.x, z: fallback.z, zone: "plains", rngSeed: seed };
+}
+
+export function exportCuriositySave(state: CuriosityRoverState): SavedCuriosityState {
+  return {
+    version: 1,
+    x: Number(state.x.toFixed(3)),
+    z: Number(state.z.toFixed(3)),
+    yaw: Number(state.yaw.toFixed(4)),
+    targetX: Number(state.targetX.toFixed(3)),
+    targetZ: Number(state.targetZ.toFixed(3)),
+    targetZone: state.targetZone,
+    phase: state.phase,
+    scanStage: state.scanStage,
+    scanTimer: Number(state.scanTimer.toFixed(3)),
+    driveTimer: Number(state.driveTimer.toFixed(3)),
+    nextScanAfter: Number(state.nextScanAfter.toFixed(2)),
+    scanCount: state.scanCount,
+    lastScanSample: state.lastScanSample,
+    rngSeed: state.rngSeed >>> 0,
+    recentTargets: state.recentTargets.slice(-8),
+  };
+}
+
 export function spawnCuriosityRover(
   obstacles: readonly CollisionObstacle[] = [],
   heightAt: (wx: number, wz: number) => number = () => 0,
+  options?: CuriositySpawnOptions,
 ): CuriosityRoverState {
-  const startYaw = Math.PI * 0.48; // Visible near west base edge facing outward toward far plains
-  const startPos = findNearestFreePoint(-17, 10, startYaw, obstacles);
+  const allowColonyTargets = options?.allowColonyTargets ?? false;
+  const saved = options?.saved ?? null;
+
+  if (saved) {
+    const yaw = normalizeAngle(saved.yaw);
+    const startPos = findNearestFreePoint(saved.x, saved.z, yaw, obstacles);
+    const attitude = solveCuriosityAttitude(
+      startPos.x,
+      startPos.z,
+      yaw,
+      heightAt,
+      heightAt(startPos.x, startPos.z),
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+    );
+    const scanTarget = chooseScanTarget(startPos.x, startPos.z, yaw, obstacles, heightAt);
+    return {
+      x: startPos.x,
+      z: startPos.z,
+      yaw,
+      speed: 0,
+      steerAngle: 0,
+      wheelRoll: 0,
+      chassisY: attitude.chassisY,
+      pitch: attitude.pitch,
+      roll: attitude.roll,
+      leftRockerAngle: attitude.leftRockerAngle,
+      rightRockerAngle: attitude.rightRockerAngle,
+      leftBogieAngle: attitude.leftBogieAngle,
+      rightBogieAngle: attitude.rightBogieAngle,
+      scanCrouch: saved.phase === "scanning" ? 1 : 0,
+      phase: saved.phase,
+      scanStage: saved.scanStage,
+      scanTimer: saved.scanTimer,
+      driveTimer: saved.driveTimer,
+      nextScanAfter: saved.nextScanAfter,
+      recoveryTimer: 0,
+      recoveryTurnSign: 1,
+      armDeploy: saved.phase === "scanning" ? 1 : 0,
+      mastYaw: 0,
+      mastPitch: saved.phase === "scanning" ? -0.34 : -0.06,
+      laserActive: saved.phase === "scanning" && saved.scanStage === "laser",
+      laserPulse: 0,
+      scanTargetX: scanTarget.tx,
+      scanTargetY: scanTarget.ty,
+      scanTargetZ: scanTarget.tz,
+      waypointIndex: 0,
+      targetX: saved.targetX,
+      targetZ: saved.targetZ,
+      targetZone: saved.targetZone,
+      allowColonyTargets,
+      rngSeed: saved.rngSeed >>> 0,
+      recentTargets: saved.recentTargets,
+      stuckTimer: 0,
+      stuckAnchorX: startPos.x,
+      stuckAnchorZ: startPos.z,
+      stuckAttempts: 0,
+      scanCount: saved.scanCount,
+      currentZone: saved.targetZone,
+      lastScanSample: saved.lastScanSample,
+      yieldReason: "none",
+      totalTime: 0,
+    };
+  }
+
+  const randomized = options?.seed !== undefined;
+  let rngSeed = (options?.seed ?? 0x6d2b79f5) >>> 0;
+  let startYaw = Math.PI * 0.48;
+  let initialTarget = { x: CURIOSITY_PATROL_WAYPOINTS[0].x, z: CURIOSITY_PATROL_WAYPOINTS[0].z, zone: CURIOSITY_PATROL_WAYPOINTS[0].zone, rngSeed };
+  const startBase = { x: -17, z: 10 };
+  const startPos = findNearestFreePoint(startBase.x, startBase.z, startYaw, obstacles);
+
+  if (randomized) {
+    initialTarget = pickExplorationTarget(
+      startPos.x,
+      startPos.z,
+      rngSeed,
+      allowColonyTargets,
+      [],
+      obstacles,
+      heightAt,
+    );
+    rngSeed = initialTarget.rngSeed;
+    startYaw = normalizeAngle(Math.atan2(-(initialTarget.x - startPos.x), -(initialTarget.z - startPos.z)));
+  }
+
   const attitude = solveCuriosityAttitude(
     startPos.x,
     startPos.z,
@@ -262,7 +533,7 @@ export function spawnCuriosityRover(
     phase: "driving",
     scanStage: "none",
     scanTimer: 0,
-    driveTimer: 2.0, // Cruises ~10m out from colony edge before commencing first far-plains scan
+    driveTimer: 2.0, // Cruises ~10m out from colony edge before commencing first scan
     nextScanAfter: 10.5,
     recoveryTimer: 0,
     recoveryTurnSign: 1,
@@ -275,6 +546,16 @@ export function spawnCuriosityRover(
     scanTargetY: attitude.chassisY,
     scanTargetZ: startPos.z - Math.cos(startYaw) * 2.35,
     waypointIndex: 0,
+    targetX: initialTarget.x,
+    targetZ: initialTarget.z,
+    targetZone: initialTarget.zone,
+    allowColonyTargets,
+    rngSeed,
+    recentTargets: [],
+    stuckTimer: 0,
+    stuckAnchorX: startPos.x,
+    stuckAnchorZ: startPos.z,
+    stuckAttempts: 0,
     scanCount: 0,
     currentZone: "colony",
     lastScanSample: MARS_SAMPLE_NOTES[0],
@@ -283,13 +564,21 @@ export function spawnCuriosityRover(
   };
 }
 
-const CANDIDATE_OFFSETS = [
+const FORWARD_CANDIDATE_OFFSETS = [
   0,
   0.22, -0.22,
   0.46, -0.46,
   0.72, -0.72,
   1.0, -1.0,
   1.28, -1.28,
+] as const;
+
+const ESCAPE_CANDIDATE_OFFSETS = [
+  1.62, -1.62,
+  1.98, -1.98,
+  2.38, -2.38,
+  2.78, -2.78,
+  Math.PI,
 ] as const;
 
 type ProbeResult = {
@@ -426,7 +715,6 @@ export function stepCuriosityRover(
   const solid = obstacles.filter((o) => o.id !== "curiosity" && !o.traversable);
   const physicsObstacles = solid.filter((o) => o.id !== "walker");
   const walkerObstacle = solid.find((o) => o.id === "walker");
-  const wp = CURIOSITY_PATROL_WAYPOINTS[state.waypointIndex];
 
   // Check if a dynamic entity (walker or MMSEV rover) is directly inside our forward personal space
   const fxCurr = -Math.sin(state.yaw);
@@ -489,8 +777,20 @@ export function stepCuriosityRover(
       targetMastYaw *= 1 - u;
       targetMastPitch = -0.34 * (1 - u) - 0.06 * u;
     } else {
-      // Completed scan cycle -> raise chassis cleanly and resume patrol
+      // Completed scan cycle -> raise chassis cleanly and pick a fresh unexplored area
       const scanCount = state.scanCount + 1;
+      const recentTargets = appendRecentTarget(state.recentTargets, state.x, state.z);
+      const nextTarget = state.allowColonyTargets
+        ? pickExplorationTarget(
+            state.x,
+            state.z,
+            state.rngSeed,
+            true,
+            recentTargets,
+            obstacles,
+            heightAt,
+          )
+        : null;
       return {
         ...state,
         speed: 0,
@@ -506,6 +806,15 @@ export function stepCuriosityRover(
         mastPitch: -0.06,
         laserActive: false,
         laserPulse: 0,
+        targetX: nextTarget ? nextTarget.x : state.targetX,
+        targetZ: nextTarget ? nextTarget.z : state.targetZ,
+        targetZone: nextTarget ? nextTarget.zone : state.targetZone,
+        rngSeed: nextTarget ? nextTarget.rngSeed : state.rngSeed,
+        recentTargets,
+        stuckTimer: 0,
+        stuckAnchorX: state.x,
+        stuckAnchorZ: state.z,
+        stuckAttempts: 0,
         scanCount,
         lastScanSample: MARS_SAMPLE_NOTES[scanCount % MARS_SAMPLE_NOTES.length],
         totalTime,
@@ -554,18 +863,44 @@ export function stepCuriosityRover(
   // MODE B: DRIVING (smooth terrain selection + rock & entity avoidance)
   // ------------------------------------------------------------------
   let waypointIndex = state.waypointIndex;
-  const distToWp = Math.hypot(wp.x - state.x, wp.z - state.z);
-  if (distToWp < 3.6) {
-    waypointIndex = (waypointIndex + 1) % CURIOSITY_PATROL_WAYPOINTS.length;
+  let targetX = state.targetX;
+  let targetZ = state.targetZ;
+  let targetZone = state.targetZone;
+  let rngSeed = state.rngSeed;
+  let recentTargets = state.recentTargets;
+
+  const distToTarget = Math.hypot(targetX - state.x, targetZ - state.z);
+  if (distToTarget < 3.8) {
+    recentTargets = appendRecentTarget(recentTargets, targetX, targetZ);
+    if (state.allowColonyTargets) {
+      const picked = pickExplorationTarget(
+        state.x,
+        state.z,
+        rngSeed,
+        true,
+        recentTargets,
+        obstacles,
+        heightAt,
+      );
+      targetX = picked.x;
+      targetZ = picked.z;
+      targetZone = picked.zone;
+      rngSeed = picked.rngSeed;
+    } else {
+      waypointIndex = (waypointIndex + 1) % CURIOSITY_PATROL_WAYPOINTS.length;
+      const wpNext = CURIOSITY_PATROL_WAYPOINTS[waypointIndex];
+      targetX = wpNext.x;
+      targetZ = wpNext.z;
+      targetZone = wpNext.zone;
+    }
   }
-  const activeWp = CURIOSITY_PATROL_WAYPOINTS[waypointIndex];
-  const desiredYaw = Math.atan2(-(activeWp.x - state.x), -(activeWp.z - state.z));
+  const desiredYaw = Math.atan2(-(targetX - state.x), -(targetZ - state.z));
 
   let bestOffset = 0;
   let bestScore = Infinity;
   let sawEntity = false;
   let sawSlope = false;
-  for (const offset of CANDIDATE_OFFSETS) {
+  for (const offset of FORWARD_CANDIDATE_OFFSETS) {
     const candYaw = normalizeAngle(state.yaw + offset);
     const res = evaluateHeadingCandidate(state.x, state.z, candYaw, desiredYaw, solid, heightAt);
     if (res.clear) {
@@ -581,30 +916,78 @@ export function stepCuriosityRover(
     }
   }
 
+  // If forward cone is completely blocked, probe wide/rear escape gaps weighted by proximity to rear open space
+  let wideEscapeOffset: number | null = null;
+  if (!Number.isFinite(bestScore)) {
+    let bestEscapeScore = Infinity;
+    for (const offset of ESCAPE_CANDIDATE_OFFSETS) {
+      const candYaw = normalizeAngle(state.yaw + offset);
+      const res = evaluateHeadingCandidate(state.x, state.z, candYaw, candYaw, solid, heightAt);
+      if (res.clear && res.score < bestEscapeScore) {
+        bestEscapeScore = res.score;
+        wideEscapeOffset = offset;
+      }
+    }
+  }
+
   let recoveryTimer = Math.max(0, state.recoveryTimer - dt);
   let recoveryTurnSign = state.recoveryTurnSign;
+  let stuckTimer = state.stuckTimer;
+  let stuckAnchorX = state.stuckAnchorX;
+  let stuckAnchorZ = state.stuckAnchorZ;
+  let stuckAttempts = state.stuckAttempts;
   let targetSpeed = CURIOSITY_MAX_SPEED;
   let targetSteer = clamp(bestOffset * 0.52, -CURIOSITY_STEER_MAX, CURIOSITY_STEER_MAX);
   let yieldReason: CuriosityYieldReason = "none";
+
+  const canReverse = evaluateHeadingCandidate(
+    state.x,
+    state.z,
+    normalizeAngle(state.yaw + Math.PI),
+    normalizeAngle(state.yaw + Math.PI),
+    solid,
+    heightAt,
+  ).clear;
 
   if (entityBlockingClosely) {
     // Hold position politely whenever the astronaut or crew rover stands right ahead
     targetSpeed = 0;
     targetSteer = clamp(bestOffset * 0.5, -CURIOSITY_STEER_MAX, CURIOSITY_STEER_MAX);
     recoveryTimer = 0;
+    stuckTimer = 0;
     yieldReason = "entity";
   } else if (!Number.isFinite(bestScore)) {
-    // Completely boxed in by static rocks/terrain -> gently back & turn toward clearer side
+    // Forward cone blocked by rocks/crater -> back out toward the widest open escape gap & pick a new route
     if (recoveryTimer <= 0) {
-      recoveryTimer = 1.6;
-      recoveryTurnSign = normalizeAngle(desiredYaw - state.yaw) >= 0 ? 1 : -1;
+      stuckAttempts += 1;
+      recoveryTimer = canReverse ? 2.6 : 1.0;
+      const openSign = wideEscapeOffset !== null ? (wideEscapeOffset >= 0 ? 1 : -1) : null;
+      recoveryTurnSign = openSign ?? (stuckAttempts % 2 === 1 ? -state.recoveryTurnSign : 1);
+      recentTargets = appendRecentTarget(recentTargets, targetX, targetZ);
+      const escapeHeading = normalizeAngle(
+        state.yaw + (wideEscapeOffset ?? recoveryTurnSign * 2.1),
+      );
+      const rerouted = pickExplorationTarget(
+        state.x,
+        state.z,
+        rngSeed,
+        state.allowColonyTargets,
+        recentTargets,
+        obstacles,
+        heightAt,
+        escapeHeading,
+      );
+      targetX = rerouted.x;
+      targetZ = rerouted.z;
+      targetZone = rerouted.zone;
+      rngSeed = rerouted.rngSeed;
     }
-    targetSpeed = -CURIOSITY_REVERSE_SPEED;
-    targetSteer = -recoveryTurnSign * CURIOSITY_STEER_MAX;
+    targetSpeed = canReverse ? -CURIOSITY_REVERSE_SPEED : CURIOSITY_MAX_SPEED * 0.35;
+    targetSteer = (canReverse ? -recoveryTurnSign : recoveryTurnSign) * CURIOSITY_STEER_MAX;
     yieldReason = sawEntity ? "entity" : sawSlope ? "slope" : "obstacle";
   } else if (recoveryTimer > 0) {
-    targetSpeed = -CURIOSITY_REVERSE_SPEED;
-    targetSteer = -recoveryTurnSign * CURIOSITY_STEER_MAX;
+    targetSpeed = canReverse ? -CURIOSITY_REVERSE_SPEED : CURIOSITY_MAX_SPEED * 0.45;
+    targetSteer = (canReverse ? -recoveryTurnSign : recoveryTurnSign) * CURIOSITY_STEER_MAX;
     yieldReason = "obstacle";
   } else if (Math.abs(bestOffset) > 0.45) {
     // Slow slightly around tight boulders or sharp corner turns
@@ -659,16 +1042,57 @@ export function stepCuriosityRover(
 
   const travelled = (x - state.x) * -Math.sin(yaw) + (z - state.z) * -Math.cos(yaw);
 
-  // Check if physically stopped against a static boulder/crater wall and trigger recovery if stuck
+  // Check if physically stopped or making zero net progress -> escalate alternate turns & try a different path
+  if (!entityBlockingClosely) {
+    if (Math.hypot(x - stuckAnchorX, z - stuckAnchorZ) >= 2.0) {
+      stuckAnchorX = x;
+      stuckAnchorZ = z;
+      stuckTimer = 0;
+      stuckAttempts = 0;
+    } else {
+      stuckTimer += dt;
+    }
+  }
+
   if (moved.normals.length > 0 && targetSpeed > 0.2) {
     const actualSpeed = Math.abs(travelled / dt);
     if (actualSpeed < 0.15) {
       speed *= 0.4;
       if (recoveryTimer <= 0 && !entityBlockingClosely) {
-        recoveryTimer = 1.4;
-        recoveryTurnSign = bestOffset >= 0 ? 1 : -1;
+        stuckAttempts += 1;
+        recoveryTimer = 1.6;
+        recoveryTurnSign = stuckAttempts % 2 === 1 ? -state.recoveryTurnSign : (bestOffset >= 0 ? 1 : -1);
       }
       if (yieldReason === "none") yieldReason = "obstacle";
+    }
+  }
+
+  if (!entityBlockingClosely && recoveryTimer <= 0 && stuckTimer >= 2.8) {
+    stuckAttempts += 1;
+    stuckTimer = 0;
+    stuckAnchorX = x;
+    stuckAnchorZ = z;
+    recoveryTurnSign = stuckAttempts % 2 === 1 ? -state.recoveryTurnSign : 1;
+    recoveryTimer = canReverse ? 2.4 : 0.9;
+    if (stuckAttempts >= 2) {
+      recentTargets = appendRecentTarget(recentTargets, targetX, targetZ);
+      const escapeHeading = Number.isFinite(bestScore)
+        ? normalizeAngle(yaw + bestOffset)
+        : normalizeAngle(yaw + recoveryTurnSign * 2.1);
+      const rerouted = pickExplorationTarget(
+        x,
+        z,
+        rngSeed,
+        state.allowColonyTargets,
+        recentTargets,
+        obstacles,
+        heightAt,
+        escapeHeading,
+      );
+      targetX = rerouted.x;
+      targetZ = rerouted.z;
+      targetZone = rerouted.zone;
+      rngSeed = rerouted.rngSeed;
     }
   }
 
@@ -697,10 +1121,18 @@ export function stepCuriosityRover(
 
   const driveTimer = state.driveTimer + (Math.abs(speed) > 0.55 ? dt : 0);
   const distFromColony = Math.hypot(x, z + 6);
+  const farFromLastScan = state.recentTargets.every((p) => Math.hypot(p.x - x, p.z - z) >= 10);
+  const colonyArrivalReady =
+    state.allowColonyTargets &&
+    farFromLastScan &&
+    ((targetZone === "colony" && Math.hypot(targetX - x, targetZ - z) < 6.5 && driveTimer >= 3.5) ||
+      driveTimer >= state.nextScanAfter);
   const farScanReady =
-    distFromColony >= CURIOSITY_FAR_SCAN_RADIUS
-      ? driveTimer >= state.nextScanAfter
-      : driveTimer >= state.nextScanAfter * 3.5;
+    colonyArrivalReady ||
+    (!state.allowColonyTargets &&
+      (distFromColony >= CURIOSITY_FAR_SCAN_RADIUS
+        ? driveTimer >= state.nextScanAfter
+        : driveTimer >= state.nextScanAfter * 3.5));
 
   // Transition cleanly to stop-and-scan cycle mostly in outer far plains / craters
   const forwardProbe = evaluateHeadingCandidate(x, z, yaw, yaw, solid, heightAt);
@@ -740,7 +1172,16 @@ export function stepCuriosityRover(
       scanTargetY: scanTarget.ty,
       scanTargetZ: scanTarget.tz,
       waypointIndex,
-      currentZone: activeWp.zone,
+      targetX,
+      targetZ,
+      targetZone,
+      rngSeed,
+      recentTargets,
+      stuckTimer: 0,
+      stuckAnchorX: x,
+      stuckAnchorZ: z,
+      stuckAttempts: 0,
+      currentZone: targetZone,
       yieldReason: "none",
       totalTime,
     };
@@ -767,7 +1208,16 @@ export function stepCuriosityRover(
     laserActive: false,
     laserPulse: 0,
     waypointIndex,
-    currentZone: activeWp.zone,
+    targetX,
+    targetZ,
+    targetZone,
+    rngSeed,
+    recentTargets,
+    stuckTimer,
+    stuckAnchorX,
+    stuckAnchorZ,
+    stuckAttempts,
+    currentZone: targetZone,
     yieldReason,
     totalTime,
   };

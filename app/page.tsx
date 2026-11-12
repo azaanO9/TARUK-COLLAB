@@ -2,7 +2,7 @@
 
 import { lazy, Suspense, useEffect, useState } from "react";
 import { createMission, missionReducer, type Action } from "../game/juniorMission";
-import { MARS_SAVE_KEY, parseMarsSave, type MarsSave } from "../game/marsSave";
+import { CURIOSITY_SAVE_KEY, MARS_SAVE_KEY, parseMarsSave, type MarsSave } from "../game/marsSave";
 const DownlinkControl = lazy(() => import("../ui/DownlinkControl"));
 const MissionControl = lazy(() => import("../ui/MissionControl"));
 const StoryGame = lazy(() => import("../ui/StoryGame"));
@@ -68,6 +68,7 @@ function MissionHub() {
   const restart = () => {
     if (!window.confirm("Restart the Mars mission? This will permanently replace your saved progress on this device.")) return;
     if (controlMode === "mobile") void tryEnterLandscape();
+    try { window.localStorage.removeItem(CURIOSITY_SAVE_KEY); } catch {}
     setMission(createMission(cargo));
     setHasMarsSave(true);
     setActiveMission("mars");
@@ -77,7 +78,7 @@ function MissionHub() {
   const [choice, setChoice] = useState<"mars" | "survival">("mars");
   useEffect(() => {
     const mode = new URLSearchParams(window.location.search).get("mode");
-    if (mode === "story" || mode === "survival" || (process.env.NODE_ENV !== "production" && (mode === "downlink" || mode === "outpost"))) {
+    if (mode === "story" || mode === "survival" || mode === "downlink" || mode === "outpost") {
       setActiveMission(mode);
       setBriefing(false);
     }
@@ -95,7 +96,7 @@ function MissionHub() {
     </section>
     <section className="junior-card deck-console" aria-label="Mission briefing and cadet ID"><h2>Launch setup</h2><label>JUNIOR ASTRONAUT CALLSIGN<input maxLength={24} value={callsign} onChange={e=>setCallsign(safeCallsign(e.target.value))} placeholder="Enter your callsign" /></label><button type="button" className="junior-random" onClick={randomCallsign}>🎲 Random callsign</button><fieldset><legend>CHOOSE YOUR MISSION PATCH</legend><div className="junior-patches">{["✦","☄","◉","☾"].map(p=><button type="button" key={p} aria-pressed={patch===p} onClick={()=>setPatch(p)}>{p}</button>)}</div></fieldset><fieldset><legend>SELECT AN EXPEDITION</legend><button className="junior-choice" aria-pressed={choice==="survival"} onClick={()=>setChoice("survival")}><strong>01 / TRANQUILITY LUNAR OUTPOST</strong><span>Training mission · Scout & MICA</span></button><button className="junior-choice" aria-pressed={choice==="mars"} onClick={()=>setChoice("mars")}><strong>02 / MARS OUTPOST · 10 SOLS</strong><span>Ares Field Camp · Ten station decisions</span></button></fieldset>{choice==="mars"&&<details><summary>Starting supplies for a new mission</summary><label>Supply shipment<select value={cargo} onChange={e=>setCargo(e.target.value as typeof cargo)}><option value="standard">Balanced stores</option><option value="air">Air shortage · 12 oxygen points</option><option value="food">Food shortage · 18 food points</option></select></label></details>}<fieldset><legend>HOW ARE YOU PLAYING?</legend><div className="junior-device-choices"><button type="button" aria-pressed={controlMode === "mobile"} onClick={() => setControlMode("mobile")}><strong>📱 Mobile</strong><span>On-screen touch controls</span></button><button type="button" aria-pressed={controlMode === "pc"} onClick={() => setControlMode("pc")}><strong>🖥 PC</strong><span>Keyboard and mouse</span></button></div></fieldset><p className="junior-control-copy">{controlMode === "mobile" ? "Use the on-screen controls to move, jump, inspect and drive." : controlMode === "pc" ? "WASD walk · Space jump · V camera · E inspect" : "Choose Mobile or PC to continue."}</p>{saveError&&<p role="alert">Saving is unavailable in this browser. Your progress will last only while this page stays open.</p>}<button className="junior-launch" disabled={!controlMode || !saveReady} onClick={launch}>{choice === "mars" && hasMarsSave ? "RESUME MISSION →" : "BEGIN MISSION →"}</button>{choice === "mars" && hasMarsSave && <button type="button" className="junior-restart" disabled={!controlMode || !saveReady} onClick={restart}>Restart Mars mission</button>}{choice === "mars" && hasMarsSave && <p className="junior-control-copy">Saved on this browser · Sol {mission.sol} · {mission.xp} XP · {mission.found.length}/6 discoveries</p>}<p className="junior-control-copy">Terrain textures adapted from <a href="https://polyhaven.com/a/sandy_gravel_02" target="_blank" rel="noreferrer">Poly Haven</a> · <a href="https://polyhaven.com/license" target="_blank" rel="noreferrer">CC0</a>.</p></section></div></main>;
   if (activeMission === "mars") return <MarsGame mission={mission} sendMission={sendMission} callsign={callsign.trim() || "Explorer"} patch={patch} controlMode={controlMode ?? "pc"} onHub={()=>setBriefing(true)} />;
-  if (activeMission === "survival") return <SurvivalGame skipOpening={launchedFromHub} initialTouchControls={controlMode === "mobile"} />;
+  if (activeMission === "survival") return <SurvivalGame skipOpening={launchedFromHub} initialTouchControls={controlMode === "mobile"} autoDetectTouch={!launchedFromHub} />;
   if (activeMission === "story")
     return <StoryGame onLegacy={() => setActiveMission("downlink")} />;
 

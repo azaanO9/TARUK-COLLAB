@@ -38,7 +38,7 @@ export function MarsTouchDeck({roverNear, canInspect, onWalkAxes, onHoldKey, onT
   }
   return <>
     <div ref={pad} className="flight-pad" aria-label="Move" onPointerDown={e=>{
-      e.stopPropagation();if(origin.current)return;
+      e.preventDefault();e.stopPropagation();if(origin.current)return;
       const rect=e.currentTarget.getBoundingClientRect();
       origin.current={id:e.pointerId,x:e.clientX,y:e.clientY};
       e.currentTarget.dataset.held="";
@@ -52,7 +52,7 @@ export function MarsTouchDeck({roverNear, canInspect, onWalkAxes, onHoldKey, onT
       <button className="flight-view" aria-label="Switch camera" onClick={onToggleView}><Camera/></button>
       {roverNear&&<button className="flight-board" aria-label="Drive rover" onClick={onToggleRover}><CarFront/></button>}
       {canInspect&&<button className="flight-use" aria-label="Interact with station" onClick={onInspectNearby}><Hand/></button>}
-      <button className="flight-main" aria-label="Jump" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);action(true)}} onLostPointerCapture={()=>action(false)} onPointerUp={()=>action(false)} onPointerCancel={()=>action(false)} onKeyDown={e=>{if(e.key===" "||e.key==="Enter")action(true)}} onKeyUp={()=>action(false)}><ArrowUpFromLine/></button>
+      <button className="flight-main" aria-label="Jump" onPointerDown={e=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);action(true)}} onLostPointerCapture={()=>action(false)} onPointerUp={()=>action(false)} onPointerCancel={()=>action(false)} onKeyDown={e=>{if(e.key===" "||e.key==="Enter")action(true)}} onKeyUp={()=>action(false)}><ArrowUpFromLine/></button>
     </div>
   </>;
 }

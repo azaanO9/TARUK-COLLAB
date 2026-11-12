@@ -37,7 +37,7 @@ const initialView: View = {
   locked: false,
   jumpHeight: 0,
 };
-export default function SurvivalGame({ skipOpening = false, initialTouchControls = false }: { skipOpening?: boolean; initialTouchControls?: boolean }) {
+export default function SurvivalGame({ skipOpening = false, initialTouchControls = false, autoDetectTouch = true }: { skipOpening?: boolean; initialTouchControls?: boolean; autoDetectTouch?: boolean }) {
   const [state, dispatch] = useReducer(
     survivalReducer,
     undefined,
@@ -51,7 +51,7 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
     [missionOpen, setMissionOpen] = useState(false),
     [guide, setGuide] = useState(false),
     [touchControls, setTouchControls] = useState(
-      () => initialTouchControls || isCoarsePointerDevice(),
+      () => initialTouchControls || (autoDetectTouch && isCoarsePointerDevice()),
     ),
     [portraitBlocked, setPortraitBlocked] = useState(false),
     [map, setMap] = useState(false),
@@ -160,6 +160,7 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
       <SurvivalWorld
         enabled={!intro && !landing && !portraitBlocked && state.phase === "explore" && !modal}
         showTouchControls={touchControls}
+        autoDetectTouch={autoDetectTouch}
         onTouchControlsChange={setTouchControls}
         event={day.event}
         day={state.day}

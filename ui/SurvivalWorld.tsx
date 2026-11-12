@@ -24,8 +24,10 @@ import {
   spawnCuriosityRover,
   stepCuriosityRover,
   curiosityFootprint,
+  exportCuriositySave,
   type CuriosityRoverState,
 } from "../game/curiosityRover";
+import { CURIOSITY_SAVE_KEY, parseCuriositySave } from "../game/marsSave";
 import { createMarsWindDust } from "./world/marsWindDust";
 import { createSoftContactShadow } from "./world/contactShadow";
 import { graphicsTier, startingProfile } from "./world/graphicsTiers";
@@ -77,6 +79,7 @@ export type View = {
 type Props = {
   enabled: boolean;
   showTouchControls: boolean;
+  autoDetectTouch?: boolean;
   planet?: "moon" | "mars";
   event: string;
   day: number;
@@ -114,7 +117,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const analogDrive = useRef<RoverAnalogInput>({});
   const [autoCoarse, setAutoCoarse] = useState(false);
   const [touchOverride, setTouchOverride] = useState<boolean | null>(null);
-  const touchControlsActive = touchOverride ?? (props.showTouchControls || autoCoarse);
+  const touchControlsActive = touchOverride ?? (props.showTouchControls || (props.autoDetectTouch !== false && autoCoarse));
   useEffect(() => {
     const syncCoarse = () => setAutoCoarse(isCoarsePointerDevice());
     syncCoarse();
@@ -440,9 +443,27 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:-23, z:15} : spawnWalker();
       let walker = spawnAtArrival(),
         jump = { height: 0, velocity: 0 },
-        rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt),
-        curiosity: CuriosityRoverState | null = curiosityRover
-          ? spawnCuriosityRover(model.obstacles, model.roverHeightAt)
+        rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
+      let savedCuriosity = null;
+      if (curiosityRover) {
+        try {
+          savedCuriosity = parseCuriositySave(window.localStorage.getItem(CURIOSITY_SAVE_KEY));
+        } catch {
+          savedCuriosity = null;
+        }
+      }
+      const curiositySeed = (Date.now() ^ Math.floor(Math.random() * 0x100000000)) >>> 0;
+      const curiosityInitialObstacles = [
+        ...model.obstacles,
+        ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
+        { x: walker.x, z: walker.z, radius: WALKER_RADIUS, id: "walker" },
+      ];
+      let curiosity: CuriosityRoverState | null = curiosityRover
+          ? spawnCuriosityRover(curiosityInitialObstacles, model.roverHeightAt, {
+              seed: curiositySeed,
+              allowColonyTargets: true,
+              saved: savedCuriosity,
+            })
           : null,
         lastRoverNear = false,
         wasCockpit = false,
@@ -542,7 +563,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let discardCapturedMove = false;
       const move = (e: PointerEvent) => {
         if ((e.target as HTMLElement).closest?.(".sv-target")) return;
-        lastMouseMoveTime = performance.now();
+        if (dragging || document.pointerLockElement === element) {
+          lastMouseMoveTime = performance.now();
+        }
         const rect = element.getBoundingClientRect();
         mouse.set(
           ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -584,8 +607,19 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (e.pointerId === lookPointer) { dragging = false; lookPointer = null; }
       };
       const keydown = (e: KeyboardEvent) => {
-        if (!current.current.enabled || document.activeElement !== element)
+        if (!current.current.enabled) return;
+        const active = document.activeElement as HTMLElement | null;
+        const tag = active?.tagName;
+        if (active?.closest?.("dialog, [role='dialog']")) return;
+        if (tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable) return;
+        if (
+          tag === "INPUT" &&
+          !["range", "checkbox", "radio", "button"].includes(
+            (active as HTMLInputElement).type,
+          )
+        )
           return;
+        const onInteractive = tag === "BUTTON" || tag === "SUMMARY" || tag === "A";
         const k = e.key.toLowerCase();
         if (
           [
@@ -602,7 +636,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           e.preventDefault();
           keys.add(k);
         }
-        if (k === "e" || k === "enter") {
+        if (k === "e" || (k === "enter" && !onInteractive)) {
           e.preventDefault();
           inspect();
         }
@@ -620,7 +654,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           e.preventDefault();
           toggleRoverAction.current();
         }
-        if (e.code === "Space" && !e.repeat) {
+        if (e.code === "Space" && !e.repeat && !onInteractive) {
           e.preventDefault();
           keys.add("jump");
           keys.add("handbrake");
@@ -675,15 +709,33 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         e.preventDefault();
         current.current.onUnavailable();
       };
+      let lastCuriositySave = 0;
+      const saveCuriosityNow = () => {
+        if (!curiosity || current.current.planet !== "mars") return;
+        try {
+          window.localStorage.setItem(
+            CURIOSITY_SAVE_KEY,
+            JSON.stringify(exportCuriositySave(curiosity)),
+          );
+        } catch {
+          // Ignore storage quota or private browsing errors.
+        }
+      };
+      const saveOnHide = () => {
+        if (document.hidden) saveCuriosityNow();
+      };
       element.addEventListener("pointerdown", down);
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
-      element.addEventListener("keydown", keydown);
+      window.addEventListener("keydown", keydown);
       window.addEventListener("keyup", keyup);
       window.addEventListener("blur", blur);
       element.addEventListener("blur", blur);
       document.addEventListener("pointerlockchange", lockChange);
+      window.addEventListener("pagehide", saveCuriosityNow);
+      window.addEventListener("beforeunload", saveCuriosityNow);
+      document.addEventListener("visibilitychange", saveOnHide);
       renderer.domElement.addEventListener("webglcontextlost", lost);
       function animate(time: number) {
         const frameStarted = performance.now();
@@ -1059,9 +1111,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             }
           }
         }
-        // On Mars, nearby equipment remains operable even when the crosshair
-        // falls just beside a narrow object, which helps young explorers.
-        if (props.planet === "mars" && (!hover || range > 5.5)) {
+        // Keep nearby equipment operable even when the crosshair falls just beside a narrow object.
+        if (!hover || range > 5.5) {
           // Scan in place rather than allocating and sorting a fresh array during play.
           for (const station of STATIONS) {
             const distance = Math.hypot(walker.x - station.x, walker.z - station.z);
@@ -1137,12 +1188,21 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             characterYaw = 0;
             mouse.set(0, 0);
             rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
-            if (curiosityRover) curiosity = spawnCuriosityRover(model.obstacles, model.roverHeightAt);
+            if (curiosityRover) {
+              curiosity = spawnCuriosityRover(model.obstacles, model.roverHeightAt, {
+                seed: (Date.now() ^ Math.floor(Math.random() * 0x100000000)) >>> 0,
+                allowColonyTargets: true,
+              });
+            }
             setRoverDriving(false);
             setRoverGear("N");
           }
           previousDay = p.day;
           keys.clear();
+        }
+        if (curiosity && time - lastCuriositySave >= 1500) {
+          lastCuriositySave = time;
+          saveCuriosityNow();
         }
         if (time - lastReport > 90) {
           lastReport = time;
@@ -1217,17 +1277,22 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       }
       dispose = () => {
+        saveCuriosityNow();
         cancelAnimationFrame(frame);
         observer.disconnect();
         element.removeEventListener("pointerdown", down);
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", up);
-        element.removeEventListener("keydown", keydown);
+        window.removeEventListener("keydown", keydown);
         window.removeEventListener("keyup", keyup);
         window.removeEventListener("blur", blur);
         element.removeEventListener("blur", blur);
         document.removeEventListener("pointerlockchange", lockChange);
+        window.removeEventListener("pagehide", saveCuriosityNow);
+        window.removeEventListener("beforeunload", saveCuriosityNow);
+        document.removeEventListener("visibilitychange", saveOnHide);
+        renderer.domElement.removeEventListener("webglcontextlost", lost);
         if (document.pointerLockElement === element) document.exitPointerLock();
         renderer.dispose();
         disposeEffects();
@@ -1377,7 +1442,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             >
               Touch controls · {touchControlsActive ? "On" : "Off"}
             </button>
-            {props.planet === "mars" && <label>Graphics <select aria-label="Graphics quality" value={quality} onChange={e => setQuality(e.target.value)}>
+            {props.planet === "mars" && <label>Graphics <select aria-label="Graphics quality" value={quality} onChange={e => { setQuality(e.target.value); e.currentTarget.blur(); host.current?.focus({ preventScroll: true }); }}>
               <option value="auto">Auto · {autoLabel}</option><option value="performance">Performance</option><option value="high">High</option><option value="ultra">Ultra</option>
             </select></label>}
             </details>
