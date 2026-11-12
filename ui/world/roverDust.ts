@@ -26,6 +26,12 @@ export function createRoverDust() {
       void main(){
         p=position.xy*2.; t=age; s=seed;
         vec4 eye=viewMatrix*vec4(center,1.);
+        // Never project retired particles or quads at/behind the eye plane.
+        // Dividing their corners by near-zero W can cover the framebuffer.
+        if(age>=1. || eye.z>-.3){
+          gl_Position=vec4(2.,2.,2.,1.);
+          return;
+        }
         eye.xy+=position.xy*vec2(1.3,.85)*(.22+age*(1.3+seed));
         gl_Position=projectionMatrix*eye;
       }`,
@@ -33,15 +39,19 @@ export function createRoverDust() {
       varying vec2 p;
       varying float t,s;
       void main(){
+        if(t>=1.) discard;
         vec2 q=p+.12*vec2(sin(5.*p.y+7.*s+t),cos(6.*p.x+9.*s-t));
         float haze=1.-smoothstep(.08,.84,length(q));
         float fade=smoothstep(0.,.12,t)*(1.-smoothstep(.18,1.,t));
-        gl_FragColor=vec4(mix(vec3(.23,.11,.058),vec3(.43,.24,.13),s),.29*haze*fade);
+        float alpha=.29*haze*fade;
+        if(alpha<.001) discard;
+        gl_FragColor=vec4(mix(vec3(.23,.11,.058),vec3(.43,.24,.13),s),alpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`
   });
   const mesh = new T.Mesh(geometry, material);
+  mesh.visible = false;
   mesh.frustumCulled = false;
   const velocity = new Float32Array(count * 3);
   let next = 0, emission = 0, wheelSide = 0;

@@ -413,7 +413,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           import("./world/BoundedGTAOPass"),
         ]);
         if (cancelled) return;
-        const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: Math.min(2, renderer.capabilities.maxSamples) });
+        // HDR resolves with MSAA can produce black rectangular tiles on some
+        // drivers. The main renderer already handles geometry antialiasing.
+        const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: 0 });
         composer = new EffectComposer(renderer, target);
         composer.addPass(new RenderPass(scene, camera));
         occlusion = new BoundedGTAOPass(scene, camera, 256, 256);
