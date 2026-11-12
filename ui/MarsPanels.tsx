@@ -272,7 +272,9 @@ export function MarsHud({
   const oxygenPct = Math.max(0, Math.min(100, mission.resources.oxygen));
   const suitIntegrityPct = Math.max(0, Math.min(100, 100 - mission.resources.risk));
   const powerPct = Math.max(0, Math.min(100, mission.resources.power));
-  const [radarCollapsed, setRadarCollapsed] = useState(false);
+  const [radarCollapsed, setRadarCollapsed] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse) and (max-height: 560px)").matches
+  );
 
   return (
     <aside

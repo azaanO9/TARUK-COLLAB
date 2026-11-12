@@ -173,8 +173,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       await new Promise<void>(resolve => setTimeout(resolve, 0));
       if (cancelled || !host.current) return;
       const element = host.current;
+      const mobileMars = props.planet === "mars" && isCoarsePointerDevice();
+      // Keep phone frames in the default framebuffer. Multisampled HDR post
+      // targets add several full-screen resolves on tile-based mobile GPUs.
+      const displayRatio = Math.min(devicePixelRatio, mobileMars ? 1.25 : Infinity);
       const renderer = new T.WebGLRenderer({
-        antialias: props.initialQuality !== "performance",
+        antialias: !mobileMars && props.initialQuality !== "performance",
         powerPreference: "high-performance",
       });
       const gl = renderer.getContext();
@@ -185,7 +189,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const profileLabel = () => autoProfile === "auto" ? "Balanced" : autoProfile === "high" ? "High" : "Performance";
       setAutoLabel(profileLabel());
       const initialPreset = graphicsTier(effectiveQuality());
-      renderer.setPixelRatio(Math.min(devicePixelRatio, props.planet === "mars" ? initialPreset.resolutionCap : 1.7));
+      renderer.setPixelRatio(Math.min(displayRatio, props.planet === "mars" ? initialPreset.resolutionCap : 1.7));
       renderer.shadowMap.enabled = props.planet !== "mars" || initialPreset.shadows;
       renderer.shadowMap.type = T.PCFSoftShadowMap;
       renderer.outputColorSpace = T.SRGBColorSpace;
@@ -423,7 +427,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (bloom) bloom.enabled = preset.bloom && !reduced.matches;
         if (render && effectiveQuality() !== "performance") renderEffects();
       }
-      if (props.planet === "mars" && effectiveQuality() !== "performance") await prepareEffects();
+      if (props.planet === "mars" && !mobileMars && effectiveQuality() !== "performance") await prepareEffects();
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
@@ -696,7 +700,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           lastQuality = effectiveQuality();
           const tier = graphicsTier(lastQuality);
           model.setLightSurfaces?.(lastQuality==="performance");
-          resolutionScale = Math.min(devicePixelRatio, props.planet === "mars" ? tier.resolutionCap : 1.5);
+          resolutionScale = Math.min(displayRatio, props.planet === "mars" ? tier.resolutionCap : 1.5);
           renderer.setPixelRatio(resolutionScale);
           renderer.shadowMap.enabled = props.planet === "mars" ? tier.shadows : true;
           autoOcclusion = true;
@@ -712,7 +716,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if (bloom) bloom.enabled = tier.bloom && !reduced.matches;
           if (smallRocks) smallRocks.count = tier.smallRocks;
           if (dust) dust.geometry.setDrawRange(0, tier.particles);
-          if (props.planet === "mars" && lastQuality !== "performance" && !composer) {
+          if (props.planet === "mars" && !mobileMars && lastQuality !== "performance" && !composer) {
             void prepareEffects().then(() => { if (!cancelled) {
               if (occlusion) occlusion.enabled = graphicsTier(effectiveQuality()).ssao;
               if (bloom) bloom.enabled = graphicsTier(effectiveQuality()).bloom && !reduced.matches;
@@ -1197,7 +1201,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               autoProfile = autoProfile === "high" ? "auto" : "performance";
               setAutoLabel(profileLabel());
             }
-            const cap = graphicsTier(autoProfile).resolutionCap;
+            const cap = Math.min(displayRatio, graphicsTier(autoProfile).resolutionCap);
             const step = slowWindows >= 2 ? (!autoOcclusion && autoProfile !== "performance" ? 0 : -.1) : .1;
             const next = Math.max(.85, Math.min(devicePixelRatio, cap, resolutionScale + step));
             if (Math.abs(next - resolutionScale) > .01) { resolutionScale = next; renderer.setPixelRatio(next); resize(); }
@@ -1250,7 +1254,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const preset=graphicsTier(effectiveQuality());
           lastQuality=effectiveQuality();
           model.setLightSurfaces?.(lastQuality==="performance");
-          resolutionScale=Math.min(devicePixelRatio,preset.resolutionCap);
+          resolutionScale=Math.min(displayRatio,preset.resolutionCap);
           renderer.setPixelRatio(resolutionScale); resize();
           renderer.shadowMap.enabled=preset.shadows;
           const nightShadow = preset.shadows && (current.current.event === "eclipse" || current.current.event === "night");
