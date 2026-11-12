@@ -398,6 +398,7 @@ function createLegacySurvivalOutpost(scene:T.Scene, planet:"moon"|"mars") {
     mudAt: terrain?.mudAt ?? (() => 0),
     stampRoverTracks: terrain?.stampRoverTracks,
     stampCuriosityTracks: terrain?.stampCuriosityTracks,
+    setLightSurfaces: terrain?.setLightSurfaces,
     disposeTracks: terrain?.disposeTracks,
   };
 }

@@ -1,0 +1,21 @@
+.outpost-atlas small,.outpost-atlas summary{color:#95e2d3;letter-spacing:.08em}.outpost-atlas h2{margin:.4em 0}.outpost-map{position:relative;height:clamp(155px,27vh,280px);border:1px solid #59746e;border-radius:8px;background:radial-gradient(ellipse at 78% 20%,#7e5139,transparent 32%),repeating-radial-gradient(ellipse at 0% 90%,transparent 0 13px,#364442 14px 15px),#192a2c}.outpost-map svg{width:100%;height:100%}.mars-dialog .outpost-map button{position:absolute;transform:translate(-50%,-50%);width:30px;height:29px;min-height:0;padding:0;margin:0;border:1px solid #96bbb4;color:white;background:#173637;border-radius:6px;font:600 13px monospace}.mars-dialog .outpost-map .active{background:#ffd49e;color:#29231c;outline:3px solid #bd774b}.atlas-primary,.atlas-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}.atlas-list button{font-size:.85rem}.outpost-atlas summary{cursor:pointer}.mars-dialog:has(.outpost-atlas){width:min(560px,95vw);max-height:90dvh;overflow:auto}.junior-compass:is(button){pointer-events:auto;color:#fff;cursor:pointer}.archive-reading{padding:.7em;border-left:3px solid #ffab6b;background:#182d32}.plan-forecast{display:block;font-size:.8em;margin-top:.25em}
+@media (pointer: coarse), (max-width: 800px) {
+  .mars-dialog .outpost-map button {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    font-size: 14px;
+  }
+}
+@media (max-height: 560px) {
+  .outpost-map {
+    height: clamp(135px, 38dvh, 210px);
+  }
+  .atlas-primary,
+  .atlas-list {
+    gap: 6px;
+    margin: 8px 0;
+  }
+}
+
+.field-objective{pointer-events:none;display:grid;gap:.2em;text-align:left}.field-objective small{font-size:10px;letter-spacing:.12em}.field-objective span{font-size:12px}.atlas-player{position:absolute;color:#fff6af;text-shadow:0 0 4px #000;pointer-events:none;transform:translate(-50%,-50%)}

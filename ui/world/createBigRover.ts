@@ -5,6 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { ROVER_WHEEL_OFFSETS, ROVER_WHEEL_OUTER_RADIUS, type RoverVehicle } from "../../game/roverVehicle";
 import { bindPreparedRover, type RoverWheelAssembly } from "./roverWheelAssembly";
+import { createSoftContactShadow } from "./contactShadow";
 
 import { createRoverCockpit, positionRoverCockpitCamera } from "./roverCockpit";
 
@@ -23,6 +24,7 @@ export type BigRoverHandle = {
     isNight: boolean,
     heightAt?: (x: number, z: number) => number,
     lidar?: LidarScan,
+    shadowsEnabled?: boolean,
   ) => void;
   dispose: () => void;
 };
@@ -181,6 +183,20 @@ export function createBigRover(
   root.add(dustSystem);
 
   let dustIndex = 0;
+  let dustDirty = false;
+
+  const contactShadow = createSoftContactShadow({
+    width: 4.1,
+    depth: 5.9,
+    y: 0.028,
+    bodyHalfWidth: 1.32,
+    bodyHalfLength: 2.15,
+    wheels: ROVER_WHEEL_OFFSETS,
+    wheelRadiusX: 0.44,
+    wheelRadiusZ: 0.56,
+    opacity: 0.56,
+  });
+  root.add(contactShadow.mesh);
 
   // ==========================================
   // 4. LOAD NASA SPACE EXPLORATION VEHICLE (SEV)
@@ -275,6 +291,7 @@ export function createBigRover(
     isNight: boolean,
     heightAt?: (x: number, z: number) => number,
     lidar?: LidarScan,
+    shadowsEnabled = true,
   ) {
     // 1. Position & orientation of chassis in world coordinates
     root.position.set(rover.x, groundY, rover.z);
@@ -315,11 +332,12 @@ export function createBigRover(
       }
     }
 
-    // 3. Headlight intensity based on planetary solar lighting
-    const lightLevel = isNight ? 8.5 : 2.8;
+    // 3. Headlight intensity & grounded contact shadow based on planetary solar lighting
+    const lightLevel = isNight ? 8.5 : rover.driving ? 1.4 : 0;
     headlightL.intensity = lightLevel;
     headlightR.intensity = lightLevel;
     lensMat.emissiveIntensity = isNight ? 2 : rover.driving ? .6 : .15;
+    contactShadow.material.opacity = (shadowsEnabled ? 0.24 : 0.56) * (isNight ? 0.45 : 1);
 
     // 4. Regolith & mud tire dust plume behind rear wheels
     const moving = Math.abs(rover.speed) > 0.8;
@@ -340,10 +358,13 @@ export function createBigRover(
         dustVel[i * 3 + 2] = 1.1 + Math.random() * 1.5;
         dustLife[i] = 1.0;
       }
+      dustDirty = true;
     }
 
+    let anyAlive = false;
     for (let i = 0; i < dustCount; i++) {
       if (dustLife[i] > 0) {
+        anyAlive = true;
         dustLife[i] -= dt * 1.8;
         dustPos[i * 3] += dustVel[i * 3] * dt;
         dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
@@ -351,9 +372,13 @@ export function createBigRover(
         if (dustLife[i] <= 0) {
           dustPos[i * 3 + 1] = -100;
         }
+        dustDirty = true;
       }
     }
-    dustGeo.attributes.position.needsUpdate = true;
+    if (dustDirty) {
+      dustGeo.attributes.position.needsUpdate = true;
+      dustDirty = anyAlive;
+    }
   }
 
   // ==========================================
@@ -362,6 +387,7 @@ export function createBigRover(
   function dispose() {
     disposed = true;
     cockpit.texture.dispose();
+    contactShadow.material.map?.dispose();
     dracoLoader.dispose();
     root.traverse((o) => {
       if (o instanceof T.Mesh || o instanceof T.Points) {
@@ -385,6 +411,7 @@ export function createBigRover(
       cockpitView = enabled;
       cockpit.root.visible = enabled;
       fixtures.visible = !enabled;
+      contactShadow.mesh.visible = !enabled;
       cockpit.cabinLight.intensity = enabled ? 2.4 : 0;
       if (exteriorBody) exteriorBody.visible = !enabled;
     },

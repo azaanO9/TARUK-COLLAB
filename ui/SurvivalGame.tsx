@@ -19,6 +19,8 @@ import SurvivalWorld, { type View } from "./SurvivalWorld";
 import BrandIntro from "./BrandIntro";
 import LunarLanding from "./LunarLanding";
 import { createSoundPlayer, type SoundCue } from "./soundEffects";
+import { RotateToLandscapeGate } from "./RotateToLandscapeGate";
+import { isCoarsePointerDevice } from "./mobileDevice";
 import "./survival.css";
 const labels = {
   power: "Power",
@@ -48,7 +50,10 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
     [planning, setPlanning] = useState(false),
     [missionOpen, setMissionOpen] = useState(false),
     [guide, setGuide] = useState(false),
-    [touchControls, setTouchControls] = useState(initialTouchControls),
+    [touchControls, setTouchControls] = useState(
+      () => initialTouchControls || isCoarsePointerDevice(),
+    ),
+    [portraitBlocked, setPortraitBlocked] = useState(false),
     [map, setMap] = useState(false),
     [paths, setPaths] = useState(false),
     [fallback, setFallback] = useState(false),
@@ -153,8 +158,9 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
       data-aimed-object={view.target ?? ""}
     >
       <SurvivalWorld
-        enabled={!intro && !landing && state.phase === "explore" && !modal}
+        enabled={!intro && !landing && !portraitBlocked && state.phase === "explore" && !modal}
         showTouchControls={touchControls}
+        onTouchControlsChange={setTouchControls}
         event={day.event}
         day={state.day}
         target={day.target}
@@ -166,6 +172,9 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
         onView={setView}
         onUnavailable={unavailable}
       />
+      {!intro && !landing && state.phase === "explore" && !modal && (
+        <RotateToLandscapeGate onBlockedChange={setPortraitBlocked} />
+      )}
       {intro && <BrandIntro onComplete={finishIntro} />}
       {!intro && landing && <LunarLanding onComplete={finishLanding} />}
       <header className="sv-top">
@@ -233,11 +242,11 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
             supplies steady, and learn what the Sun can change.
           </p>
           <div className="sv-arrival-controls">
-            <b>W A S D</b>
+            <b>{touchControls ? "STICK" : "W A S D"}</b>
             <span>
-              Walk in first or third person
-              <br />
-              Move mouse to look · V to switch · E to inspect
+              {touchControls
+                ? "Use left thumbstick to walk · Drag view to look · Tap right buttons to jump or inspect"
+                : <>Walk in first or third person<br />Move mouse to look · V to switch · E to inspect</>}
             </span>
           </div>
           <button
@@ -340,12 +349,12 @@ export default function SurvivalGame({ skipOpening = false, initialTouchControls
                 onClick={() => inspectObject(aimed.id)}
               >
                 {view.distance <= 5.5
-                  ? "E · Inspect"
+                  ? (touchControls ? "Tap · Inspect" : "E · Inspect")
                   : "Walk closer to inspect"}
               </button>
             </div>
           )}
-          {!aimed && (
+          {!aimed && !touchControls && (
             <p className="sv-walk-hint">
               WASD to walk · Space to jump · V to switch view
             </p>

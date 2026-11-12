@@ -1,12 +1,14 @@
 import * as T from "three";
 import { MARS_HABITAT, colonyCollision } from "../../game/marsColonyCollision";
-import { STATIONS } from "../../content/survival";
+import { STATIONS } from "../../content/marsBase";
 import { createMarsTerrain } from "./marsTerrain";
 import { createColonyMaterials, colonyBuilder } from "./colonyMaterials";
 import { batchStaticMeshes } from "./batchStaticMeshes";
 import { createMarsSolarArray } from "./createMarsSolarArray";
 import type { MarsSurfaceTextures } from "./marsSurfaceTextures";
 import { createColonySurfaceShading } from "./colonySurfaceShading";
+
+import { flightPlan, stationNames } from "../../content/marsFlightPlan";
 
 /** Detailed original Mars colony. It shares station IDs and navigation with the existing game. */
 export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture) {
@@ -57,7 +59,7 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
   b.box(habitat,1.23,2.35,.05,0,1.73,4.97,m.graphite);
   for(const x of [-.65,.65])b.box(habitat,.035,2.3,.035,x,1.75,5.01,m.light,false);
   b.box(habitat,1.3,.035,.035,0,2.9,5.01,m.light,false);
-  b.label(habitat,"HABITAT / H1",2.6,0,4.04,4.75);
+  b.label(habitat,"ARES / FLIGHT CONTROL",2.6,0,4.04,4.75);
   // Service hatches and latches stay inside the existing habitat silhouette.
   for (const side of [-1,1]) {
     const x=side*1.65,z=Math.sqrt(radius*radius-x*x);
@@ -177,6 +179,35 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
     if(labelNames[station.id]&&station.id!=="shelter")b.label(g,labelNames[station.id],1.1,0,.38,1.73);
     b.cylinder(g,.035,.65,1.9,.35,1.45,m.graphite);b.box(g,.09,.14,.09,1.9,.74,1.45,lamp);
   }
+  // Arrival plaza and colour-coded utility routes link the field stations to command.
+  const plaza = b.add(root,new T.RingGeometry(3.8,4.1,48),m.alloy,0,terrain.heightAt(0,0)+.04,0);
+  plaza.rotation.x=-Math.PI/2;
+  for(const [i,sol] of flightPlan.entries()){
+    const target=targets.find(group=>group.userData.station===sol.station)!;
+    const {x,z}=target.position;
+    const ink=i===0||i===9?m.orange:i<4?m.teal:m.alloy;
+    const y=sol.station==="relay"?7.8:sol.station==="research"||sol.station==="shelter"?4.6:3.9;
+    // Identity pylons sit within each equipment footprint.
+    b.cylinder(target,.07,y,0,y/2,-.38,ink);
+    b.box(target,3.1,.66,.11,0,y,-.38,ink);
+    b.label(target,String(i+1).padStart(2,"0")+" / "+stationNames[sol.station].toUpperCase(),3,0,y,-.31);
+    const length=Math.hypot(x,z);
+    for(let d=4;d<length-3;d+=2){
+      const px=x*d/length,pz=z*d/length;
+      const strip=b.box(root,.16,.025,.85,px,terrain.heightAt(px,pz)+.045,pz,ink,false);
+      strip.rotation.y=Math.atan2(x,z);
+    }
+    if(sol.station==="food"){
+      const canopy=b.add(target,new T.SphereGeometry(1.65,12,5,0,Math.PI*2,0,Math.PI/2),habitatWindow,0,2.87,0);
+      canopy.scale.set(1,.52,.72);
+    }
+    if(sol.station==="battery"){
+      for(const x of [-.9,0,.9]){
+        b.box(target,.78,1.75,.9,x,.91,0,m.graphite);
+        for(let k=0;k<4;k++)b.box(target,.56,.09,.03,x,.46+k*.28,.47,m.light);
+      }
+    }
+  }
   // Accessory conduits and marked approach lights lead the eye toward the habitat.
   const groundedCable=(route:number[][])=>{
     const points:number[][]=[];
@@ -189,8 +220,8 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
     }
     return points;
   };
-  b.pipe(root,groundedCable([[-12,-12],[-16,-18],[-11,-24],[-6,-27]]),.065,m.graphite);
-  b.pipe(root,groundedCable([[11,-8],[14,-18],[6,-25],[2,-27]]),.065,m.orange);
+  b.pipe(root,groundedCable([[-23,6],[-12,12],[-7,-17],[-6,-27]]),.065,m.graphite);
+  b.pipe(root,groundedCable([[20,-13],[16,-25],[8,-9],[2,-27]]),.065,m.orange);
   for(const x of [-3,1])for(const z of [-3,-10,-17,-23]){const y=terrain.heightAt(x,z);b.cylinder(root,.03,.65,x,y+.34,z,m.alloy);b.box(root,.085,.12,.085,x,y+.7,z,m.light);}
   const animated=new Set<T.Object3D>([...panels,...tanks,...foods]);if(dish)animated.add(dish);
   // Shared lamp/window materials still animate after merging; only moving objects need exclusion.
@@ -215,6 +246,7 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
     mudAt:terrain.mudAt,
     stampRoverTracks:terrain.stampRoverTracks,
     stampCuriosityTracks:terrain.stampCuriosityTracks,
+    setLightSurfaces: terrain?.setLightSurfaces,
     disposeTracks:terrain.disposeTracks,
   };
 }

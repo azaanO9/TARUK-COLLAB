@@ -6,19 +6,19 @@ export const stationQuestions:Record<string,{q:string;answers:string[];correct:n
  food:{q:"What do plants need to grow?",answers:["Only rocks","Light and water","Only darkness"],correct:1,explain:"Plants need light, water, nutrients and suitable growing conditions.",url:"https://www.nasa.gov/mission/vegetable-production-system-veggie/"},
  shelter:{q:"Why might a Mars habitat use shielding?",answers:["To reduce radiation exposure","To make gravity disappear","To create sunlight"],correct:0,explain:"Shielding can reduce exposure to some space radiation; this game uses a fictional risk score.",url:"https://www.nasa.gov/hrp/space-radiation/"},
  rover:{q:"Which NASA rover carried the MOXIE experiment to Mars?",answers:["Perseverance","Hubble","Voyager 1"],correct:0,explain:"Perseverance carried MOXIE, which made oxygen from Martian carbon dioxide.",url:"https://science.nasa.gov/mission/mars-2020-perseverance/science-instruments/"}};
-const mars = "https://science.nasa.gov/mars/facts/";
-const perseverance = "https://science.nasa.gov/mission/mars-2020-perseverance/science-highlights/";
+const insight="https://science.nasa.gov/resource/insights-power-generation-after-landing-and-spring-2022/";
+const moxie="https://www.nasa.gov/solar-system/nasas-oxygen-generating-experiment-moxie-completes-mars-mission/";
 export const solQuestions:Quiz[] = [
- {q:"About how long is one Martian sol?",answers:["24 hours 39 minutes","12 hours","48 hours"],correct:0,explain:"A sol is a little longer than an Earth day.",url:"https://www.giss.nasa.gov/tools/mars24/help/notes.html"},
- {q:"Which planet is Mars from the Sun?",answers:["Fourth","First","Eighth"],correct:0,explain:"Mars is the fourth planet from the Sun.",url:mars},
- {q:"How many moons does Mars have?",answers:["Two","One","Twelve"],correct:0,explain:"Mars has two small moons, Phobos and Deimos.",url:mars},
- {q:"What is the Mars atmosphere mostly made of?",answers:["Carbon dioxide","Oxygen","Helium"],correct:0,explain:"The thin Martian atmosphere is mostly carbon dioxide.",url:mars},
- {q:"What gives Mars much of its rusty color?",answers:["Iron minerals in the dust","Blue oceans","Green leaves"],correct:0,explain:"Iron minerals in Martian dust oxidize, giving the planet a reddish color.",url:mars},
- {q:"What did MOXIE make from Martian air?",answers:["Oxygen","Wood","Liquid iron"],correct:0,explain:"MOXIE produced oxygen from carbon dioxide in the Martian atmosphere.",url:perseverance},
- {q:"What are Martian days called?",answers:["Sols","Years","Orbits"],correct:0,explain:"A Martian solar day is called a sol.",url:mars},
- {q:"Which helicopter flew on Mars?",answers:["Ingenuity","Apollo","Artemis"],correct:0,explain:"Ingenuity demonstrated powered flight on Mars.",url:perseverance},
- {q:"What is the name of the larger Martian moon?",answers:["Phobos","Titan","Europa"],correct:0,explain:"Phobos is the larger of Mars’s two moons.",url:mars},
- {q:"What kind of world is Mars?",answers:["A cold, dusty desert","An ocean planet","A star"],correct:0,explain:"Mars is a cold, dusty desert world with a thin atmosphere.",url:mars}
+ {q:"Dust has cut solar output. What should you check before sharing the battery?",answers:["Air and food stores","The rover’s paint","The mission patch"],correct:0,explain:"If air is scarce, run the air plant. Stored air can give the greenhouse a turn when food is scarce.",url:insight},
+ {q:"Why might you run the air plant while the batteries are full?",answers:["It grows plants instantly","It uses electricity to make oxygen","It turns oxygen into sunlight"],correct:1,explain:"Making oxygen from Martian air takes energy. A full tank can help on a later shift.",url:moxie},
+ {q:"What did the crew spend to melt the buried ice?",answers:["A science patch","An Earth message","Battery power"],correct:2,explain:"Finding ice and turning it into usable water are different jobs. Heating the ice costs energy.",url:stationQuestions.water.url},
+ {q:"When does watering a young tray help the food store?",answers:["When the crop is ready to harvest","Before any leaves grow","As soon as the pump starts"],correct:0,explain:"A growing crop uses resources first. The crew needs stored meals until harvest.",url:stationQuestions.food.url},
+ {q:"While a radio reply travels from Earth, what can the crew do?",answers:["Make the reply arrive instantly","Inspect the rover locally","Assume Earth approved the route"],correct:1,explain:"The crew can check its own equipment while the signal travels.",url:"https://science.nasa.gov/learn/basics-of-space-flight/"},
+ {q:"Why send a lighter rover load?",answers:["To carry extra air tanks for free","To erase the terrain","To save charge when spares are plentiful"],correct:2,explain:"In this training plan a lighter load saves battery charge but leaves fewer spare air bottles.",url:stationQuestions.rover.url},
+ {q:"The particle warning is active. Why move supplies inside?",answers:["So the next crew spends less time outside","To recharge the Sun","To make more oxygen"],correct:0,explain:"Putting supplies under cover reduces the need for outdoor work during the warning.",url:stationQuestions.shelter.url},
+ {q:"What can shielding do for the crew?",answers:["Undo yesterday’s exposure","Reduce exposure while the crew is sheltered","Stop time"],correct:1,explain:"Shielding helps protect the crew during the event. The risk gauge is a training indicator.",url:stationQuestions.shelter.url},
+ {q:"Which detail helps Earth interpret a sample measurement?",answers:["The crew’s favourite colour","The number of mission patches","Where the sample was collected"],correct:2,explain:"A measurement and its location together tell the science team more than either alone.",url:"https://science.nasa.gov/mission/msl-curiosity/"},
+ {q:"What made your final message a science report?",answers:["It included the evidence from the annex","It was the shortest possible ping","It used the loudest signal"],correct:0,explain:"A status ping says the crew is there. The sample location and measurement let Earth use its discovery.",url:"https://science.nasa.gov/mission/msl-curiosity/"}
 ];
 export function shuffledQuiz(quiz:Quiz, random:()=>number=Math.random):Quiz {
  const answers=quiz.answers.map((text,index)=>({text,correct:index===quiz.correct}));

@@ -1,6 +1,6 @@
 import * as T from "three";
 import { createMarsSkyMaterial } from "./marsAtmosphere.ts";
-import { STATIONS } from "../../content/survival.ts";
+import { STATIONS } from "../../content/marsBase.ts";
 import { terrainFbm, terrainNoise } from "./terrainNoise.ts";
 import { createMarsTrackSystem, TRACK_WORLD_HALF } from "./marsTrackDeformation.ts";
 import type { RoverVehicle } from "../../game/roverVehicle.ts";
@@ -444,7 +444,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   // Scanned fracture detail on all cliff faces; one dust/stone palette throughout.
   const cliffMat = new T.MeshStandardMaterial({ vertexColors: true, map: surfaces.rock.color, bumpMap: surfaces.rock.relief, bumpScale: .1, roughness: .98 });
   const close = new T.Color(0x89634d), lightStrata = new T.Color(0xc39a77), dustHaze = new T.Color(0xc09b80);
-  const landscape = new T.PlaneGeometry(720, 720, 240, 240);
+  const landscape = new T.PlaneGeometry(720, 720, 168, 168);
   landscape.rotateX(-Math.PI / 2);
   const lp = landscape.attributes.position, landColors = new Float32Array(lp.count * 3);
   for (let i = 0; i < lp.count; i++) {
@@ -518,6 +518,194 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   const canyon = new T.Mesh(landscape, cliffMat);
   root.add(canyon);
 
+  // Performance-mode single-pass shaders preserve Mars palette, dust, tire tracks, and rock contrast at high iGPU frame rates.
+  const lightGroundMat = new T.MeshStandardMaterial({
+    map: surfaces.sand.color,
+    bumpMap: surfaces.sand.relief,
+    bumpScale: .035,
+    vertexColors: true,
+    roughness: .96,
+  });
+  lightGroundMat.onBeforeCompile = shader => {
+    shader.uniforms.uTrackMap = { value: trackSystem.texture };
+    shader.uniforms.uTrackBounds = { value: TRACK_WORLD_HALF };
+    shader.uniforms.uGravelColor = { value: surfaces.gravel.color };
+
+    shader.vertexShader = `
+      uniform sampler2D uTrackMap;
+      uniform float uTrackBounds;
+      varying vec3 vTrackWorldPos;
+      varying float vSoilUp;
+    \n` + shader.vertexShader;
+
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+      vec3 worldInit = (modelMatrix * vec4(transformed, 1.0)).xyz;
+      vSoilUp = normalize(mat3(modelMatrix) * normal).y;
+      vec2 tUv = (worldInit.xz + uTrackBounds) / (uTrackBounds * 2.0);
+      if (tUv.x > 0.002 && tUv.x < 0.998 && tUv.y > 0.002 && tUv.y < 0.998) {
+        vec4 trk = texture2D(uTrackMap, tUv);
+        transformed.y += trk.g * 0.045 - trk.r * 0.105;
+      }
+      vTrackWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+    );
+
+    shader.fragmentShader = `
+      uniform sampler2D uTrackMap;
+      uniform float uTrackBounds;
+      uniform sampler2D uGravelColor;
+      varying vec3 vTrackWorldPos;
+      varying float vSoilUp;
+      ${stochasticSurfaceGLSL}
+    \n` + shader.fragmentShader;
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <map_fragment>",
+      `vec2 soilP=vTrackWorldPos.xz;
+      vec2 warp=vec2(soilNoise(soilP*.045),soilNoise(soilP*.045+27.3))*6.0;
+      float dustField=soilNoise((soilP+warp)*.09);
+      float gravelField=smoothstep(.34,.70,soilNoise(soilP*.085+warp));
+      float soilPixel=max(length(dFdx(soilP)),length(dFdy(soilP)));
+      float grainVisibility=1.0-smoothstep(.015,.06,soilPixel);
+      float rippleVisibility=1.0-smoothstep(.06,.22,soilPixel);
+      float grain=soilNoise(soilP*32.0);
+      float ripple=sin(dot(soilP,vec2(5.1,2.7))+soilNoise(soilP*.38)*5.5);
+      vec2 sandUV=soilP/2.53+warp*.055;
+      vec2 gravelUV=mat2(.8,-.6,.6,.8)*(soilP/4.2)+19.7+warp*.04;
+      vec3 sandColor=texture2D(map,sandUV).rgb;
+      vec2 sandRelief=texture2D(bumpMap,sandUV).rg;
+      vec3 gravelColor=texture2D(uGravelColor,gravelUV).rgb;
+      float drift=smoothstep(.32,.76,soilNoise((soilP+warp)*.035+11.7));
+      float depositedDust=drift*smoothstep(.74,.98,vSoilUp);
+      float exposedGravel=smoothstep(.16,.77,gravelField+sandRelief.r*.22-depositedDust*.22);
+      vec3 scannedColor=mix(sandColor,gravelColor,exposedGravel);
+      float luminance=dot(scannedColor,vec3(.2126,.7152,.0722));
+      vec3 soilColor=mix(vec3(luminance),scannedColor,.35)*vec3(1.34,.89,.65);
+      soilColor*=mix(.86,1.10,dustField);
+      soilColor=mix(soilColor,soilColor*vec3(1.09,1.06,1.01),depositedDust*.52);
+      diffuseColor.rgb*=soilColor;
+      float soilCavity=mix(1.0,.78+.22*smoothstep(.18,.64,sandRelief.r),exposedGravel);
+      float soilRelief=mix(sandRelief.r*.024,sandRelief.r*.068,exposedGravel)
+        +(grain-.5)*.002*grainVisibility+ripple*.004*(1.0-exposedGravel)*rippleVisibility;
+      soilRelief*=1.0-smoothstep(.12,.45,soilPixel);
+      vec2 fTrackUv=(vTrackWorldPos.xz+uTrackBounds)/(uTrackBounds*2.0);
+      vec4 fTrack=vec4(0.0);
+      float fChevron=0.0;
+      if (fTrackUv.x > 0.002 && fTrackUv.x < 0.998 && fTrackUv.y > 0.002 && fTrackUv.y < 0.998) {
+        fTrack=texture2D(uTrackMap,fTrackUv);
+        if (fTrack.r > 0.03) {
+          vec2 tDir=normalize(vec2(fTrack.b,fTrack.a)*2.0-1.0+vec2(0.0001));
+          float along=dot(vTrackWorldPos.xz,tDir);
+          float across=dot(vTrackWorldPos.xz,vec2(-tDir.y,tDir.x));
+          fChevron=sin(along*26.0+abs(fract(across*1.45)-0.5)*6.0);
+          float darkMud=clamp(fTrack.r*(0.68+0.14*(-fChevron)),0.0,0.85);
+          diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.72,0.62,0.52),darkMud);
+        }
+        if (fTrack.g > 0.04) {
+          diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.06,0.98),fTrack.g*0.32);
+        }
+      }`,
+    );
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <roughnessmap_fragment>",
+      `#include <roughnessmap_fragment>
+      roughnessFactor=mix(.94,clamp(.68+sandRelief.g*.28,.74,.97),exposedGravel);
+      if (fTrack.r > 0.03) {
+        roughnessFactor=mix(roughnessFactor,0.89,clamp(fTrack.r*0.78,0.0,0.78));
+      }`,
+    );
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <normal_fragment_maps>",
+      `float combinedRelief=soilRelief+fTrack.g*0.020-fTrack.r*0.042+fChevron*fTrack.r*0.004;
+      vec3 soilBumpNormal=perturbNormalArb(-vViewPosition,normal,vec2(dFdx(combinedRelief),dFdy(combinedRelief)),faceDirection);
+      float soilGrazing=smoothstep(.08,.38,abs(dot(normal,normalize(vViewPosition))));
+      normal=normalize(mix(normal,soilBumpNormal,.65*soilGrazing));`,
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <aomap_fragment>",
+      `#include <aomap_fragment>
+      reflectedLight.indirectDiffuse*=soilCavity;
+      reflectedLight.indirectSpecular*=mix(soilCavity,1.0,.5);`,
+    );
+  };
+  lightGroundMat.customProgramCacheKey = () => "tarukh-light-soil-v1";
+
+  const lightRockMat = new T.MeshStandardMaterial({ map: surfaces.rock.color, bumpMap: surfaces.rock.relief, bumpScale: .045, roughness: .9 });
+  lightRockMat.onBeforeCompile = shader => {
+    shader.vertexShader = "varying vec3 vStoneWorld; varying vec3 vStoneNormal; varying float vStoneBaseAO;\n" + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+      vStoneBaseAO=mix(.46,1.0,smoothstep(-.48,.52,position.y));
+      vec4 stonePosition=vec4(transformed,1.0);
+      vec3 stoneNormal=normal;
+      #ifdef USE_INSTANCING
+        stonePosition=instanceMatrix*stonePosition;
+        mat3 stoneInstance=mat3(instanceMatrix);
+        stoneNormal/=vec3(dot(stoneInstance[0],stoneInstance[0]),dot(stoneInstance[1],stoneInstance[1]),dot(stoneInstance[2],stoneInstance[2]));
+        stoneNormal=stoneInstance*stoneNormal;
+      #endif
+      vStoneWorld=(modelMatrix*stonePosition).xyz;
+      vStoneNormal=normalize(mat3(modelMatrix)*stoneNormal);`);
+    shader.fragmentShader = "varying vec3 vStoneWorld; varying vec3 vStoneNormal; varying float vStoneBaseAO;\n" + stochasticSurfaceGLSL + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", `
+      vec3 absStoneN=abs(normalize(vStoneNormal));
+      vec3 stoneP=vStoneWorld*2.25;
+      vec2 stoneUV=absStoneN.y>=absStoneN.x&&absStoneN.y>=absStoneN.z?stoneP.xz:(absStoneN.x>=absStoneN.z?stoneP.yz:stoneP.xy);
+      vec3 scan=texture2D(map,stoneUV).rgb;
+      vec2 stoneData=texture2D(bumpMap,stoneUV).rg;
+      float stoneLuminance=dot(scan,vec3(.2126,.7152,.0722));
+      float stoneGrain=smoothstep(.006,.085,stoneLuminance);
+      float stoneDust=smoothstep(.15,.82,vStoneNormal.y)*(.32+.45*soilNoise(vStoneWorld.xz*.7));
+      float mottling=soilNoise(vStoneWorld.yz*4.8+vStoneWorld.x*2.3);
+      vec3 mineral=mix(vec3(.052,.034,.025),vec3(.36,.235,.145),stoneGrain);
+      mineral*=mix(.78,1.16,mottling);
+      vec3 deposited=vec3(.32,.176,.092)*(.65+stoneGrain*.55);
+      diffuseColor.rgb*=mix(mineral,deposited,stoneDust)*1.18*mix(.72,1.0,vStoneBaseAO);
+      float stonePixel=max(length(dFdx(vStoneWorld)),length(dFdy(vStoneWorld)));
+      float stoneRelief=stoneData.r*.045*(1.0-stoneDust*.6)*(1.0-smoothstep(.05,.18,stonePixel));
+      float stoneCavity=mix(.68,1.0,smoothstep(.12,.65,stoneData.r))*vStoneBaseAO;
+    `).replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+      roughnessFactor=mix(clamp(.58+stoneData.g*.32,.64,.94),.97,stoneDust);`)
+      .replace("#include <normal_fragment_maps>", `
+        vec3 stoneBumpNormal=perturbNormalArb(-vViewPosition,normal,vec2(dFdx(stoneRelief),dFdy(stoneRelief)),faceDirection);
+        float stoneGrazing=smoothstep(.06,.30,abs(dot(normal,normalize(vViewPosition))));
+        normal=normalize(mix(normal,stoneBumpNormal,.65*stoneGrazing));`)
+      .replace("#include <aomap_fragment>", `#include <aomap_fragment>
+        reflectedLight.indirectDiffuse*=stoneCavity;
+        reflectedLight.indirectSpecular*=mix(stoneCavity,1.0,.5);`);
+  };
+  lightRockMat.customProgramCacheKey = () => "tarukh-light-rock-v1";
+
+  const lightCliffMat = new T.MeshStandardMaterial({ vertexColors: true, map: surfaces.rock.color, roughness: .96 });
+  lightCliffMat.onBeforeCompile = shader => {
+    shader.vertexShader = "varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n" + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+      vCanyonPosition=(modelMatrix*vec4(position,1.)).xyz;
+      vCanyonNormal=normalize(mat3(modelMatrix)*normal);`);
+    shader.fragmentShader = "varying vec3 vCanyonPosition; varying vec3 vCanyonNormal;\n" + stochasticSurfaceGLSL + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace("#include <map_fragment>", `#ifdef USE_MAP
+      vec3 absCliffN=abs(normalize(vCanyonNormal));
+      vec3 cliffP=vCanyonPosition*.33;
+      vec2 cliffUV=absCliffN.y>=absCliffN.x&&absCliffN.y>=absCliffN.z?cliffP.xz:(absCliffN.x>=absCliffN.z?cliffP.yz:cliffP.xy);
+      vec3 cliffGrain=texture2D(map,cliffUV).rgb;
+      float detail=dot(cliffGrain,vec3(.2126,.7152,.0722));
+      float bands=sin(vCanyonPosition.y*.48+soilNoise(vCanyonPosition.xz*.05)*3.8);
+      float bedding=smoothstep(.65,.95,bands);
+      float ledgeDust=pow(max(normalize(vCanyonNormal).y,0.0),2.0);
+      float cliffValue=smoothstep(.006,.085,detail);
+      diffuseColor.rgb*=mix(.68,1.18,cliffValue)*(1.0-bedding*.07)*mix(vec3(1.0),vec3(1.12,1.06,.98),ledgeDust);
+      #endif`);
+  };
+  lightCliffMat.customProgramCacheKey = () => "tarukh-light-cliff-v1";
+
+  function setLightSurfaces(light:boolean) {
+    ground.material = light ? lightGroundMat : groundMat;
+    canyon.material = light ? lightCliffMat : cliffMat;
+    for (const rocks of [small,...large]) rocks.material = light ? lightRockMat : rockMat;
+  }
+
   const heightAt = (x: number, z: number) => sampleMeshHeight(x, z) + colonySurfaceElevation(x, z);
 
   // O(1) Wheel Surface Height: exact rendered mesh triangle + rover bay pad + traversable rock bumps
@@ -553,7 +741,11 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       trackSystem.stampRover(renderer, rover, mudDepthAt),
     stampCuriosityTracks: (renderer: T.WebGLRenderer, curiosity: CuriosityRoverState) =>
       trackSystem.stampCuriosity(renderer, curiosity, mudDepthAt),
-    disposeTracks: () => trackSystem.dispose(),
+    setLightSurfaces,
+    disposeTracks: () => {
+      for(const material of [lightGroundMat,lightRockMat,lightCliffMat,groundMat,cliffMat,rockMat]) material.dispose();
+      trackSystem.dispose();
+    },
     obstacles,
   };
 }

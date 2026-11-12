@@ -19,7 +19,7 @@ export function createMarsSolarArray(parent: T.Group, materials: ColonyMaterials
     ctx.fillStyle = "#64737b";
     for (const bus of [25, 54]) ctx.fillRect(x + bus, y, 1.4, 60);
   }
-  const map = new T.CanvasTexture(canvas); map.colorSpace = T.SRGBColorSpace; map.anisotropy = 8;
+  const map = new T.CanvasTexture(canvas); map.colorSpace = T.SRGBColorSpace; map.anisotropy = 4;
   const cells = new T.MeshStandardMaterial({ map, color: 0xffffff, roughness: .38, metalness: .32 });
   const panels: T.Mesh[] = [];
   const tilt = T.MathUtils.degToRad(32), height = 1.65;

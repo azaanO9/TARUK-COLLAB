@@ -72,7 +72,7 @@ The certificate becomes available after six discoveries or ten sol shifts. The e
 
 ## Junior Astronaut Mars resource model
 
-Starting supplies of 75, consumption of 7 per sol, the event costs, station recovery of 18, and the radiation risk score are fictional gameplay points. Station work is required once per sol; repeated activities replenish their related supply. The alternating day/night setting is a player-paced visual cue, not a simulation of real elapsed time.
+Standard starting supplies of 75, daily use, station recovery of 18 and the risk score are fictional gameplay points. Optional shortage starts use 12 oxygen or 18 food. Station work is required once per sol; repeated activities replenish their related supply. The alternating day/night setting is a player-paced visual cue, not a simulation of real elapsed time.
 
 
 Mars EVA motion uses an authored 2.8 m/s launch speed with 3.71 m/s² gravity, producing an approximately one-metre hop. Gait cadence, impact compression and visible wind wisps are artistic training-game choices, not validated EVA biomechanics or measured weather.
@@ -83,3 +83,5 @@ Mars airborne movement conserves horizontal velocity until collision or landing.
 The NASA Space Exploration Vehicle concept reference describes a surface speed of about 10 km/h. As a gameplay speed cap, the game sets forward max speed to 30 km/h (`~8.33 m/s`) and reverse to 10 km/h (`~2.78 m/s`). Acceleration (1.6 m/s²), service braking (4.5 m/s²), handbraking (7.5 m/s²), and coast drag (0.85 m/s²) are gameplay assumptions, not NASA specifications or a validated traction model.
 
 The roof sensor and cockpit/HUD lidar map are a simulated 2D collision scan, not a reproduction of NASA hardware. It scans 180 horizontal beams over 30 m at up to 8 Hz, retaining nearest returns. Non-traversable rocks and structures use the same collision boundaries as driving; the rover pad and traversable stones are excluded. Red contacts intersect the rover's predicted footprint over the next 12 m at its current steering angle and travel direction (forward when stationary); amber contacts are other detected obstacles. Distances are sampled in 0.25 m steps. Occlusion, finite angular resolution and the 2D model limit detection. Warnings do not apply automatic brakes or guarantee clearance.
+
+Ares Field Camp uses an authored ten-sol schedule. Each crew shift consumes 2 power and 5 water, food and oxygen points. Harvests and the radio reply arrive at the next assigned inspection. These compressed delays, supply totals and risk points are educational assumptions.

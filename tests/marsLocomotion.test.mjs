@@ -44,3 +44,16 @@ test('airborne collision removes velocity into a wall', () => {
   assert.ok(state.walker.x < .6);
   assert.ok(Math.abs(state.walker.vx) < .001);
 });
+
+test('analog thumbstick scales locomotion smoothly and activates outer-ring sprint', () => {
+  let gentle = spawnWalker();
+  let walking = spawnWalker();
+  let sprinting = spawnWalker();
+  const startZ = gentle.z;
+  for (let i = 0; i < 12; i++) {
+    gentle = stepMarsLocomotion(gentle, { height: 0, velocity: 0 }, new Set(), 0.05, flat, [], { forward: 0.4, side: 0 }).walker;
+    walking = stepMarsLocomotion(walking, { height: 0, velocity: 0 }, new Set(), 0.05, flat, [], { forward: 0.85, side: 0 }).walker;
+    sprinting = stepMarsLocomotion(sprinting, { height: 0, velocity: 0 }, new Set(), 0.05, flat, [], { forward: 1, side: 0, sprint: true }).walker;
+  }
+  assert.ok(gentle.z < startZ && walking.z < gentle.z && sprinting.z < walking.z);
+});

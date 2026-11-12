@@ -27,7 +27,7 @@ export async function loadMarsSurfaceTextures(): Promise<MarsSurfaceTextures> {
     relief.colorSpace = T.NoColorSpace;
     for (const texture of [color, relief]) {
       texture.wrapS = texture.wrapT = T.RepeatWrapping;
-      texture.anisotropy = 8;
+      texture.anisotropy = 4;
     }
     return { color, relief };
   }));

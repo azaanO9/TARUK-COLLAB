@@ -510,30 +510,7 @@
   pointer-events: none;
   text-shadow: 0 1px 4px #000;
 }
-.sv-touch-controls {
-  position: absolute;
-  right: 25px;
-  bottom: 290px;
-  display: grid;
-  grid-template-columns: repeat(3, 44px);
-  gap: 5px;
-}
-.sv-touch-controls button {
-  width: 44px;
-  height: 44px;
-  border: 1px solid #c4d1d64d;
-  background: #132431cc;
-  border-radius: 4px;
-}
-.sv-touch-controls button:first-child {
-  grid-column: 2;
-}
-.sv-touch-controls button:nth-child(2) {
-  grid-column: 1;
-}
-.sv-touch-controls button:nth-child(5) {
-  grid-column: 1;
-}
+/* Virtual analog stick & touch controls live near bottom-of-file for clear cascade. */
 .sv-world-message {
   position: absolute;
   right: 28px;
@@ -1011,10 +988,6 @@
   .sv-map-toggle > small {
     display: none;
   }
-  .sv-touch-controls {
-    right: 12px;
-    bottom: 205px;
-  }
   .sv-bearing {
     top: 216px;
     left: 16px;
@@ -1276,9 +1249,6 @@
   .sv-look-controls {
     top: 305px;
   }
-  .sv-touch-controls {
-    bottom: 205px;
-  }
   .sv-target {
     top: 47%;
   }
@@ -1518,26 +1488,312 @@
   .sv-rover-hud-cockpit .sv-gear-active,
   .sv-rover-hud-cockpit .sv-rover-speedometer strong { font-size: 20px; }
 }
-.sv-rover-touch-controls {
+/* --- Rotate To Landscape Gate (Portrait Mobile Lock) --- */
+.sv-rotate-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 50% 35%, rgba(20, 42, 58, 0.96), rgba(7, 14, 21, 0.985));
+  color: #f3f7fa;
+  backdrop-filter: blur(10px);
+  touch-action: none;
+}
+.sv-rotate-card {
+  width: min(360px, 100%);
+  background: rgba(13, 27, 38, 0.96);
+  border: 1px solid rgba(160, 219, 238, 0.42);
+  border-radius: 14px;
+  padding: 24px 22px;
+  text-align: center;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.72);
+}
+.sv-rotate-icon {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(141, 213, 237, 0.12);
+  border: 1px solid rgba(141, 213, 237, 0.35);
+}
+.sv-phone-outline {
+  width: 24px;
+  height: 40px;
+  border: 2.5px solid #9ee5fa;
+  border-radius: 5px;
+  position: relative;
+  display: block;
+  transform-origin: center center;
+  animation: svRotatePhone 2.1s ease-in-out infinite;
+}
+.sv-phone-outline::after {
+  content: "";
   position: absolute;
-  bottom: 90px;
-  left: 20px;
-  right: 20px;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 2px;
+  border-radius: 2px;
+  background: #9ee5fa;
+}
+@keyframes svRotatePhone {
+  0%, 18% { transform: rotate(0deg); }
+  50%, 82% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sv-phone-outline {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+.sv-rotate-kicker {
+  margin: 0 0 8px;
+  font: 700 11px/1.2 Consolas, monospace;
+  letter-spacing: 0.14em;
+  color: #8dd5ed;
+}
+.sv-rotate-card h2 {
+  margin: 0 0 10px;
+  font: 700 22px/1.2 Georgia, serif;
+  color: #ffffff;
+}
+.sv-rotate-card p {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #c9dce6;
+}
+.sv-root .sv-rotate-gate .sv-rotate-btn,
+.sv-rotate-gate .sv-rotate-btn {
+  min-height: 44px;
+  width: 100%;
+  padding: 10px 16px;
+  border: 1.5px solid #d7f5ff;
+  border-radius: 8px;
+  background: #9ee5fa;
+  color: #071923;
+  font: 700 14px/1.2 "Segoe UI", Arial, sans-serif;
+  cursor: pointer;
+}
+
+/* --- Mobile Touch Analog Thumbstick & Action Pedals --- */
+.sv-touch-stick {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: max(14px, env(safe-area-inset-left));
+  width: 112px;
+  height: 112px;
+  z-index: 6;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.sv-stick-ring {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(20, 40, 56, 0.42), rgba(11, 22, 33, 0.78));
+  border: 2px solid rgba(173, 216, 230, 0.38);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 0 14px rgba(141, 213, 237, 0.12);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.sv-touch-stick.active .sv-stick-ring {
+  border-color: rgba(158, 229, 250, 0.85);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55), inset 0 0 18px rgba(141, 213, 237, 0.24);
+}
+.sv-touch-stick.sprinting .sv-stick-ring {
+  border-color: #c8fa4b;
+  box-shadow: 0 0 18px rgba(163, 230, 53, 0.42), inset 0 0 18px rgba(163, 230, 53, 0.22);
+}
+.sv-stick-steer-hint,
+.sv-stick-sprint-hint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 8px/1 Consolas, monospace;
+  letter-spacing: 0.08em;
+  color: rgba(226, 240, 248, 0.72);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.sv-stick-steer-hint {
+  bottom: 9px;
+}
+.sv-stick-sprint-hint {
+  top: 8px;
+}
+.sv-touch-stick.sprinting .sv-stick-sprint-hint {
+  color: #d9f99d;
+}
+.sv-stick-puck {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #dcf4fc, #6fb6cf);
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  will-change: transform;
+}
+.sv-touch-stick.sprinting .sv-stick-puck {
+  background: radial-gradient(circle at 35% 30%, #f1ffd1, #9acd32);
+}
+
+.sv-touch-actions,
+.sv-rover-touch-pedals {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 6;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  z-index: 5;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   pointer-events: auto;
 }
-.sv-rover-touch-controls button {
-  background: #1e3342eb;
-  color: #c8fa4b;
-  border: 1px solid #ffffff55;
-  padding: 12px 18px;
-  font: 700 12px monospace;
-  border-radius: 6px;
+.sv-touch-context-row,
+.sv-touch-primary-row,
+.sv-pedal-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
+.sv-touch-ctx-btn {
+  min-height: 42px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font: 700 12px/1.1 "Segoe UI", Arial, sans-serif;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  color: #f4f9fc;
+  background: rgba(15, 32, 45, 0.9);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+  white-space: nowrap;
+}
+.sv-touch-ctx-btn.inspect {
+  background: linear-gradient(180deg, #ffb46b, #e48b44);
+  color: #1c130a;
+  border-color: #ffe2c0;
+}
+.sv-touch-ctx-btn.drive {
+  background: linear-gradient(180deg, #b5e846, #85bb20);
+  color: #10200b;
+  border-color: #ecfccb;
+}
+.sv-touch-ctx-btn.exit {
+  min-height: 38px;
+  padding: 6px 12px;
+  font-size: 11px;
+  border-color: rgba(154, 205, 50, 0.72);
+}
+.sv-touch-pill {
+  min-width: 46px;
+  min-height: 46px;
+  padding: 0 10px;
+  border-radius: 50%;
+  background: rgba(17, 36, 50, 0.88);
+  border: 1.5px solid rgba(173, 216, 230, 0.55);
+  color: #e6f4fa;
+  font: 700 12px/1 Consolas, monospace;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+}
+.sv-touch-jump {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: radial-gradient(circle at 35% 30%, rgba(164, 224, 245, 0.34), rgba(16, 36, 50, 0.92));
+  border: 2px solid rgba(164, 224, 245, 0.85);
+  color: #ffffff;
+  font: 700 14px/1 "Segoe UI", Arial, sans-serif;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.52);
+  touch-action: none;
+}
+.sv-touch-jump span {
+  font: 700 9px/1 Consolas, monospace;
+  letter-spacing: 0.06em;
+}
+.sv-touch-jump:active,
+.sv-touch-pill:active,
+.sv-touch-ctx-btn:active {
+  transform: scale(0.95);
+}
+
+.sv-pedal {
+  width: 56px;
+  height: 64px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font: 800 16px/1 Consolas, monospace;
+  color: #f8fafc;
+  border: 1.5px solid rgba(255, 255, 255, 0.42);
+  background: rgba(15, 30, 42, 0.88);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+}
+.sv-pedal span {
+  font: 700 9px/1 Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+.sv-pedal.brake {
+  width: 48px;
+  height: 54px;
+  background: rgba(68, 25, 25, 0.88);
+  border-color: rgba(252, 165, 165, 0.65);
+  color: #fecaca;
+}
+.sv-pedal.rev {
+  width: 54px;
+  height: 60px;
+  background: rgba(58, 35, 19, 0.88);
+  border-color: rgba(253, 186, 116, 0.7);
+  color: #fed7aa;
+}
+.sv-pedal.gas {
+  width: 62px;
+  height: 68px;
+  background: linear-gradient(180deg, rgba(61, 102, 24, 0.92), rgba(32, 58, 12, 0.94));
+  border-color: #bef264;
+  color: #ecfccb;
+}
+.sv-pedal:active {
+  transform: translateY(2px) scale(0.97);
+}
+
+.sv-world:has(.sv-rover-touch-pedals) .sv-rover-hud .sv-rover-exit-btn {
+  display: none;
+}
+
 @media (max-width: 1120px) {
   .sv-rover-hints {
     display: none;
@@ -1556,6 +1812,225 @@
   }
   .sv-rover-prompt {
     bottom: 84px;
+  }
+}
+
+/* Mobile landscape & coarse-touch Lunar Survival HUD compaction */
+@media (pointer: coarse) and (max-height: 560px), (max-width: 920px) and (max-height: 540px) {
+  .sv-top {
+    top: max(6px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    gap: 8px;
+  }
+  .sv-wordmark span {
+    font-size: 13px;
+  }
+  .sv-wordmark small {
+    display: none;
+  }
+  .sv-day {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+  .sv-top button,
+  .sv-look-controls button {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 9px;
+  }
+  .sv-reserves {
+    top: calc(max(6px, env(safe-area-inset-top)) + 42px);
+    left: max(10px, env(safe-area-inset-left));
+    width: 140px;
+    padding: 4px 8px;
+  }
+  .sv-reserves > div {
+    padding: 2px 0;
+    gap: 1px 6px;
+  }
+  .sv-reserves span,
+  .sv-reserves .risk > span {
+    font-size: 9px;
+  }
+  .sv-reserves strong {
+    font-size: 11px;
+  }
+  .sv-reserves strong small {
+    display: none;
+  }
+  .sv-weather {
+    top: calc(max(6px, env(safe-area-inset-top)) + 180px);
+    left: max(10px, env(safe-area-inset-left));
+    width: 140px;
+    max-width: 140px;
+    padding: 4px 7px;
+    font-size: 8.5px;
+    line-height: 1.25;
+  }
+  .sv-weather small {
+    font-size: 8px;
+  }
+  .sv-mission {
+    top: calc(max(6px, env(safe-area-inset-top)) + 42px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(380px, calc(100vw - 360px));
+    padding: 0;
+  }
+  .sv-mission-line > span {
+    font-size: 11px;
+  }
+  .sv-bearing {
+    top: calc(max(6px, env(safe-area-inset-top)) + 78px);
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    max-width: calc(100vw - 360px);
+  }
+  .sv-look-controls {
+    top: calc(max(6px, env(safe-area-inset-top)) + 42px);
+    right: max(10px, env(safe-area-inset-right));
+    width: auto;
+    max-width: 196px;
+    z-index: 7;
+  }
+  .sv-look-controls details {
+    background: #101d2bf2;
+    border: 1px solid #8ea6b555;
+    border-radius: 6px;
+    padding: 4px 10px;
+    max-height: calc(100dvh - 104px);
+    overflow-y: auto;
+  }
+  .sv-look-controls summary {
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+    font: 700 10px/1.1 "Segoe UI", Arial, sans-serif;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .sv-map-toggle {
+    top: calc(max(6px, env(safe-area-inset-top)) + 84px);
+    bottom: auto;
+    right: max(10px, env(safe-area-inset-right));
+    width: 102px;
+    padding: 5px;
+  }
+  .sv-map-toggle svg {
+    width: 68px;
+    height: 68px;
+  }
+  .sv-map-toggle > small {
+    display: none;
+  }
+  .sv-target {
+    top: auto;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 148px;
+    max-width: calc(100vw - 350px);
+    padding: 6px 10px;
+  }
+  .sv-target > span {
+    font-size: 12px;
+  }
+  .sv-foot {
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
+    width: max-content;
+    max-width: calc(100vw - 360px);
+    font-size: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sv-foot span:nth-child(2) {
+    display: none;
+  }
+  .sv-rover-hud {
+    top: calc(max(6px, env(safe-area-inset-top)) + 46px);
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 5px 10px;
+    gap: 8px;
+  }
+  .sv-rover-hud .sv-rover-hints,
+  .sv-rover-hud .sv-gear-rail,
+  .sv-rover-hud .sv-rover-gearbox small,
+  .sv-rover-hud .sv-rover-speedometer small {
+    display: none;
+  }
+  .sv-rover-hud .sv-rover-gearbox,
+  .sv-rover-hud .sv-rover-speedometer {
+    padding-right: 8px;
+  }
+  .sv-rover-hud .sv-gear-active,
+  .sv-rover-hud .sv-rover-speedometer strong {
+    font-size: 18px;
+  }
+  .sv-touch-stick {
+    width: 104px;
+    height: 104px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left));
+  }
+  .sv-touch-actions,
+  .sv-rover-touch-pedals {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    right: max(12px, env(safe-area-inset-right));
+    gap: 6px;
+  }
+  .sv-touch-jump {
+    width: 58px;
+    height: 58px;
+  }
+  .sv-pedal {
+    height: 58px;
+  }
+  .sv-pedal.brake {
+    width: 44px;
+    height: 50px;
+  }
+  .sv-pedal.rev {
+    width: 50px;
+    height: 54px;
+  }
+  .sv-pedal.gas {
+    width: 56px;
+    height: 62px;
+  }
+  .sv-dialog {
+    padding: 18px 20px;
+    max-height: 90dvh;
+  }
+  .sv-dialog h2 {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+  .sv-fullmap {
+    height: min(48dvh, 220px);
+  }
+}
+
+/* Stack multi-button contextual actions vertically on compact landscape phones
+   so Inspect + Drive pills never encroach on the centered mission bar. */
+@media (max-width: 760px) and (max-height: 560px) {
+  .sv-touch-context-row {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+  }
+  .sv-touch-ctx-btn {
+    min-height: 38px;
+    padding: 6px 12px;
+    font-size: 11px;
   }
 }
 

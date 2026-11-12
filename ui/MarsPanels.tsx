@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { Quiz } from "../content/marsQuizzes";
-import { STATIONS } from "../content/survival";
+import { STATIONS } from "../content/marsBase";
 import { MARS_HABITAT } from "../game/marsColonyCollision";
 import { rank, type Mission } from "../game/juniorMission";
 import type { View } from "./SurvivalWorld";
@@ -272,9 +272,29 @@ export function MarsHud({
   const oxygenPct = Math.max(0, Math.min(100, mission.resources.oxygen));
   const suitIntegrityPct = Math.max(0, Math.min(100, 100 - mission.resources.risk));
   const powerPct = Math.max(0, Math.min(100, mission.resources.power));
+  const [radarCollapsed, setRadarCollapsed] = useState(false);
 
   return (
-    <aside className="gta-hud-cluster" aria-label="Mission telemetry and tactical radar">
+    <aside
+      className={`gta-hud-cluster${radarCollapsed ? " is-collapsed" : ""}`}
+      aria-label="Mission telemetry and tactical radar"
+    >
+      <div className="gta-mobile-bar">
+        <button
+          type="button"
+          className="gta-mobile-toggle"
+          aria-expanded={!radarCollapsed}
+          onClick={() => setRadarCollapsed((v) => !v)}
+        >
+          {radarCollapsed ? "Radar ▸" : "Hide radar ▾"}
+        </button>
+        <button type="button" className="gta-mobile-quick" onClick={onGuide}>
+          {mission.found.length}/6
+        </button>
+        <button type="button" className="gta-mobile-quick" onClick={onLog}>
+          Log
+        </button>
+      </div>
       <div className="gta-rank-strip" aria-label="Mission notebook">
         <div className="junior-rank">
           <b>{rank(mission.xp, mission.found.length)}</b>
@@ -291,7 +311,7 @@ export function MarsHud({
         </div>
       </div>
 
-      <MarsRadarMinimap view={view} target={target} found={mission.found} />
+      {!radarCollapsed && <MarsRadarMinimap view={view} target={target} found={mission.found} />}
 
       {/* GTA V style 3-bar vital telemetry directly below the radar */}
       <section className="gta-vitals-bars" aria-label="Mission resources">

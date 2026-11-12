@@ -35,6 +35,12 @@ export const spawnWalker = (): Walker => ({
   vz: 0,
   yaw: 0,
 });
+export type MoveAxes = {
+  side?: number;
+  forward?: number;
+  sprint?: boolean;
+};
+
 export function stepWalker(
   w: Walker,
   keys: ReadonlySet<string>,
@@ -42,17 +48,20 @@ export function stepWalker(
   obstacles: readonly CollisionObstacle[] = [],
   speed = WALK_SPEED,
   grounded = true,
+  analog?: MoveAxes,
 ): Walker {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (!dt) return w;
-  let side =
+  const keySide =
     Number(keys.has("d") || keys.has("arrowright")) -
     Number(keys.has("a") || keys.has("arrowleft"));
-  let forward =
+  const keyForward =
     Number(keys.has("w") || keys.has("arrowup")) -
     Number(keys.has("s") || keys.has("arrowdown"));
+  let side = keySide + (analog?.side ?? 0);
+  let forward = keyForward + (analog?.forward ?? 0);
   const length = Math.hypot(side, forward);
-  if (length) {
+  if (length > 1 || ((keySide !== 0 || keyForward !== 0) && length > 0)) {
     side /= length;
     forward /= length;
   }

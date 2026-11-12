@@ -1,8 +1,12 @@
 # Interface contracts
 
-## Junior Astronaut Mars mission (current)
+## Ares Field Camp (current)
 
-`game/juniorMission.ts` owns Mars mission resources, discoveries, XP, patches and sol progression. `TASK` marks a sol activity and can restore a station resource on repeat visits. `SHIFT` requires an activity that sol and consumes supplies; `QUIZ` and `SHIFT_QUIZ` award once. Rank depends on both XP and discovery count. `isNight(sol)` selects a player-paced alternating lighting cue. The mission briefing controls Mobile versus PC presentation and owns Mars mission state. Versioned browser-local saves retain mission resources, discoveries, XP, logs and cadet ID; the hub resumes or explicitly confirms a restart. World position and unfinished dialog input are not saved. Lunar rules are unchanged.
+Each sol has one required inspection, two authored plans and a store forecast. TASK services each station at most once per sol. SHIFT pauses at the decision checkpoint on depletion, excessive risk or an incomplete report. RETRY releases that checkpoint. The certificate requires a successful final transmission. The Mars player enters on foot near the solar field. In the 3D world, station interaction within 5.5 metres starts or resumes an assignment. Map pins set navigation routes. The graphics fallback supports approaching then interacting from the map. After the crew decision, the debrief offers a return to exploration or an optional science question.
+
+### Saved mission and station patches
+
+`game/juniorMission.ts` owns Mars mission resources, discoveries, XP, patches and sol progression. `TASK` marks a sol activity and can restore a station resource on repeat visits. `SHIFT` requires the assigned inspection and consumes supplies; `QUIZ` and `SHIFT_QUIZ` award once. Rank depends on both XP and discovery count. `isNight(sol)` selects a player-paced alternating lighting cue. The mission briefing controls Mobile versus PC presentation and owns Mars mission state. Versioned browser-local saves retain mission resources, discoveries, XP, logs and cadet ID; the hub resumes or explicitly confirms a restart. World position and unfinished dialog input are not saved. Lunar rules are unchanged.
 
 
 ## Current default: ten-day first-person expedition and open-world Mars rover (v4)
@@ -210,3 +214,10 @@ Mars Sage starts at the home dock. `MarsGame` owns the follow setting and passes
 
 ### Rover lidar presentation
 `View.lidar?: LidarScan` is present while driving. The pure `scanRoverLidar(rover, obstacles)` helper returns world-space contacts (`x`, `z`, collision radius, rock/structure kind and `inPath` flag), a 30 m range and nullable predicted contact distance. `SurvivalWorld` samples it at up to 8 Hz and shares the result with `BigRoverHandle.update` and the HUD. Both maps rotate with the rover heading, independent of camera look. Warnings do not steer, brake or change mission resources. See `ASSUMPTIONS.md` for detection limits.
+
+Mars Auto graphics selects a starting preset before shader warmup using available renderer and device hints. During active play, sustained slow frames can lower resolution and switch to simpler terrain shading. The graphics selector shows the current Auto profile and accepts manual Performance, High and Ultra overrides.
+
+### Mobile & touch interface
+
+- **Orientation gate (`ui/RotateToLandscapeGate.tsx`, `ui/mobileDevice.ts`)**: `isMobilePortraitPhone(width, height, coarsePointer)` pauses 3D interaction with a Rotate-to-Landscape gate when a narrow coarse-pointer phone (`min(width, height) <= 600` in portrait orientation) enters `MarsGame` or `SurvivalGame`; landscape phones, tablets and desktop windows remain unblocked.
+- **Touch controls (`ui/world/TouchControlsOverlay.tsx`)**: On `(pointer: coarse)` devices (or when manually enabled via **Touch controls** in **Camera & graphics**), renders a left virtual analog thumbstick (`MoveAxes` for proportional walk + outer-ring sprint in `stepWalker`/`stepMarsLocomotion`, or horizontal steering in `stepRoverVehicle`), right-hand action/context buttons (`Jump`, `1P/3P` view toggle, contextual `Inspect` / `Drive Rover`), and dedicated rover pedals (`BRAKE`, `REV`, `GAS`, `Exit Rover`) outputting `RoverAnalogInput`. Dragging elsewhere looks smoothly via multi-touch pointer IDs without altering mission resources.

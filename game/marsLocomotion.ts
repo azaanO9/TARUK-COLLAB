@@ -1,4 +1,4 @@
-import { stepWalker, type Walker, type JumpState } from "./navigation.ts";
+import { stepWalker, type MoveAxes, type Walker, type JumpState } from "./navigation.ts";
 import { MARS_PHYSICS } from "./marsConfig.ts";
 import type { CollisionObstacle } from "./collision.ts";
 
@@ -10,13 +10,14 @@ export function stepMarsLocomotion(
   seconds: number,
   heightAt: (x: number, z: number) => number,
   obstacles: readonly CollisionObstacle[] = [],
+  analog?: MoveAxes,
 ) {
   const dt = Math.max(0, Math.min(seconds, .05));
   if (!dt) return { walker, jump };
   const airborne = jump.height > 0 || jump.velocity > 0;
   const launching = !airborne && keys.has("jump");
-  const speed = keys.has("shift") ? MARS_PHYSICS.sprintSpeed : MARS_PHYSICS.walkSpeed;
-  const nextWalker = stepWalker(walker, keys, dt, obstacles, speed, !airborne);
+  const speed = keys.has("shift") || analog?.sprint ? MARS_PHYSICS.sprintSpeed : MARS_PHYSICS.walkSpeed;
+  const nextWalker = stepWalker(walker, keys, dt, obstacles, speed, !airborne, analog);
   if (!airborne && !launching) return { walker: nextWalker, jump: { height: 0, velocity: 0 } };
 
   // Integrate world altitude, so flying over rising/falling terrain cannot lift the astronaut.

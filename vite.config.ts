@@ -47,11 +47,14 @@ export default defineConfig(async ({ command }) => {
     server: {
       host: true,
       allowedHosts: true,
+      watch: {
+        awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 20 },
+        ...(isCodexSeatbeltSandbox
+          ? { useFsEvents: false, usePolling: true }
+          : {}),
+      },
       ...(managedLinux
         ? { host: "0.0.0.0", allowedHosts: ["terminal.local"] }
-        : {}),
-      ...(isCodexSeatbeltSandbox
-        ? { watch: { useFsEvents: false, usePolling: true } }
         : {}),
     },
     plugins: [

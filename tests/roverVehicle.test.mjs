@@ -42,11 +42,11 @@ test("enterRover and exitRover toggle driving state and calculate exit position"
 
 test("accelerating with forward key increases speed up to max limit", () => {
   let rover = enterRover(spawnRoverVehicle(0, 0, 0));
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 130; i++) {
     rover = stepRoverVehicle(rover, new Set(["w"]), 0.05);
   }
   assert.equal(rover.speed, ROVER_MAX_FORWARD);
-  assert.equal(Math.round(rover.speed * 3.6), 25);
+  assert.equal(Math.round(rover.speed * 3.6), 30);
   // Forward motion in coordinate system moves along -Z when yaw is 0
   assert.ok(rover.z < 0);
 });
@@ -75,11 +75,11 @@ test("handbrake decelerates vehicle quickly", () => {
   let rover = enterRover(spawnRoverVehicle(0, 0, 0));
   rover.speed = ROVER_MAX_FORWARD;
   const initialZ = rover.z;
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 25; i++) {
     rover = stepRoverVehicle(rover, new Set([" "]), 0.05);
   }
   assert.equal(rover.speed, 0);
-  assert.ok(initialZ - rover.z < 3.5, "stops within 3.5 m on flat ground from 25 km/h");
+  assert.ok(initialZ - rover.z < 5, "stops within 5 m on flat ground from 30 km/h");
 });
 
 test("collision with obstacles stops or deflects rover", () => {
@@ -143,12 +143,39 @@ test("traversable rocks and rover pad do not block driving while suspension arti
 });
 
 
-test("forward and reverse speed caps are 25 and 10 km/h, including legacy overspeed", () => {
-  assert.equal(ROVER_MAX_FORWARD * 3.6, 25);
+test("forward and reverse speed caps are 30 and 10 km/h, including legacy overspeed", () => {
+  assert.equal(Math.round(ROVER_MAX_FORWARD * 3.6), 30);
   assert.equal(ROVER_MAX_REVERSE * 3.6, 10);
   for (const [key, limit, initial] of [["w", ROVER_MAX_FORWARD, 13.6], ["s", -ROVER_MAX_REVERSE, -8]]) {
     let rover = {...enterRover(spawnRoverVehicle(0,0)), speed: initial};
     rover = stepRoverVehicle(rover, new Set([key]), .05);
     assert.equal(rover.speed, limit);
   }
+});
+
+test("analog rover steering, throttle, reverse and handbrake respond proportionally", () => {
+  let halfSteer = enterRover(spawnRoverVehicle(0, 0));
+  let fullSteer = enterRover(spawnRoverVehicle(0, 0));
+  for (let i = 0; i < 20; i++) {
+    halfSteer = stepRoverVehicle(halfSteer, new Set(), 0.05, [], () => 0, () => 0, { throttle: 1, steer: 0.4 });
+    fullSteer = stepRoverVehicle(fullSteer, new Set(), 0.05, [], () => 0, () => 0, { throttle: 1, steer: 1 });
+  }
+  assert.ok(halfSteer.speed > 1);
+  assert.ok(Math.abs(fullSteer.yaw) > Math.abs(halfSteer.yaw));
+
+  let partialThrottle = enterRover(spawnRoverVehicle(0, 0));
+  for (let i = 0; i < 20; i++) {
+    partialThrottle = stepRoverVehicle(partialThrottle, new Set(), 0.05, [], () => 0, () => 0, { throttle: 0.45 });
+  }
+  assert.ok(partialThrottle.speed > 0.2 && partialThrottle.speed < halfSteer.speed);
+
+  let reversing = enterRover(spawnRoverVehicle(0, 0));
+  for (let i = 0; i < 16; i++) {
+    reversing = stepRoverVehicle(reversing, new Set(), 0.05, [], () => 0, () => 0, { throttle: -1 });
+  }
+  assert.ok(reversing.speed < -0.5);
+
+  const braked = stepRoverVehicle({ ...reversing }, new Set(), 0.05, [], () => 0, () => 0, { handbrake: true });
+  assert.equal(braked.handbrake, true);
+  assert.ok(Math.abs(braked.speed) < Math.abs(reversing.speed));
 });

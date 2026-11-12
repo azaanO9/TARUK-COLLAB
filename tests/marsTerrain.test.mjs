@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { marsHeight, colonySurfaceElevation } from "../ui/world/marsTerrain.ts";
-import { STATIONS } from "../content/survival.ts";
+import { STATIONS } from "../content/marsBase.ts";
 
 test("Mars equipment pads and spawn remain level on the explorable terrain", () => {
   assert.equal(marsHeight(0, 12), 0);
@@ -32,7 +32,7 @@ test("open colony ground has varied low relief instead of one large flattened di
 
 test("walkable hardware supports feet on the rover pad, shelter floor and habitat stairs",()=>{
  assert.equal(colonySurfaceElevation(17,10),.215);
- assert.equal(colonySurfaceElevation(-21,-9.8),.12);
+ assert.equal(colonySurfaceElevation(-21,-22.8),.12);
  for(let i=0;i<4;i++)assert.ok(Math.abs(colonySurfaceElevation(-2,-26+(5.9-i*.4)*1.27)-(.23+i*.14)*1.27)<1e-6);
  assert.equal(colonySurfaceElevation(30,30),0);
 });

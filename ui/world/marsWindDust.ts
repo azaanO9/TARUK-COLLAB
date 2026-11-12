@@ -46,12 +46,13 @@ export function createMarsWindDust() {
   let time = 0;
   return {
     points,
-    update(dt: number, x: number, z: number, heightAt: (x: number, z: number) => number, reduced: boolean) {
+    update(dt: number, x: number, z: number, heightAt: (x: number, z: number) => number, reduced: boolean, activeCount = count) {
       if (!reduced) {
         time += dt;
         drift += dt * (1.1 + .45 * Math.sin(time * .37));
       }
-      for (let i = 0; i < count; i++) {
+      const limit = Math.min(count, Math.max(0, activeCount));
+      for (let i = 0; i < limit; i++) {
         const seed = seeds[i];
         const px = x + T.MathUtils.euclideanModulo(i * 19.17 + drift - x + 24, 48) - 24;
         const pz = z + T.MathUtils.euclideanModulo(i * 13.37 + drift * .32 - z + 24, 48) - 24;

@@ -23,6 +23,12 @@ export function parseMarsSave(raw: string | null): MarsSave | null {
     if (!Array.isArray(mission.found) || mission.found.some(id => typeof id !== "string" || !knownDiscoveries.has(id)) || new Set(mission.found).size !== mission.found.length) return null;
     if (!Array.isArray(mission.patches) || mission.patches.some(id => typeof id !== "string" || (!knownDiscoveries.has(id) && !/^sol-(?:[1-9]|10)$/.test(id))) || new Set(mission.patches).size !== mission.patches.length) return null;
     if (!Array.isArray(mission.log) || mission.log.length > 1000 || mission.log.some(entry => typeof entry !== "string" || entry.length > 500)) return null;
+    if (mission.failure !== undefined && typeof mission.failure !== "string") return null;
+    if (mission.dispatch !== undefined && typeof mission.dispatch !== "string") return null;
+    if (mission.serviced !== undefined && (!Array.isArray(mission.serviced) || mission.serviced.some(id=>typeof id!=="string"))) return null;
+    if (mission.incoming !== undefined && (!mission.incoming || typeof mission.incoming!=="object" || Object.entries(mission.incoming).some(([k,v])=>!resources.some(key=>key===k)||!Number.isFinite(v)||Math.abs(v)>100))) return null;
+    // Pre-atlas saves resume with their stores and discoveries. Collect the new day's evidence.
+    if (!mission.ended && mission.serviced === undefined && mission.activityDone) mission.activityDone=false;
     return value as MarsSave;
   } catch { return null; }
 }

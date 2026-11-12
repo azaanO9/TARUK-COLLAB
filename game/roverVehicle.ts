@@ -248,6 +248,12 @@ export function exitRover(
   };
 }
 
+export type RoverAnalogInput = {
+  throttle?: number;
+  steer?: number;
+  handbrake?: boolean;
+};
+
 export function stepRoverVehicle(
   rover: RoverVehicle,
   keys: ReadonlySet<string>,
@@ -255,6 +261,7 @@ export function stepRoverVehicle(
   obstacles: readonly RoverObstacle[] = [],
   heightAt: (x: number, z: number) => number = () => 0,
   mudAt: (x: number, z: number) => number = () => 0,
+  analog?: RoverAnalogInput,
 ): RoverVehicle {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (dt <= 0) return rover;
@@ -296,7 +303,12 @@ export function stepRoverVehicle(
   const reverseKey = keys.has("s") || keys.has("arrowdown");
   const leftKey = keys.has("a") || keys.has("arrowleft");
   const rightKey = keys.has("d") || keys.has("arrowright");
-  const handbrakeKey = keys.has(" ") || keys.has("space") || keys.has("handbrake");
+  const analogThrottle = clamp(analog?.throttle ?? 0, -1, 1);
+  const handbrakeKey =
+    keys.has(" ") ||
+    keys.has("space") ||
+    keys.has("handbrake") ||
+    Boolean(analog?.handbrake);
 
   let speed = clamp(rover.speed, -ROVER_MAX_REVERSE, ROVER_MAX_FORWARD);
   const handbrake = handbrakeKey;
@@ -307,7 +319,8 @@ export function stepRoverVehicle(
   const effectiveCoastDrag = ROVER_COAST_DRAG * (1 + mudFactor * 1.15);
 
   // Steering angle rate of change
-  const steerInput = Number(leftKey) - Number(rightKey);
+  const analogSteer = clamp(analog?.steer ?? 0, -1, 1);
+  const steerInput = clamp((Number(leftKey) - Number(rightKey)) + analogSteer, -1, 1);
   const targetSteer = steerInput * ROVER_STEER_MAX;
   const steerDiff = targetSteer - rover.steerAngle;
   const steerStep = ROVER_STEER_SPEED * dt;
@@ -319,23 +332,25 @@ export function stepRoverVehicle(
   }
 
   // Throttle and braking
+  const forwardMag = forwardKey ? 1 : analogThrottle > 0.12 ? analogThrottle : 0;
+  const reverseMag = reverseKey ? 1 : analogThrottle < -0.12 ? -analogThrottle : 0;
   if (handbrakeKey) {
     if (speed > 0) {
       speed = Math.max(0, speed - ROVER_HANDBRAKE * dt);
     } else if (speed < 0) {
       speed = Math.min(0, speed + ROVER_HANDBRAKE * dt);
     }
-  } else if (forwardKey && !reverseKey) {
+  } else if (forwardMag > 0 && reverseMag === 0) {
     if (speed < 0) {
-      speed = Math.min(0, speed + ROVER_BRAKE * dt);
+      speed = Math.min(0, speed + ROVER_BRAKE * forwardMag * dt);
     } else {
-      speed = Math.min(effectiveMaxForward, speed + ROVER_ACCELERATION * dt);
+      speed = Math.min(effectiveMaxForward, speed + ROVER_ACCELERATION * forwardMag * dt);
     }
-  } else if (reverseKey && !forwardKey) {
+  } else if (reverseMag > 0 && forwardMag === 0) {
     if (speed > 0) {
-      speed = Math.max(0, speed - ROVER_BRAKE * dt);
+      speed = Math.max(0, speed - ROVER_BRAKE * reverseMag * dt);
     } else {
-      speed = Math.max(-ROVER_MAX_REVERSE, speed - ROVER_ACCELERATION * 0.75 * dt);
+      speed = Math.max(-ROVER_MAX_REVERSE, speed - ROVER_ACCELERATION * 0.75 * reverseMag * dt);
     }
   } else {
     if (speed > 0) {

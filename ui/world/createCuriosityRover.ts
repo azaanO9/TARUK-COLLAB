@@ -1,7 +1,8 @@
 import * as T from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { assetUrl } from "../../lib/assetUrl";
-import type { CuriosityRoverState } from "../../game/curiosityRover";
+import { CURIOSITY_WHEEL_OFFSETS, type CuriosityRoverState } from "../../game/curiosityRover";
+import { createSoftContactShadow } from "./contactShadow";
 
 export type CuriosityRoverHandle = {
   ready: Promise<void>;
@@ -293,6 +294,22 @@ export function createCuriosityRover(
   dustPoints.frustumCulled = false;
   root.add(dustPoints);
   let dustCursor = 0;
+  let dustDirty = false;
+
+  const contactShadow = typeof document !== "undefined"
+    ? createSoftContactShadow({
+        width: 2.85,
+        depth: 3.35,
+        y: 0.024,
+        bodyHalfWidth: 0.9,
+        bodyHalfLength: 1.15,
+        wheels: CURIOSITY_WHEEL_OFFSETS,
+        wheelRadiusX: 0.34,
+        wheelRadiusZ: 0.42,
+        opacity: 0.54,
+      })
+    : null;
+  if (contactShadow) root.add(contactShadow.mesh);
 
   let rig: CuriosityRig | null = null;
   let disposed = false;
@@ -474,8 +491,11 @@ export function createCuriosityRover(
 
     const crouchDrop = state.scanCrouch * 0.13;
     spotlight.position.y = 1.95 - crouchDrop;
-    spotlight.intensity = isNight ? 6.5 : 2.0;
+    spotlight.intensity = isNight ? 6.5 : 0;
     spotlight.castShadow = shadowsEnabled && isNight;
+    if (contactShadow) {
+      contactShadow.material.opacity = ((shadowsEnabled ? 0.22 : 0.54) + state.scanCrouch * 0.06) * (isNight ? 0.5 : 1);
+    }
 
     if (rig) {
       // Lower chassis/body smoothly during surface scanning while keeping all 6 wheels grounded on y = 0
@@ -599,17 +619,24 @@ export function createCuriosityRover(
         dustVel[idx * 3 + 2] = 0.45 + Math.random() * 0.5;
         dustLife[idx] = 1.0;
       }
+      dustDirty = true;
     }
+    let anyAlive = false;
     for (let i = 0; i < dustCount; i++) {
       if (dustLife[i] > 0) {
+        anyAlive = true;
         dustLife[i] -= dt * 2.2;
         dustPos[i * 3] += dustVel[i * 3] * dt;
         dustPos[i * 3 + 1] += dustVel[i * 3 + 1] * dt;
         dustPos[i * 3 + 2] += dustVel[i * 3 + 2] * dt;
         if (dustLife[i] <= 0) dustPos[i * 3 + 1] = -100;
+        dustDirty = true;
       }
     }
-    dustGeo.attributes.position.needsUpdate = true;
+    if (dustDirty) {
+      dustGeo.attributes.position.needsUpdate = true;
+      dustDirty = anyAlive;
+    }
   }
 
   function dispose() {

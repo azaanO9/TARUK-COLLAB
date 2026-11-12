@@ -241,3 +241,14 @@ test("Mars gravity and sprint affect the actual movement calculations", async ()
   }
   assert.ok(sprinting.z < walking.z);
 });
+
+test("analog walk input moves proportionally slower at partial thumbstick deflection", () => {
+  let half = spawnWalker();
+  let full = spawnWalker();
+  const startZ = half.z;
+  for (let i = 0; i < 15; i++) {
+    half = stepWalker(half, new Set(), 0.05, [], WALK_SPEED, true, { forward: 0.45, side: 0 });
+    full = stepWalker(full, new Set(), 0.05, [], WALK_SPEED, true, { forward: 1, side: 0 });
+  }
+  assert.ok(half.z < startZ && full.z < half.z);
+});

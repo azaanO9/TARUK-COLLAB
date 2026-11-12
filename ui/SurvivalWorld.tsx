@@ -1,12 +1,15 @@
 "use client";
 import { assetUrl } from "../lib/assetUrl";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
-import { STATIONS } from "../content/survival";
+import { STATIONS as marsStations } from "../content/marsBase";
+import { STATIONS as lunarStations } from "../content/survival";
 import { scanRoverLidar, type LidarScan } from "../game/roverLidar";
 import { stepMarsLocomotion } from "../game/marsLocomotion";
-import { spawnWalker, stepWalker, stepJump, WALKER_RADIUS } from "../game/navigation";
+import { spawnWalker, stepWalker, stepJump, WALKER_RADIUS, type MoveAxes } from "../game/navigation";
 import { boxObstacle } from "../game/collision";
+import { isCoarsePointerDevice } from "./mobileDevice";
+import { TouchControlsOverlay } from "./world/TouchControlsOverlay";
 import { createSageCompanion, createSageDock } from "./world/createSageCompanion";
 import { SAGE_DOCK, sageDestination, stepSage } from "../game/sageCompanion";
 import { createMarsSky, createMarsFootprints } from "./world/marsTerrain";
@@ -21,7 +24,8 @@ import {
   type CuriosityRoverState,
 } from "../game/curiosityRover";
 import { createMarsWindDust } from "./world/marsWindDust";
-import { graphicsTier } from "./world/graphicsTiers";
+import { createSoftContactShadow } from "./world/contactShadow";
+import { graphicsTier, startingProfile } from "./world/graphicsTiers";
 import { createMarsEnvironment, MARS_SUN_DIRECTION } from "./world/marsAtmosphere";
 import {
   spawnRoverVehicle,
@@ -31,6 +35,7 @@ import {
   exitRover,
   roverFootprint,
   getRoverGear,
+  type RoverAnalogInput,
   type RoverGear,
 } from "../game/roverVehicle";
 import type { Effect } from "../game/survivalTypes";
@@ -84,12 +89,14 @@ type Props = {
   onUnavailable: () => void;
   solarClean?: boolean;
   initialQuality?: "auto" | "performance";
+  onTouchControlsChange?: (active: boolean) => void;
 };
 export type SurvivalWorldHandle = {
   captureMouse: () => void;
   toggleRover?: () => void;
 };
 const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWorld(props, ref) {
+  const STATIONS = props.planet === "mars" ? marsStations : lunarStations;
   const host = useRef<HTMLDivElement>(null),
     current = useRef(props);
   const aim = useRef<HTMLDivElement>(null);
@@ -99,8 +106,25 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const controls = useRef(new Set<string>()),
     lockAction = useRef<() => void>(() => {});
   const toggleRoverAction = useRef<() => void>(() => {});
+  const inspectAction = useRef<() => void>(() => {});
+  const analogWalk = useRef<MoveAxes>({});
+  const analogDrive = useRef<RoverAnalogInput>({});
+  const [autoCoarse, setAutoCoarse] = useState(false);
+  const [touchOverride, setTouchOverride] = useState<boolean | null>(null);
+  const touchControlsActive = touchOverride ?? (props.showTouchControls || autoCoarse);
+  useEffect(() => {
+    const syncCoarse = () => setAutoCoarse(isCoarsePointerDevice());
+    syncCoarse();
+    const media = window.matchMedia?.("(pointer: coarse)");
+    media?.addEventListener?.("change", syncCoarse);
+    return () => media?.removeEventListener?.("change", syncCoarse);
+  }, []);
+  useEffect(() => {
+    props.onTouchControlsChange?.(touchControlsActive);
+  }, [touchControlsActive, props.onTouchControlsChange]);
   const [roverDriving, setRoverDriving] = useState(false),
     [roverNear, setRoverNear] = useState(false),
+    [canInspect, setCanInspect] = useState(false),
     [roverSpeed, setRoverSpeed] = useState(0),
     [roverGear, setRoverGear] = useState<RoverGear>("N"),
     [roverMud, setRoverMud] = useState(false),
@@ -121,12 +145,15 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [thirdPerson, setThirdPerson] = useState(true),
     [sensitivity, setSensitivity] = useState(1),
     [quality, setQuality] = useState(props.initialQuality ?? (props.planet === "mars" ? "auto" : "high"));
+  const [autoLabel,setAutoLabel]=useState("Detecting");
   const cameraSettings = useRef({ thirdPerson, sensitivity, quality });
   cameraSettings.current = { thirdPerson, sensitivity, quality };
   useEffect(() => {
     if (props.enabled) host.current?.focus({ preventScroll: true });
     else {
       controls.current.clear();
+      analogWalk.current = {};
+      analogDrive.current = {};
       if (document.pointerLockElement === host.current)
         document.exitPointerLock();
     }
@@ -150,8 +177,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         antialias: props.initialQuality !== "performance",
         powerPreference: "high-performance",
       });
-      renderer.setPixelRatio(Math.min(devicePixelRatio, props.planet === "mars" ? 1.25 : 1.7));
-      renderer.shadowMap.enabled = true;
+      const gl = renderer.getContext();
+      const gpuInfo = gl.getExtension("WEBGL_debug_renderer_info");
+      const gpuName = gpuInfo ? String(gl.getParameter(gpuInfo.UNMASKED_RENDERER_WEBGL)) : "";
+      let autoProfile = startingProfile(gpuName, navigator.hardwareConcurrency, (navigator as Navigator & {deviceMemory?:number}).deviceMemory);
+      const effectiveQuality = () => cameraSettings.current.quality === "auto" ? autoProfile : cameraSettings.current.quality;
+      const profileLabel = () => autoProfile === "auto" ? "Balanced" : autoProfile === "high" ? "High" : "Performance";
+      setAutoLabel(profileLabel());
+      const initialPreset = graphicsTier(effectiveQuality());
+      renderer.setPixelRatio(Math.min(devicePixelRatio, props.planet === "mars" ? initialPreset.resolutionCap : 1.7));
+      renderer.shadowMap.enabled = props.planet !== "mars" || initialPreset.shadows;
       renderer.shadowMap.type = T.PCFSoftShadowMap;
       renderer.outputColorSpace = T.SRGBColorSpace;
       renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -188,7 +223,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const light = new T.DirectionalLight(0xffe5c7, 3.5);
       light.position.set(-55, props.planet === "mars" ? 28 : 60, -80);
       light.castShadow = true;
-      const shadowSize = props.planet === "mars" ? graphicsTier(cameraSettings.current.quality).shadowSize : 2048;
+      const shadowSize = props.planet === "mars" ? graphicsTier(effectiveQuality()).shadowSize : 2048;
       light.shadow.mapSize.set(shadowSize, shadowSize);
       Object.assign(light.shadow.camera, {
         left: props.planet === "mars" ? -34 : -55,
@@ -220,11 +255,16 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       const footprints = props.planet === "mars" ? createMarsFootprints(scene,model.heightAt) : null;
       const sage = props.planet === "mars" ? createSageCompanion() : null;
+      const sageShadow = sage ? createSoftContactShadow({ width: 1.05, depth: 1.05, y: 0.024, opacity: 0.44 }) : null;
       if (sage) {
         const dock = createSageDock(panelSurface); scene.add(dock);
         sage.scale.setScalar(.78);
         sage.userData.groundOffset=-new T.Box3().setFromObject(sage).min.y;
         sage.position.set(SAGE_DOCK.x, model.heightAt(SAGE_DOCK.x,SAGE_DOCK.z)+sage.userData.groundOffset, SAGE_DOCK.z); scene.add(sage);
+        if (sageShadow) {
+          sageShadow.mesh.position.set(SAGE_DOCK.x, model.heightAt(SAGE_DOCK.x, SAGE_DOCK.z) + 0.024, SAGE_DOCK.z);
+          scene.add(sageShadow.mesh);
+        }
         for (const x of [-1.65, 1.65]) model.obstacles.push(boxObstacle(SAGE_DOCK.x+x,SAGE_DOCK.z,.15,1.55));
         model.obstacles.push(boxObstacle(SAGE_DOCK.x,SAGE_DOCK.z-1.4,1.65,.1));
       }
@@ -233,6 +273,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const dust = windDust?.points ?? null;
       if (dust) scene.add(dust);
       const astronaut = new T.Group();
+      const astronautShadow = props.planet === "mars" ? createSoftContactShadow({ width: 1.15, depth: 1.15, y: 0.024, opacity: 0.46 }) : null;
+      if (astronautShadow) scene.add(astronautShadow.mesh);
       const suit = new T.MeshStandardMaterial({
         color: 0xe7e2d5,
         roughness: 0.7,
@@ -376,16 +418,17 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         composer.addPass(new OutputPass());
       })().catch(() => { disposeEffects(); });
       function configureEffects(render = false) {
-        const preset = graphicsTier(cameraSettings.current.quality);
+        const preset = graphicsTier(effectiveQuality());
         if (occlusion) occlusion.enabled = preset.ssao && (cameraSettings.current.quality !== "auto" || autoOcclusion);
         if (bloom) bloom.enabled = preset.bloom && !reduced.matches;
-        if (render && cameraSettings.current.quality !== "performance") renderEffects();
+        if (render && effectiveQuality() !== "performance") renderEffects();
       }
-      if (props.planet === "mars" && cameraSettings.current.quality !== "performance") await prepareEffects();
+      if (props.planet === "mars" && effectiveQuality() !== "performance") await prepareEffects();
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
-      let walker = spawnWalker(),
+      const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:-23, z:15} : spawnWalker();
+      let walker = spawnAtArrival(),
         jump = { height: 0, velocity: 0 },
         rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt),
         curiosity: CuriosityRoverState | null = curiosityRover
@@ -443,10 +486,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           setRoverDriving(false);
         }
       };
-      let lastQuality = "";
+      let lastQuality = "", lastSelection = cameraSettings.current.quality;
       let metricStart = 0, metricFrames = 0;
       let slowWindows = 0, fastWindows = 0;
-      let lastAimCheck = 0, resolutionScale = Math.min(devicePixelRatio, 1.25), qualityStart = 0;
+      let lastAimCheck = 0, lastCanInspect = false, resolutionScale = Math.min(devicePixelRatio, 1.25), qualityStart = 0;
       let gaitPhase = 0, gaitBlend = 0, cameraGround = 0;
       const center = new T.Vector2(0, 0);
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -460,11 +503,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       observer.observe(element);
       resize();
       const inspect = () => {
-        if (current.current.enabled && hover && range <= 5.5)
+        if (current.current.enabled && !rover.driving && hover && range <= 5.5)
           current.current.onInspect(hover);
       };
+      inspectAction.current = inspect;
       const down = (e: PointerEvent) => {
-        if ((e.target as HTMLElement).closest("button")) return;
+        if (
+          (e.target as HTMLElement).closest(
+            "button, input, select, summary, details, .sv-touch-stick, .sv-touch-actions, .sv-rover-touch-pedals",
+          )
+        ) {
+          return;
+        }
         const rect = element.getBoundingClientRect();
         mouse.set(
           ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -618,6 +668,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       element.addEventListener("pointerdown", down);
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
       element.addEventListener("keydown", keydown);
       window.addEventListener("keyup", keyup);
       window.addEventListener("blur", blur);
@@ -632,15 +683,19 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           keys.clear();
           return;
         }
+        // A stationary view behind a dialog needs only occasional refreshes.
+        if (props.planet==="mars" && !current.current.enabled && time-last<100) return;
         const dt = last ? Math.min((time - last) / 1000, 0.1) : 1 / 60;
         last = time;
         const p = current.current;
         const cameraChanged = (rover.driving && !cameraSettings.current.thirdPerson) !== wasCockpit;
         const programsBefore = renderer.info.programs?.length ?? 0;
-        if (beacon) { const destination = STATIONS.find(s => s.id === p.target); if (destination) beacon.position.set(destination.x, model.heightAt(destination.x,destination.z),destination.z); }
-        if (cameraSettings.current.quality !== lastQuality) {
-          lastQuality = cameraSettings.current.quality;
+        if (beacon && beacon.userData.target !== p.target) { beacon.userData.target=p.target; const destination = STATIONS.find(s => s.id === p.target); if (destination) beacon.position.set(destination.x, model.heightAt(destination.x,destination.z),destination.z); }
+        if (effectiveQuality() !== lastQuality || lastSelection !== cameraSettings.current.quality) {
+          lastSelection = cameraSettings.current.quality;
+          lastQuality = effectiveQuality();
           const tier = graphicsTier(lastQuality);
+          model.setLightSurfaces?.(lastQuality==="performance");
           resolutionScale = Math.min(devicePixelRatio, props.planet === "mars" ? tier.resolutionCap : 1.5);
           renderer.setPixelRatio(resolutionScale);
           renderer.shadowMap.enabled = props.planet === "mars" ? tier.shadows : true;
@@ -650,8 +705,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             light.shadow.map?.dispose(); light.shadow.map = null;
           }
           if (bigRover) {
-            bigRover.headlightL.castShadow = tier.shadows;
-            bigRover.headlightR.castShadow = tier.shadows;
+            bigRover.headlightL.castShadow = tier.shadows && lastMarsNight === true;
+            bigRover.headlightR.castShadow = false;
           }
           if (occlusion) occlusion.enabled = tier.ssao;
           if (bloom) bloom.enabled = tier.bloom && !reduced.matches;
@@ -659,8 +714,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if (dust) dust.geometry.setDrawRange(0, tier.particles);
           if (props.planet === "mars" && lastQuality !== "performance" && !composer) {
             void prepareEffects().then(() => { if (!cancelled) {
-              if (occlusion) occlusion.enabled = graphicsTier(cameraSettings.current.quality).ssao;
-              if (bloom) bloom.enabled = graphicsTier(cameraSettings.current.quality).bloom && !reduced.matches;
+              if (occlusion) occlusion.enabled = graphicsTier(effectiveQuality()).ssao;
+              if (bloom) bloom.enabled = graphicsTier(effectiveQuality()).bloom && !reduced.matches;
               resize();
             } });
           }
@@ -683,6 +738,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 sevObstacles,
                 model.roverHeightAt,
                 model.mudAt,
+                analogDrive.current,
               );
             }
             walker.x = rover.x;
@@ -714,20 +770,21 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 model.mudAt,
               );
             }
+            // Travel is under one metre per frame. Cull distant obstacles once before the physics substeps.
             const dynamicObstacles = [
-              ...model.obstacles,
+              ...model.obstacles.filter(o=>Math.abs(walker.x-o.x)<o.radius+3 && Math.abs(walker.z-o.z)<o.radius+3),
               ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
               ...(curiosity ? [curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)] : []),
             ];
             walker.yaw = cameraYaw;
             for (let i = 0; i < steps; i++) {
               if (props.planet === "mars") {
-                const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles);
+                const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles, analogWalk.current);
                 walker = next.walker;
                 jump = next.jump;
                 keys.delete("jump");
               } else {
-                walker = stepWalker(walker, keys, step, dynamicObstacles);
+                walker = stepWalker(walker, keys, step, dynamicObstacles, undefined, true, analogWalk.current);
                 jump = stepJump(jump, i === 0 && keys.has("jump"), step);
               }
             }
@@ -757,15 +814,18 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           lidar = scanRoverLidar(rover, lidarObstacles);
           lastLidarScan = time;
         }
+        const eclipse = p.event === "eclipse" || p.event === "night";
+        const activeTier = graphicsTier(lastQuality);
         if (bigRover) {
           const roverGround = rover.chassisY ?? model.heightAt(rover.x, rover.z);
           bigRover.update(
             rover,
             roverGround,
             dt,
-            p.event === "night" || p.event === "eclipse",
+            eclipse,
             model.heightAt,
             lidar,
+            activeTier.shadows,
           );
           if (rover.driving || Math.abs(rover.speed) > 0.1) {
             model.stampRoverTracks?.(renderer, rover);
@@ -775,9 +835,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           curiosityRover.update(
             curiosity,
             dt,
-            p.event === "night" || p.event === "eclipse",
+            eclipse,
             reduced.matches,
-            graphicsTier(cameraSettings.current.quality).shadows,
+            activeTier.shadows,
           );
           if (Math.abs(curiosity.speed) > 0.05) {
             model.stampCuriosityTracks?.(renderer, curiosity);
@@ -819,6 +879,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         wasCockpit = cockpitView;
         bigRover?.setCockpitView(cockpitView);
+        if (astronautShadow) astronautShadow.mesh.visible = !rover.driving && third;
         if (rover.driving) {
           orbitInitialized = false;
           astronaut.visible = false;
@@ -845,6 +906,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           astronaut.visible = third;
           const groundHeight = model.heightAt(walker.x, walker.z);
           astronaut.position.set(walker.x, groundHeight + jump.height, walker.z);
+          if (astronautShadow) {
+            astronautShadow.mesh.position.set(walker.x, groundHeight + 0.024, walker.z);
+            astronautShadow.material.opacity = Math.max(0.12, (activeTier.shadows ? 0.18 : 0.46) - jump.height * 0.16) * (eclipse ? 0.45 : 1);
+          }
           const speed = Math.hypot(walker.vx, walker.vz);
 
           // GTA 5 style controller:
@@ -918,17 +983,21 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const following = current.current.sageFollowing ?? false;
           const targetEntity = rover.driving ? rover : walker;
           const next = stepSage(sage.position, sageDestination(following, targetEntity), dt);
+          const sageGround = model.heightAt(next.x, next.z);
           sage.position.x = next.x; sage.position.z = next.z;
           sage.rotation.y = following ? targetEntity.yaw + Math.PI : Math.PI;
-          sage.position.y = model.heightAt(next.x, next.z) + sage.userData.groundOffset;
+          sage.position.y = sageGround + sage.userData.groundOffset;
+          if (sageShadow) {
+            sageShadow.mesh.position.set(next.x, sageGround + 0.024, next.z);
+            sageShadow.material.opacity = (activeTier.shadows ? 0.18 : 0.44) * (eclipse ? 0.45 : 1);
+          }
         }
-        windDust?.update(dt, walker.x, walker.z, model.heightAt, reduced.matches);
+        windDust?.update(dt, walker.x, walker.z, model.heightAt, reduced.matches, activeTier.particles);
 
         if (aim.current) {
           aim.current.style.left = "50%";
           aim.current.style.top = "50%";
         }
-        const eclipse = p.event === "eclipse" || p.event === "night";
         light.intensity = eclipse ? .22 : props.planet === "mars" ? 3.4 : 3.5;
         ambient.intensity = eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .65 : 1.65;
         if (props.planet === "mars") {
@@ -948,6 +1017,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.003 : 0.0022);
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
           if (dust) (dust.material as import("three").ShaderMaterial).uniforms.opacity.value = reduced.matches ? .025 : eclipse ? .045 : .09;
+          if (bigRover) {
+            bigRover.headlightL.castShadow = activeTier.shadows && eclipse;
+            bigRover.headlightR.castShadow = false;
+          }
           lastMarsNight = eclipse;
         }
         sun.visible = props.planet !== "mars" || !eclipse;
@@ -988,6 +1061,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             const cDist = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
             if (cDist <= 5.5 && cDist < range) { hover = "curiosity"; range = cDist; }
           }
+        }
+        const inspectReady = Boolean(p.enabled && !rover.driving && hover && range <= 5.5);
+        if (inspectReady !== lastCanInspect) {
+          lastCanInspect = inspectReady;
+          setCanInspect(inspectReady);
         }
         }
         const pulse =
@@ -1042,7 +1120,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         if (previousDay !== p.day) {
           if (previousDay > p.day) {
-            walker = spawnWalker();
+            walker = spawnAtArrival();
             jump = { height: 0, velocity: 0 };
             pitch = -0.04;
             cameraYaw = 0;
@@ -1108,14 +1186,20 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.contactShading = String(occlusion?.enabled ?? false);
           const fps = metricFrames * 1000 / (time - metricStart);
           if (debugPanel.current) debugPanel.current.textContent = `Frame: ${(1000 / fps).toFixed(1)} ms (${fps.toFixed(1)} fps)\nDraw calls: ${renderer.info.render.calls}\nTriangles: ${renderer.info.render.triangles}\nTextures: ${renderer.info.memory.textures}\nRender scale: ${resolutionScale.toFixed(2)}\nTier: ${lastQuality}`;
-          slowWindows = fps < 44 ? slowWindows + 1 : 0;
-          fastWindows = fps > 59 ? fastWindows + 1 : 0;
-          if (lastQuality === "auto" && p.enabled && time - qualityStart > 5000 && (slowWindows >= 2 || fastWindows >= 8)) {
-            // Shed the extra geometry pass before sacrificing more image clarity.
-            if (slowWindows >= 2 && resolutionScale <= .85 && occlusion?.enabled) {
+          element.dataset.graphicsProfile = lastQuality;
+          slowWindows = p.enabled && fps < 44 ? slowWindows + 1 : 0;
+          fastWindows = p.enabled && fps > 57 ? fastWindows + 1 : 0;
+          if (cameraSettings.current.quality === "auto" && p.enabled && time - qualityStart > 5000 && (slowWindows >= 2 || fastWindows >= 8)) {
+            // Shed full-screen SSAO and heavy shadows/terrain before blurring pixels on iGPUs.
+            if (slowWindows >= 2 && occlusion?.enabled) {
               autoOcclusion = false; occlusion.enabled = false;
+            } else if (slowWindows >= 2 && (fps < 34 || resolutionScale <= .92)) {
+              autoProfile = autoProfile === "high" ? "auto" : "performance";
+              setAutoLabel(profileLabel());
             }
-            const next = Math.max(.7, Math.min(devicePixelRatio, 1.25, resolutionScale + (slowWindows >= 2 ? -.1 : .1)));
+            const cap = graphicsTier(autoProfile).resolutionCap;
+            const step = slowWindows >= 2 ? (!autoOcclusion && autoProfile !== "performance" ? 0 : -.1) : .1;
+            const next = Math.max(.85, Math.min(devicePixelRatio, cap, resolutionScale + step));
             if (Math.abs(next - resolutionScale) > .01) { resolutionScale = next; renderer.setPixelRatio(next); resize(); }
             qualityStart = time; slowWindows = fastWindows = 0;
           }
@@ -1128,6 +1212,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         element.removeEventListener("pointerdown", down);
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
         element.removeEventListener("keydown", keydown);
         window.removeEventListener("keyup", keyup);
         window.removeEventListener("blur", blur);
@@ -1162,12 +1247,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         setLoadingStage("Preparing materials and light…"); setLoadingProgress(88);
         camera.position.set(.22,2.8,17.8); camera.rotation.set(pitch,0,0,"YXZ"); astronaut.position.set(0,0,12);
         try {
-          const preset=graphicsTier(cameraSettings.current.quality);
-          lastQuality=cameraSettings.current.quality;
+          const preset=graphicsTier(effectiveQuality());
+          lastQuality=effectiveQuality();
+          model.setLightSurfaces?.(lastQuality==="performance");
           resolutionScale=Math.min(devicePixelRatio,preset.resolutionCap);
           renderer.setPixelRatio(resolutionScale); resize();
           renderer.shadowMap.enabled=preset.shadows;
-          if (bigRover) { bigRover.headlightL.castShadow=preset.shadows; bigRover.headlightR.castShadow=preset.shadows; bigRover.update(rover,rover.chassisY,0,false,model.roverHeightAt); }
+          const nightShadow = preset.shadows && (current.current.event === "eclipse" || current.current.event === "night");
+          if (bigRover) { bigRover.headlightL.castShadow=nightShadow; bigRover.headlightR.castShadow=false; bigRover.update(rover,rover.chassisY,0,false,model.roverHeightAt,undefined,preset.shadows); }
           if (curiosityRover && curiosity) { curiosityRover.update(curiosity,0,false,reduced.matches,preset.shadows); }
           if (smallRocks) smallRocks.count=preset.smallRocks;
           if (dust) dust.geometry.setDrawRange(0,preset.particles);
@@ -1178,10 +1265,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           for (const texture of textures) renderer.initTexture(texture);
           await renderer.compileAsync(scene,camera); if(cancelled)return;
           // Upload both camera views while the loading screen is still covering them.
+          if(lastQuality!=="performance"){
           bigRover?.setCockpitView(true);bigRover?.update(rover,rover.chassisY,0,false,model.roverHeightAt);
           bigRover?.positionCockpitCamera(camera,0,-.04);renderer.render(scene,camera);configureEffects(true);
           bigRover?.setCockpitView(false);
           camera.position.set(rover.x,rover.chassisY+4,rover.z+8);camera.lookAt(rover.x,rover.chassisY+1.8,rover.z);renderer.render(scene,camera);configureEffects(true);
+          }
           camera.position.set(.22,2.8,17.8);camera.rotation.set(pitch,0,0,"YXZ");renderer.render(scene,camera);
           configureEffects(true);
         }catch{/* A missing optional GPU feature must not prevent the basic scene from rendering. */}
@@ -1208,7 +1297,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       dispose();
     };
   }, []);
-  function touch(key: string, on: boolean) {
+  const touch = useCallback((key: string, on: boolean) => {
     if (key === "f") {
       if (on) toggleRoverAction.current();
       return;
@@ -1217,13 +1306,22 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       host.current?.focus();
       controls.current.add(key);
     } else controls.current.delete(key);
-  }
+  }, []);
+  const handleWalkAxes = useCallback((axes: MoveAxes) => {
+    analogWalk.current = axes;
+  }, []);
+  const handleDriveAxes = useCallback((axes: RoverAnalogInput) => {
+    analogDrive.current = axes;
+  }, []);
+  const handleToggleView = useCallback(() => setThirdPerson((v) => !v), []);
+  const handleToggleRover = useCallback(() => toggleRoverAction.current(), []);
+  const handleInspectNearby = useCallback(() => inspectAction.current(), []);
   return (
     <div
       ref={host}
       className="sv-world"
       role="application"
-      aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects.`}
+      aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. ${touchControlsActive ? "Use the left thumbstick to move, drag the screen to look around, and tap the right buttons to jump or inspect." : "WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects."}`}
       tabIndex={0}
     >
       {debug && props.planet === "mars" && <pre ref={debugPanel} className="mars-debug" aria-label="Graphics performance diagnostics">Collecting graphics measurements…</pre>}
@@ -1237,16 +1335,20 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             <i />
           </div>
           <div className="sv-look-controls">
-            <details open={props.planet !== "mars" ? true : undefined}>
+            <details open={props.planet !== "mars" && !touchControlsActive ? true : undefined}>
             <summary>Camera &amp; graphics</summary>
-            <button onClick={() => lockAction.current()}>
-              {locked ? "Release mouse · Esc" : "Capture mouse for 360° look"}
-            </button>
-            <span>Drag to look, or capture the mouse · Q/R turn · V changes view</span>
+            {!touchControlsActive && (
+              <>
+                <button onClick={() => lockAction.current()}>
+                  {locked ? "Release mouse · Esc" : "Capture mouse for 360° look"}
+                </button>
+                <span>Drag to look, or capture the mouse · Q/R turn · V changes view</span>
+              </>
+            )}
             <label>
-              Mouse sensitivity{" "}
+              {touchControlsActive ? "Look sensitivity" : "Mouse sensitivity"}{" "}
               <input
-                aria-label="Mouse sensitivity"
+                aria-label="Look sensitivity"
                 type="range"
                 min="0.3"
                 max="2.5"
@@ -1256,14 +1358,21 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               />
             </label>
             <button onClick={() => setThirdPerson((v) => !v)}>
-              {thirdPerson ? "Third person · V" : "First person · V"}
+              {thirdPerson ? (touchControlsActive ? "Third person view" : "Third person · V") : (touchControlsActive ? "First person view" : "First person · V")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={touchControlsActive}
+              onClick={() => setTouchOverride(!touchControlsActive)}
+            >
+              Touch controls · {touchControlsActive ? "On" : "Off"}
             </button>
             {props.planet === "mars" && <label>Graphics <select aria-label="Graphics quality" value={quality} onChange={e => setQuality(e.target.value)}>
-              <option value="auto">Auto · smoother</option><option value="performance">Performance</option><option value="high">High</option><option value="ultra">Ultra</option>
+              <option value="auto">Auto · {autoLabel}</option><option value="performance">Performance</option><option value="high">High</option><option value="ultra">Ultra</option>
             </select></label>}
             </details>
           </div>
-          {roverNear && !roverDriving && (
+          {roverNear && !roverDriving && !touchControlsActive && (
             <div className="sv-rover-prompt">
               <button
                 type="button"
@@ -1292,12 +1401,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                   {roverHandbrake ? "PARK BRAKE" : roverMud ? "SOFT MUD · TRACKS" : "6x6 INDEPENDENT"}
                 </small>
               </div>
-              <div className="sv-rover-hints">
-                <span><b>W / S</b> Drive / Reverse</span>
-                <span><b>A / D</b> Steer</span>
-                <span><b>Space</b> Handbrake</span>
-                <span><b>V</b> Camera</span>
-              </div>
+              {!touchControlsActive && (
+                <div className="sv-rover-hints">
+                  <span><b>W / S</b> Drive / Reverse</span>
+                  <span><b>A / D</b> Steer</span>
+                  <span><b>Space</b> Handbrake</span>
+                  <span><b>V</b> Camera</span>
+                </div>
+              )}
               <button
                 type="button"
                 className="sv-rover-exit-btn"
@@ -1307,64 +1418,21 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               </button>
             </div>
           )}
-          {props.showTouchControls && roverDriving && (
-            <div className="sv-rover-touch-controls" aria-label="Rover driving touch controls">
-              {[
-                ["w", "Accelerate", "↑ Drive"],
-                ["s", "Reverse / Brake", "↓ Reverse"],
-                ["a", "Steer Left", "← Left"],
-                ["d", "Steer Right", "→ Right"],
-                ["handbrake", "Handbrake", "⏹ Handbrake"],
-              ].map(([key, label, text]) => (
-                <button
-                  key={key}
-                  aria-label={label}
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                    touch(key, true);
-                  }}
-                  onPointerUp={() => touch(key, false)}
-                  onPointerCancel={() => touch(key, false)}
-                  onLostPointerCapture={() => touch(key, false)}
-                >
-                  {text}
-                </button>
-              ))}
-              <button type="button" onClick={() => toggleRoverAction.current()}>Exit Rover (F)</button>
-            </div>
+          {touchControlsActive && (
+            <TouchControlsOverlay
+              enabled={props.enabled}
+              roverDriving={roverDriving}
+              roverNear={roverNear}
+              canInspect={canInspect}
+              thirdPerson={thirdPerson}
+              onWalkAxes={handleWalkAxes}
+              onDriveAxes={handleDriveAxes}
+              onHoldKey={touch}
+              onToggleView={handleToggleView}
+              onToggleRover={handleToggleRover}
+              onInspectNearby={handleInspectNearby}
+            />
           )}
-          {props.showTouchControls && !roverDriving && <div className="sv-touch-controls" aria-label="Movement controls">
-            {[
-              ["w", "Walk forward", "↑"],
-              ["a", "Walk left", "←"],
-              ["s", "Walk backward", "↓"],
-              ["d", "Walk right", "→"],
-              ["look-left", "Look left", "↶"],
-              ["look-right", "Look right", "↷"],
-              ["jump", "Jump", "⤒"],
-            ].map(([key, label, symbol]) => (
-              <button
-                key={key}
-                aria-label={label}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  touch(key, true);
-                }}
-                onPointerUp={() => touch(key, false)}
-                onPointerCancel={() => touch(key, false)}
-                onLostPointerCapture={() => touch(key, false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") touch(key, true);
-                }}
-                onKeyUp={() => touch(key, false)}
-                onBlur={() => touch(key, false)}
-              >
-                {symbol}
-              </button>
-            ))}
-          </div>}
         </>
       )}
       {message && <p className="sv-world-message" role="status">{message}</p>}
