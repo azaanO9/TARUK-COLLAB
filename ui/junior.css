@@ -323,7 +323,8 @@
     position: static;
     left: auto;
     transform: none;
-    flex: 1;
+    flex: 0 1 auto;
+    margin-inline: auto;
     min-width: 0;
     padding: 5px 10px;
     font-size: 11px;
@@ -577,7 +578,12 @@
     max-width: min(370px, calc(100vw - 380px));
     padding: 7px 12px;
     min-height: 36px;
-    display: flex;
+    display: grid;
+    text-align: left;
+    border-radius: 10px;
+    background: #142530db;
+    color: #fff;
+    border-inline-start: 3px solid #f8b377;
     align-items: center;
     gap: 6px;
     font-size: 11px;

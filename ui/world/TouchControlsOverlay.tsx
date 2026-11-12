@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { Camera, ChevronsUp, ChevronsDown, CircleStop, ArrowUpFromLine } from "lucide-react";
 import type { MoveAxes } from "../../game/navigation";
 import type { RoverAnalogInput } from "../../game/roverVehicle";
 
@@ -18,7 +19,6 @@ type Props = {
   onInspectNearby: () => void;
 };
 
-const MAX_STICK_RADIUS = 38;
 const STICK_DEADZONE = 0.14;
 
 /** Multi-touch left analog thumbstick and right-hand action cluster for mobile exploration and rover driving. */
@@ -38,6 +38,7 @@ export function TouchControlsOverlay({
   const baseRef = useRef<HTMLDivElement>(null);
   const puckRef = useRef<HTMLDivElement>(null);
   const stickPointer = useRef<number | null>(null);
+  const origin = useRef({ x: 0, y: 0, radius: 38 });
   const stickSteer = useRef(0);
   const driveState = useRef({ gas: false, rev: false, brake: false });
 
@@ -59,6 +60,8 @@ export function TouchControlsOverlay({
     }
     if (baseRef.current) {
       baseRef.current.classList.remove("active", "sprinting");
+      baseRef.current.style.removeProperty("--stick-x");
+      baseRef.current.style.removeProperty("--stick-y");
     }
     onWalkAxes({ side: 0, forward: 0, sprint: false });
     pushDriveState();
@@ -80,19 +83,20 @@ export function TouchControlsOverlay({
 
   useEffect(() => {
     window.addEventListener("blur", releaseAll);
-    return () => window.removeEventListener("blur", releaseAll);
+    return () => {
+      window.removeEventListener("blur", releaseAll);
+      releaseAll();
+    };
   }, [releaseAll]);
 
   const updateStickFromPointer = (clientX: number, clientY: number) => {
     const base = baseRef.current;
     if (!base) return;
-    const rect = base.getBoundingClientRect();
-    const cx = rect.left + rect.width * 0.5;
-    const cy = rect.top + rect.height * 0.5;
-    const rawDx = clientX - cx;
-    const rawDy = clientY - cy;
+    const { x, y, radius } = origin.current;
+    const rawDx = clientX - x;
+    const rawDy = roverDriving ? 0 : clientY - y;
     const dist = Math.hypot(rawDx, rawDy);
-    const clampedDist = Math.min(dist, MAX_STICK_RADIUS);
+    const clampedDist = Math.min(dist, radius);
     const scale = dist > 0 ? clampedDist / dist : 0;
     const dx = rawDx * scale;
     const dy = roverDriving ? 0 : rawDy * scale;
@@ -101,7 +105,7 @@ export function TouchControlsOverlay({
       puckRef.current.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0px)`;
     }
 
-    const normMag = clampedDist / MAX_STICK_RADIUS;
+    const normMag = clampedDist / radius;
     if (normMag <= STICK_DEADZONE) {
       base.classList.remove("sprinting");
       stickSteer.current = 0;
@@ -117,7 +121,7 @@ export function TouchControlsOverlay({
     const sy = dirY * rescaled;
 
     if (roverDriving) {
-      const steerX = Math.max(-1, Math.min(1, dx / MAX_STICK_RADIUS));
+      const steerX = dx / radius;
       const magX = Math.abs(steerX);
       stickSteer.current =
         magX <= STICK_DEADZONE
@@ -143,10 +147,14 @@ export function TouchControlsOverlay({
         className={`sv-touch-stick${roverDriving ? " is-steering" : ""}`}
         aria-label={roverDriving ? "Rover steering thumbstick" : "Movement thumbstick"}
         onPointerDown={(e) => {
-          if (!enabled) return;
+          if (!enabled || stickPointer.current !== null) return;
           e.stopPropagation();
           e.preventDefault();
           stickPointer.current = e.pointerId;
+          const rect = e.currentTarget.getBoundingClientRect();
+          origin.current = { x: e.clientX, y: e.clientY, radius: Math.min(rect.width, rect.height) * 0.26 };
+          e.currentTarget.style.setProperty("--stick-x", `${e.clientX - rect.left - rect.width / 2}px`);
+          e.currentTarget.style.setProperty("--stick-y", `${e.clientY - rect.top - rect.height / 2}px`);
           e.currentTarget.setPointerCapture(e.pointerId);
           e.currentTarget.classList.add("active");
           updateStickFromPointer(e.clientX, e.clientY);
@@ -166,8 +174,8 @@ export function TouchControlsOverlay({
           e.stopPropagation();
           resetStick();
         }}
-        onLostPointerCapture={() => {
-          if (stickPointer.current !== null) resetStick();
+        onLostPointerCapture={(e) => {
+          if (stickPointer.current === e.pointerId) resetStick();
         }}
       >
         <div className="sv-stick-ring" aria-hidden="true">
@@ -214,7 +222,7 @@ export function TouchControlsOverlay({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onToggleView}
             >
-              {thirdPerson ? "1P" : "3P"}
+              <Camera aria-hidden="true" /><span>View</span>
             </button>
             <button
               type="button"
@@ -236,7 +244,7 @@ export function TouchControlsOverlay({
               }}
               onLostPointerCapture={() => onHoldKey("jump", false)}
             >
-              ⤒<span>JUMP</span>
+              <ArrowUpFromLine aria-hidden="true" /><span>Jump</span>
             </button>
           </div>
         </div>
@@ -250,7 +258,7 @@ export function TouchControlsOverlay({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onToggleView}
             >
-              {thirdPerson ? "CAB" : "EXT"}
+              <Camera aria-hidden="true" /><span>{thirdPerson ? "Cab" : "Chase"}</span>
             </button>
             <button
               type="button"
@@ -282,7 +290,7 @@ export function TouchControlsOverlay({
               }}
               onLostPointerCapture={() => holdDriveButton("brake", false)}
             >
-              ⏹<span>BRAKE</span>
+              <CircleStop aria-hidden="true" /><span>Brake</span>
             </button>
             <button
               type="button"
@@ -304,7 +312,7 @@ export function TouchControlsOverlay({
               }}
               onLostPointerCapture={() => holdDriveButton("rev", false)}
             >
-              ↓<span>REV</span>
+              <ChevronsDown aria-hidden="true" /><span>Reverse</span>
             </button>
             <button
               type="button"
@@ -326,7 +334,7 @@ export function TouchControlsOverlay({
               }}
               onLostPointerCapture={() => holdDriveButton("gas", false)}
             >
-              ↑<span>GAS</span>
+              <ChevronsUp aria-hidden="true" /><span>Gas</span>
             </button>
           </div>
         </div>
