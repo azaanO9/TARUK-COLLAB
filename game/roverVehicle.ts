@@ -16,7 +16,7 @@ export const ROVER_WHEEL_RADIUS = 0.3206;// meters inner tire radius
 export const ROVER_WHEEL_OUTER_RADIUS = 0.3206; // tire + tread rib outer radius
 export const ROVER_COLLISION_RADIUS = Math.hypot(1.69, 2.475);
 export const roverFootprint = (x:number,z:number,yaw:number) => boxObstacle(x,z,1.69,2.475,"parked-rover",yaw);
-export const ROVER_CHASSIS_CLEARANCE = 0.015; // anti-Z-fighting surface clearance bias
+export const ROVER_CHASSIS_CLEARANCE = 0.024; // anti-Z-fighting surface clearance bias
 
 export const ROVER_WHEEL_OFFSETS: readonly (readonly [number, number])[] = [
   [-1.425, -1.0313], // 0: Front Left
@@ -123,7 +123,7 @@ export function solveRockerBogieSuspension(
     const req = contacts[i] - planeOffset + ROVER_WHEEL_OUTER_RADIUS * (1 - verticalScale) - maxComp * verticalScale;
     if (req > minChassisFromWheels) minChassisFromWheels = req;
   }
-  const bellyGuardY = centerGround - 0.14;
+  const bellyGuardY = centerGround - 0.10;
   const targetChassisY = Math.max(supportHeight, bellyGuardY, minChassisFromWheels) + ROVER_CHASSIS_CLEARANCE;
 
   const heightBlend = dt > 0 ? 1 - Math.exp(-18 * dt) : 1;

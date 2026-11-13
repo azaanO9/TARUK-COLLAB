@@ -12,6 +12,9 @@ import "../ui/junior.css";
 import "../ui/flightDeck.css";
 import {assetUrl} from "../lib/assetUrl";
 import { isCoarsePointerDevice, tryEnterLandscape } from "../ui/mobileDevice";
+import type { RoomStateSnapshot } from "../game/multiplayerTypes";
+import type { CoopSocket } from "../ui/multiplayer/socketClient";
+import { MultiplayerLobby } from "../ui/multiplayer/MultiplayerLobby";
 
 export default function Home() {
   return <Suspense fallback={<main className="junior-briefing" role="status">Preparing your mission…</main>}><MissionHub /></Suspense>;
@@ -76,6 +79,19 @@ function MissionHub() {
     setBriefing(false);
   };
   const [choice, setChoice] = useState<"mars" | "survival">("mars");
+  const [coopSocket, setCoopSocket] = useState<CoopSocket | null>(null);
+  const [coopRoom, setCoopRoom] = useState<RoomStateSnapshot | null>(null);
+  const [showLobby, setShowLobby] = useState(false);
+
+  useEffect(() => {
+    if (!coopSocket) return;
+    const onState = (snapshot: RoomStateSnapshot) => setCoopRoom(snapshot);
+    coopSocket.on("room:state", onState);
+    return () => {
+      coopSocket.off("room:state", onState);
+    };
+  }, [coopSocket]);
+
   useEffect(() => {
     const mode = new URLSearchParams(window.location.search).get("mode");
     if (mode === "story" || mode === "survival" || mode === "downlink" || mode === "outpost") {
@@ -83,6 +99,31 @@ function MissionHub() {
       setBriefing(false);
     }
   }, []);
+
+  const lobbyOverlay = showLobby ? (
+    <MultiplayerLobby
+      callsign={callsign.trim() || "Explorer"}
+      patch={patch}
+      activeSocket={coopSocket}
+      activeRoom={coopRoom}
+      onConnected={(sock, room) => {
+        setCoopSocket(sock);
+        setCoopRoom(room);
+      }}
+      onDisconnected={() => {
+        coopSocket?.disconnect();
+        setCoopSocket(null);
+        setCoopRoom(null);
+      }}
+      onLaunchExpedition={() => {
+        setActiveMission("mars");
+        setLaunchedFromHub(true);
+        setBriefing(false);
+        setShowLobby(false);
+      }}
+      onClose={() => setShowLobby(false)}
+    />
+  ) : null;
 
   if (briefing) return <main className="junior-briefing flight-deck">
     <header className="deck-mast"><b>TARUKH</b><span>Junior Astronaut Mission Trainer</span></header>
@@ -94,8 +135,8 @@ function MissionHub() {
       <p>{choice==="mars"?"Keep your crew supplied for ten sols and transmit your field report to Earth.":"Guide Scout through ten lunar training days with MICA."}</p></div>
       <dl><div><dt>Destination</dt><dd>{choice==="mars"?"Mars":"Moon"}</dd></div><div><dt>Duration</dt><dd>{choice==="mars"?"10 sols":"10 days"}</dd></div><div><dt>Guide</dt><dd>{choice==="mars"?"Sage":"MICA"}</dd></div></dl>
     </section>
-    <section className="junior-card deck-console" aria-label="Mission briefing and cadet ID"><h2>Launch setup</h2><label>JUNIOR ASTRONAUT CALLSIGN<input maxLength={24} value={callsign} onChange={e=>setCallsign(safeCallsign(e.target.value))} placeholder="Enter your callsign" /></label><button type="button" className="junior-random" onClick={randomCallsign}>🎲 Random callsign</button><fieldset><legend>CHOOSE YOUR MISSION PATCH</legend><div className="junior-patches">{["✦","☄","◉","☾"].map(p=><button type="button" key={p} aria-pressed={patch===p} onClick={()=>setPatch(p)}>{p}</button>)}</div></fieldset><fieldset><legend>SELECT AN EXPEDITION</legend><button className="junior-choice" aria-pressed={choice==="survival"} onClick={()=>setChoice("survival")}><strong>01 / TRANQUILITY LUNAR OUTPOST</strong><span>Training mission · Scout & MICA</span></button><button className="junior-choice" aria-pressed={choice==="mars"} onClick={()=>setChoice("mars")}><strong>02 / MARS OUTPOST · 10 SOLS</strong><span>Ares Field Camp · Ten station decisions</span></button></fieldset>{choice==="mars"&&<details><summary>Starting supplies for a new mission</summary><label>Supply shipment<select value={cargo} onChange={e=>setCargo(e.target.value as typeof cargo)}><option value="standard">Balanced stores</option><option value="air">Air shortage · 12 oxygen points</option><option value="food">Food shortage · 18 food points</option></select></label></details>}<fieldset><legend>HOW ARE YOU PLAYING?</legend><div className="junior-device-choices"><button type="button" aria-pressed={controlMode === "mobile"} onClick={() => setControlMode("mobile")}><strong>📱 Mobile</strong><span>On-screen touch controls</span></button><button type="button" aria-pressed={controlMode === "pc"} onClick={() => setControlMode("pc")}><strong>🖥 PC</strong><span>Keyboard and mouse</span></button></div></fieldset><p className="junior-control-copy">{controlMode === "mobile" ? "Use the on-screen controls to move, jump, inspect and drive." : controlMode === "pc" ? "WASD walk · Space jump · V camera · E inspect" : "Choose Mobile or PC to continue."}</p>{saveError&&<p role="alert">Saving is unavailable in this browser. Your progress will last only while this page stays open.</p>}<button className="junior-launch" disabled={!controlMode || !saveReady} onClick={launch}>{choice === "mars" && hasMarsSave ? "RESUME MISSION →" : "BEGIN MISSION →"}</button>{choice === "mars" && hasMarsSave && <button type="button" className="junior-restart" disabled={!controlMode || !saveReady} onClick={restart}>Restart Mars mission</button>}{choice === "mars" && hasMarsSave && <p className="junior-control-copy">Saved on this browser · Sol {mission.sol} · {mission.xp} XP · {mission.found.length}/6 discoveries</p>}<p className="junior-control-copy">Terrain textures adapted from <a href="https://polyhaven.com/a/sandy_gravel_02" target="_blank" rel="noreferrer">Poly Haven</a> · <a href="https://polyhaven.com/license" target="_blank" rel="noreferrer">CC0</a>.</p></section></div></main>;
-  if (activeMission === "mars") return <MarsGame mission={mission} sendMission={sendMission} callsign={callsign.trim() || "Explorer"} patch={patch} controlMode={controlMode ?? "pc"} onHub={()=>setBriefing(true)} />;
+    <section className="junior-card deck-console" aria-label="Mission briefing and cadet ID"><h2>Launch setup</h2><label>JUNIOR ASTRONAUT CALLSIGN<input maxLength={24} value={callsign} onChange={e=>setCallsign(safeCallsign(e.target.value))} placeholder="Enter your callsign" /></label><button type="button" className="junior-random" onClick={randomCallsign}>🎲 Random callsign</button><fieldset><legend>CHOOSE YOUR MISSION PATCH</legend><div className="junior-patches">{["✦","☄","◉","☾"].map(p=><button type="button" key={p} aria-pressed={patch===p} onClick={()=>setPatch(p)}>{p}</button>)}</div></fieldset><fieldset><legend>SELECT AN EXPEDITION</legend><button className="junior-choice" aria-pressed={choice==="survival"} onClick={()=>setChoice("survival")}><strong>01 / TRANQUILITY LUNAR OUTPOST</strong><span>Training mission · Scout & MICA</span></button><button className="junior-choice" aria-pressed={choice==="mars"} onClick={()=>setChoice("mars")}><strong>02 / MARS OUTPOST · 10 SOLS</strong><span>Ares Field Camp · Ten station decisions</span></button></fieldset>{choice==="mars"&&<details><summary>Starting supplies for a new mission</summary><label>Supply shipment<select value={cargo} onChange={e=>setCargo(e.target.value as typeof cargo)}><option value="standard">Balanced stores</option><option value="air">Air shortage · 12 oxygen points</option><option value="food">Food shortage · 18 food points</option></select></label></details>}<fieldset><legend>HOW ARE YOU PLAYING?</legend><div className="junior-device-choices"><button type="button" aria-pressed={controlMode === "mobile"} onClick={() => setControlMode("mobile")}><strong>📱 Mobile</strong><span>On-screen touch controls</span></button><button type="button" aria-pressed={controlMode === "pc"} onClick={() => setControlMode("pc")}><strong>🖥 PC</strong><span>Keyboard and mouse</span></button></div></fieldset><p className="junior-control-copy">{controlMode === "mobile" ? "Use the on-screen controls to move, jump, inspect and drive." : controlMode === "pc" ? "WASD walk · Space jump · V camera · E inspect" : "Choose Mobile or PC to continue."}</p>{saveError&&<p role="alert">Saving is unavailable in this browser. Your progress will last only while this page stays open.</p>}<button className="junior-launch" disabled={!controlMode || !saveReady} onClick={launch}>{choice === "mars" && hasMarsSave ? "RESUME MISSION →" : "BEGIN MISSION →"}</button>{choice === "mars" && <button type="button" className="junior-launch junior-coop-launch" disabled={!controlMode} onClick={() => setShowLobby(true)}>{coopRoom ? `CO-OP ROOM ${coopRoom.code} (${coopRoom.players.length}/4) →` : "CO-OP MULTIPLAYER LOBBY (2–4 PLAYERS)"}</button>}{choice === "mars" && hasMarsSave && <button type="button" className="junior-restart" disabled={!controlMode || !saveReady} onClick={restart}>Restart Mars mission</button>}{choice === "mars" && hasMarsSave && <p className="junior-control-copy">Saved on this browser · Sol {mission.sol} · {mission.xp} XP · {mission.found.length}/6 discoveries</p>}<p className="junior-control-copy">Terrain textures adapted from <a href="https://polyhaven.com/a/sandy_gravel_02" target="_blank" rel="noreferrer">Poly Haven</a> · <a href="https://polyhaven.com/license" target="_blank" rel="noreferrer">CC0</a>.</p></section></div>{lobbyOverlay}</main>;
+  if (activeMission === "mars") return <><MarsGame mission={mission} sendMission={sendMission} callsign={callsign.trim() || "Explorer"} patch={patch} controlMode={controlMode ?? "pc"} onHub={()=>setBriefing(true)} coopSocket={coopSocket} coopRoom={coopRoom} playDropPodIntro={launchedFromHub || Boolean(coopRoom)} onOpenLobby={()=>setShowLobby(true)} />{lobbyOverlay}</>;
   if (activeMission === "survival") return <SurvivalGame skipOpening={launchedFromHub} initialTouchControls={controlMode === "mobile"} autoDetectTouch={!launchedFromHub} />;
   if (activeMission === "story")
     return <StoryGame onLegacy={() => setActiveMission("downlink")} />;

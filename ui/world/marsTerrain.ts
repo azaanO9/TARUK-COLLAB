@@ -153,6 +153,9 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     bumpScale: .035,
     vertexColors: true,
     roughness: .96,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
   });
 
   // SnowRunner-style dynamic tire rut depression, displaced berms, normal perturbation & chevron lugs

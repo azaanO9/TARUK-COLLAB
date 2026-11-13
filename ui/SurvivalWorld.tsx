@@ -44,6 +44,31 @@ import {
   type RoverGear,
 } from "../game/roverVehicle";
 import type { Effect } from "../game/survivalTypes";
+import {
+  CAVE_BOUNDARY_RADIUS,
+  CAVE_ENTRANCES,
+  CAVE_EXIT_PORTAL,
+  CAVE_PILLARS,
+  caveHeightAt,
+  nearestCaveEntrance,
+  type CaveEntrance,
+  type MineableNode,
+} from "../game/marsCaveData";
+import type { BaseDefenseUnit } from "../game/baseDefenses";
+import type { StalkerEntity } from "../game/marsStalkers";
+import type { WeatherEventType } from "../game/marsWeather";
+import type {
+  BiomeId,
+  NetworkPlayerState,
+  NetworkRoverState,
+  PlayerMovePayload,
+  RoverSyncPayload,
+} from "../game/multiplayerTypes";
+import { createCaveBiomeScene } from "./world/marsCaveBiome";
+import { createStalkerRenderer } from "./world/createStalkerEntity";
+import { createBaseDefensesRenderer } from "./world/createBaseDefenses";
+import { createDropPodIntro } from "./world/createDropPodIntro";
+import { createRemoteAstronautsManager } from "./world/remoteAstronauts";
 
 function shortestAngleDiff(from: number, to: number): number {
   let diff = (to - from) % (Math.PI * 2);
@@ -60,6 +85,11 @@ export type View = {
   distance: number;
   locked: boolean;
   jumpHeight: number;
+  biome?: BiomeId;
+  nearbyCaveEntrance?: CaveEntrance | null;
+  nearCaveExit?: boolean;
+  nearbyMineral?: MineableNode | null;
+  minerals?: readonly MineableNode[];
   roverX?: number;
   roverZ?: number;
   roverYaw?: number;
@@ -96,10 +126,30 @@ type Props = {
   solarClean?: boolean;
   initialQuality?: "auto" | "performance";
   onTouchControlsChange?: (active: boolean) => void;
+  playDropPodIntro?: boolean;
+  biome?: BiomeId;
+  onBiomeChange?: (biome: BiomeId) => void;
+  weather?: WeatherEventType;
+  tempC?: number;
+  stalkers?: readonly StalkerEntity[];
+  defenses?: readonly BaseDefenseUnit[];
+  minerals?: readonly MineableNode[];
+  remotePlayers?: readonly NetworkPlayerState[];
+  selfPlayerId?: string | null;
+  sharedRover?: NetworkRoverState | null;
+  onRoverClaim?: (driving: boolean) => void;
+  onPlayerSync?: (payload: PlayerMovePayload) => void;
+  onRoverSync?: (payload: RoverSyncPayload) => void;
+  onMineNode?: (nodeId: string) => void;
+  onOpenWeatherTerminal?: () => void;
+  onOpenDefenseCraft?: () => void;
+  onOpenTrade?: () => void;
 };
 export type SurvivalWorldHandle = {
   captureMouse: () => void;
   toggleRover?: () => void;
+  toggleBiome?: () => void;
+  skipIntro?: () => void;
 };
 const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWorld(props, ref) {
   const STATIONS = props.planet === "mars" ? marsStations : lunarStations;
@@ -112,6 +162,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const controls = useRef(new Set<string>()),
     lockAction = useRef<() => void>(() => {});
   const toggleRoverAction = useRef<() => void>(() => {});
+  const toggleBiomeAction = useRef<() => void>(() => {});
+  const skipIntroAction = useRef<() => void>(() => {});
   const inspectAction = useRef<() => void>(() => {});
   const analogWalk = useRef<MoveAxes>({});
   const analogDrive = useRef<RoverAnalogInput>({});
@@ -134,13 +186,17 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [roverSpeed, setRoverSpeed] = useState(0),
     [roverGear, setRoverGear] = useState<RoverGear>("N"),
     [roverMud, setRoverMud] = useState(false),
-    [roverHandbrake, setRoverHandbrake] = useState(false);
+    [roverHandbrake, setRoverHandbrake] = useState(false),
+    [introActive, setIntroActive] = useState(Boolean(props.playDropPodIntro)),
+    [introTelemetry, setIntroTelemetry] = useState({ alt: 52, speed: 48 });
   const TouchDeck = props.planet === "mars" ? (roverDriving ? RoverTouchDeck : MarsTouchDeck) : TouchControlsOverlay;
   useImperativeHandle(
     ref,
     () => ({
       captureMouse: () => lockAction.current(),
       toggleRover: () => toggleRoverAction.current(),
+      toggleBiome: () => toggleBiomeAction.current(),
+      skipIntro: () => skipIntroAction.current(),
     }),
     [],
   );
@@ -258,6 +314,58 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
+      // Expanded Mars systems: Ice Cave biome, Weather Terminal podium, Stalkers, Base Defenses, Drop-Pod Intro & Co-op astronauts
+      const caveBiome = props.planet === "mars" ? createCaveBiomeScene(model.heightAt) : null;
+      if (caveBiome) {
+        scene.add(caveBiome.surfacePortals, caveBiome.root);
+      }
+      const stalkerRenderer = props.planet === "mars" ? createStalkerRenderer() : null;
+      if (stalkerRenderer) scene.add(stalkerRenderer.root);
+      const defenseRenderer = props.planet === "mars" ? createBaseDefensesRenderer() : null;
+      if (defenseRenderer) scene.add(defenseRenderer.root);
+      const dropPodIntro = props.planet === "mars" ? createDropPodIntro() : null;
+      if (dropPodIntro) {
+        scene.add(dropPodIntro.root);
+        if (current.current.playDropPodIntro) {
+          dropPodIntro.start();
+        }
+      }
+      const remoteAstronauts = props.planet === "mars" ? createRemoteAstronautsManager() : null;
+      if (remoteAstronauts) scene.add(remoteAstronauts.root);
+      // Helmet SpotLight for subterranean Ice Caves and extreme night shadows
+      const helmetLamp = props.planet === "mars" ? new T.SpotLight(0xdbeafe, 0, 32, 0.58, 0.55, 1.3) : null;
+      const helmetTarget = helmetLamp ? new T.Object3D() : null;
+      if (helmetLamp && helmetTarget) {
+        helmetLamp.castShadow = initialPreset.shadows;
+        helmetLamp.shadow.mapSize.set(512, 512);
+        helmetLamp.shadow.bias = -0.0006;
+        helmetLamp.target = helmetTarget;
+        scene.add(helmetLamp, helmetTarget);
+      }
+      // Outpost Alpha Habitat Weather Terminal console outside airlock stairs
+      const WEATHER_TERM_POS = { x: -5.4, z: -18.5 };
+      if (props.planet === "mars") {
+        const wtGroup = new T.Group();
+        const wy = model.heightAt(WEATHER_TERM_POS.x, WEATHER_TERM_POS.z);
+        wtGroup.position.set(WEATHER_TERM_POS.x, wy, WEATHER_TERM_POS.z);
+        wtGroup.userData.station = "weather-terminal";
+        const wtPost = new T.Mesh(
+          new T.BoxGeometry(0.62, 1.45, 0.42),
+          new T.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.65, roughness: 0.35 }),
+        );
+        wtPost.position.y = 0.72;
+        wtPost.castShadow = true;
+        const wtScreen = new T.Mesh(
+          new T.BoxGeometry(0.54, 0.38, 0.04),
+          new T.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 1.3 }),
+        );
+        wtScreen.position.set(0, 1.24, 0.21);
+        wtScreen.rotation.x = -0.22;
+        wtGroup.add(wtPost, wtScreen);
+        model.root.add(wtGroup);
+        model.targets.push(wtGroup);
+        model.obstacles.push(boxObstacle(WEATHER_TERM_POS.x, WEATHER_TERM_POS.z, 0.45, 0.35));
+      }
       setLoadingStage("Preparing explorers and equipment…");
       setLoadingProgress(70);
       await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -495,12 +603,66 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         lastLockReleaseAt = 0,
         lastMouseMoveTime = 0,
         hoverPx: number | null = null,
-        hoverPy: number | null = null;
+        hoverPy: number | null = null,
+        activeBiome: BiomeId = current.current.biome ?? "surface",
+        lastEnvWeather: WeatherEventType | undefined = undefined,
+        lastEnvBiome: BiomeId | undefined = undefined,
+        lastNetSync = 0,
+        lastDropUiUpdate = 0,
+        nearCaveEntrance: CaveEntrance | null = null,
+        nearCaveExit = false,
+        nearMineral: MineableNode | null = null;
+      const enterBiome = (targetBiome: BiomeId) => {
+        if (props.planet !== "mars" || targetBiome === activeBiome) return;
+        activeBiome = targetBiome;
+        if (targetBiome === "cave") {
+          const portal = nearestCaveEntrance(walker.x, walker.z).entrance;
+          walker.x = portal.caveSpawnX;
+          walker.z = portal.caveSpawnZ;
+          walker.vx = 0;
+          walker.vz = 0;
+          jump = { height: 0, velocity: 0 };
+          showTransientNotice("Descending into Jezero Sub-Surface Ice Cave.", "Descending into");
+        } else {
+          const ent = CAVE_ENTRANCES[0];
+          walker.x = ent.surfaceX;
+          walker.z = ent.surfaceZ + 4.8;
+          walker.vx = 0;
+          walker.vz = 0;
+          jump = { height: 0, velocity: 0 };
+          showTransientNotice("Ascended to Jezero Crater Surface.", "Ascended to");
+        }
+        current.current.onBiomeChange?.(activeBiome);
+      };
+      toggleBiomeAction.current = () => {
+        if (rover.driving) {
+          showTransientNotice("Exit rover [F] before entering cavern shaft.", "Exit rover");
+          return;
+        }
+        if (activeBiome === "surface") {
+          const nearest = nearestCaveEntrance(walker.x, walker.z);
+          if (nearest.distance <= 5.2) enterBiome("cave");
+        } else if (Math.hypot(walker.x - CAVE_EXIT_PORTAL.x, walker.z - CAVE_EXIT_PORTAL.z) <= 5.2) {
+          enterBiome("surface");
+        }
+      };
+      skipIntroAction.current = () => {
+        if (dropPodIntro?.isActive()) {
+          dropPodIntro.skip();
+          setIntroActive(false);
+        }
+      };
       toggleRoverAction.current = () => {
-        if (!current.current.enabled || current.current.planet !== "mars") return;
+        if (!current.current.enabled || current.current.planet !== "mars" || activeBiome !== "surface") return;
+        const sr = current.current.sharedRover;
         if (!rover.driving) {
+          if (sr?.driverId && sr.driverId !== current.current.selfPlayerId) {
+            setMessage("Rover pilot seat occupied by crewmate.");
+            return;
+          }
           if (canEnterRover(walker, rover)) {
             rover = enterRover(rover);
+            current.current.onRoverClaim?.(true);
             keys.clear();
             setRoverDriving(true);
             setRoverNear(false);
@@ -515,6 +677,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const { rover: nextRover, exitPosition } = exitRover(rover, exitObstacles);
           if (!exitPosition) { setMessage("There isn't room to exit here. Move the rover to an open area."); return; }
           rover = nextRover;
+          current.current.onRoverClaim?.(false);
           walker.x = exitPosition.x;
           walker.z = exitPosition.z;
           walker.yaw = cameraYaw;
@@ -543,7 +706,26 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       observer.observe(element);
       resize();
       const inspect = () => {
-        if (current.current.enabled && !rover.driving && hover && range <= 5.5)
+        if (!current.current.enabled || rover.driving) return;
+        if (props.planet === "mars") {
+          if (activeBiome === "surface" && nearCaveEntrance) {
+            enterBiome("cave");
+            return;
+          }
+          if (activeBiome === "cave" && nearCaveExit) {
+            enterBiome("surface");
+            return;
+          }
+          if (activeBiome === "cave" && nearMineral && !nearMineral.collected) {
+            current.current.onMineNode?.(nearMineral.id);
+            return;
+          }
+          if (activeBiome === "surface" && hover === "weather-terminal" && range <= 5.5) {
+            current.current.onOpenWeatherTerminal?.();
+            return;
+          }
+        }
+        if (hover && range <= 5.5)
           current.current.onInspect(hover);
       };
       inspectAction.current = inspect;
@@ -834,8 +1016,20 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           e.preventDefault();
           toggleRoverAction.current();
         }
+        if (k === "c" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault();
+          current.current.onOpenDefenseCraft?.();
+        }
+        if (k === "t" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault();
+          current.current.onOpenTrade?.();
+        }
         if (e.code === "Space" && !e.repeat && !onInteractive) {
           e.preventDefault();
+          if (dropPodIntro?.isActive()) {
+            skipIntroAction.current();
+            return;
+          }
           keys.add("jump");
           keys.add("handbrake");
         }
@@ -973,75 +1167,112 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           resize();
           qualityStart = time;
         }
-        if (p.enabled) {
+        const activeHeightAt = activeBiome === "cave" ? caveHeightAt : model.heightAt;
+        const activeTier = graphicsTier(lastQuality);
+        const dropRunning = Boolean(dropPodIntro?.isActive() && activeBiome === "surface" && p.enabled);
+
+        if (p.enabled && !dropRunning) {
           // Small physics steps keep acceleration and jumping consistent across slower frames.
           const steps = Math.max(1, Math.ceil(dt / (1 / 120))), step = dt / steps;
-          const sevObstacles = curiosity
-            ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
-            : model.obstacles;
-          if (rover.driving) {
-            const prevRoverYaw = rover.yaw;
-            for (let i = 0; i < steps; i++) {
-              rover = stepRoverVehicle(
-                rover,
-                keys,
-                step,
-                sevObstacles,
-                model.roverHeightAt,
-                model.mudAt,
-                analogDrive.current,
-              );
+          if (activeBiome === "surface") {
+            const sevObstacles = curiosity
+              ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
+              : model.obstacles;
+            const sharedR = p.sharedRover;
+            const remoteControlled = Boolean(
+              sharedR?.driverId && sharedR.driverId !== p.selfPlayerId,
+            );
+            if (remoteControlled && sharedR) {
+              const rBlend = 1 - Math.exp(-14 * dt);
+              rover = {
+                ...rover,
+                x: rover.x + (sharedR.x - rover.x) * rBlend,
+                z: rover.z + (sharedR.z - rover.z) * rBlend,
+                yaw: sharedR.yaw,
+                speed: sharedR.speed,
+                steerAngle: sharedR.steerAngle,
+                pitch: sharedR.pitch,
+                roll: sharedR.roll,
+                chassisY: sharedR.chassisY,
+              };
             }
-            walker.x = rover.x;
-            walker.z = rover.z;
-            walker.yaw = rover.yaw;
-            // Transfer vehicle turning delta to the orbit camera so relative angle is preserved
-            const yawDelta = rover.yaw - prevRoverYaw;
-            cameraYaw += yawDelta;
-            characterYaw = rover.yaw;
+            if (rover.driving && !remoteControlled) {
+              const prevRoverYaw = rover.yaw;
+              for (let i = 0; i < steps; i++) {
+                rover = stepRoverVehicle(
+                  rover,
+                  keys,
+                  step,
+                  sevObstacles,
+                  model.roverHeightAt,
+                  model.mudAt,
+                  analogDrive.current,
+                );
+              }
+              walker.x = rover.x;
+              walker.z = rover.z;
+              walker.yaw = rover.yaw;
+              const yawDelta = rover.yaw - prevRoverYaw;
+              cameraYaw += yawDelta;
+              characterYaw = rover.yaw;
 
-            // GTA-style gentle auto-centering behind vehicle when cruising without mouse movement
-            const isCruising = Math.abs(rover.speed) > 1.2;
-            const timeSinceMouse = (performance.now() - lastMouseMoveTime) / 1000;
-            if (isCruising && !dragging && timeSinceMouse > 0.8 && document.pointerLockElement !== element) {
-              // Reverse chase view can look behind; the driver stays facing the windshield.
-              const targetYaw = rover.speed < 0 && cameraSettings.current.thirdPerson
-                ? rover.yaw + Math.PI : rover.yaw;
-              const diff = shortestAngleDiff(cameraYaw, targetYaw);
-              cameraYaw += diff * (1 - Math.exp(-2.2 * dt));
+              const isCruising = Math.abs(rover.speed) > 1.2;
+              const timeSinceMouse = (performance.now() - lastMouseMoveTime) / 1000;
+              if (isCruising && !dragging && timeSinceMouse > 0.8 && document.pointerLockElement !== element) {
+                const targetYaw = rover.speed < 0 && cameraSettings.current.thirdPerson
+                  ? rover.yaw + Math.PI : rover.yaw;
+                const diff = shortestAngleDiff(cameraYaw, targetYaw);
+                cameraYaw += diff * (1 - Math.exp(-2.2 * dt));
+              }
+            } else {
+              if (!remoteControlled && bigRover && Math.abs(rover.speed) > 0.01) {
+                rover = stepRoverVehicle(
+                  rover,
+                  keys,
+                  dt,
+                  sevObstacles,
+                  model.roverHeightAt,
+                  model.mudAt,
+                );
+              }
+              const dynamicObstacles = [
+                ...model.obstacles.filter(o=>Math.abs(walker.x-o.x)<o.radius+3 && Math.abs(walker.z-o.z)<o.radius+3),
+                ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
+                ...(curiosity ? [curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)] : []),
+              ];
+              walker.yaw = cameraYaw;
+              for (let i = 0; i < steps; i++) {
+                if (props.planet === "mars") {
+                  const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles, analogWalk.current);
+                  walker = next.walker;
+                  jump = next.jump;
+                  keys.delete("jump");
+                } else {
+                  walker = stepWalker(walker, keys, step, dynamicObstacles, undefined, true, analogWalk.current);
+                  jump = stepJump(jump, i === 0 && keys.has("jump"), step);
+                }
+              }
+              keys.delete("jump");
             }
           } else {
-            if (bigRover && Math.abs(rover.speed) > 0.01) {
-              rover = stepRoverVehicle(
-                rover,
-                keys,
-                dt,
-                sevObstacles,
-                model.roverHeightAt,
-                model.mudAt,
-              );
-            }
-            // Travel is under one metre per frame. Cull distant obstacles once before the physics substeps.
-            const dynamicObstacles = [
-              ...model.obstacles.filter(o=>Math.abs(walker.x-o.x)<o.radius+3 && Math.abs(walker.z-o.z)<o.radius+3),
-              ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
-              ...(curiosity ? [curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)] : []),
-            ];
+            // Subterranean Ice Cave biome locomotion & boundary clamping
+            const caveObs = [...CAVE_PILLARS];
             walker.yaw = cameraYaw;
             for (let i = 0; i < steps; i++) {
-              if (props.planet === "mars") {
-                const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles, analogWalk.current);
-                walker = next.walker;
-                jump = next.jump;
-                keys.delete("jump");
-              } else {
-                walker = stepWalker(walker, keys, step, dynamicObstacles, undefined, true, analogWalk.current);
-                jump = stepJump(jump, i === 0 && keys.has("jump"), step);
+              const next = stepMarsLocomotion(walker, jump, keys, step, caveHeightAt, caveObs, analogWalk.current);
+              walker = next.walker;
+              jump = next.jump;
+              keys.delete("jump");
+              const rad = Math.hypot(walker.x, walker.z);
+              if (rad > CAVE_BOUNDARY_RADIUS - 1.5) {
+                const scale = (CAVE_BOUNDARY_RADIUS - 1.5) / rad;
+                walker.x *= scale;
+                walker.z *= scale;
               }
             }
             keys.delete("jump");
           }
-          if (curiosity) {
+          if (curiosity && activeBiome === "surface") {
             const curiosityObstacles = [
               ...model.obstacles,
               ...(bigRover ? [roverFootprint(rover.x, rover.z, rover.yaw)] : []),
@@ -1058,22 +1289,36 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             lastMouseMoveTime = performance.now();
           }
         }
-        if (rover.driving && time - lastLidarScan >= 125) {
+        if (rover.driving && activeBiome === "surface" && time - lastLidarScan >= 125) {
           const lidarObstacles = curiosity
             ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
             : model.obstacles;
           lidar = scanRoverLidar(rover, lidarObstacles);
           lastLidarScan = time;
         }
-        const eclipse = p.event === "eclipse" || p.event === "night";
-        const activeTier = graphicsTier(lastQuality);
-        if (bigRover) {
+        const eclipse = p.event === "eclipse" || p.event === "night" || p.weather === "CRYO_FREEZE";
+        const storm = p.weather === "DUST_STORM";
+        const flare = p.weather === "SOLAR_FLARE";
+        const inCave = activeBiome === "cave";
+        if (props.planet === "mars") {
+          model.root.visible = !inCave;
+          if (bigRover) {
+            bigRover.root.visible = !inCave;
+            bigRover.dust.visible = !inCave;
+          }
+          if (curiosityRover) curiosityRover.root.visible = !inCave;
+          if (beacon) beacon.visible = !inCave;
+          if (sage) sage.visible = !inCave;
+          if (sageShadow) sageShadow.mesh.visible = !inCave;
+          if (dust) dust.visible = !inCave;
+        }
+        if (bigRover && !inCave) {
           const roverGround = rover.chassisY ?? model.heightAt(rover.x, rover.z);
           bigRover.update(
             rover,
             roverGround,
             dt,
-            eclipse,
+            eclipse || storm,
             model.heightAt,
             lidar,
             activeTier.shadows,
@@ -1082,7 +1327,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             model.stampRoverTracks?.(renderer, rover);
           }
         }
-        if (curiosityRover && curiosity) {
+        if (curiosityRover && curiosity && !inCave) {
           curiosityRover.update(
             curiosity,
             dt,
@@ -1092,6 +1337,34 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           );
           if (Math.abs(curiosity.speed) > 0.05) {
             model.stampCuriosityTracks?.(renderer, curiosity);
+          }
+        }
+        if (props.planet === "mars") {
+          const timeSec = time * 0.001;
+          caveBiome?.update(timeSec, p.minerals ?? [], inCave);
+          defenseRenderer?.update(p.defenses ?? [], model.heightAt, timeSec, !inCave);
+          stalkerRenderer?.update(p.stalkers ?? [], activeBiome, activeHeightAt, timeSec);
+          remoteAstronauts?.update(p.remotePlayers ?? [], p.selfPlayerId ?? null, activeBiome, activeHeightAt, dt);
+
+          // Proximity to cave portals or mineable ore veins
+          if (!inCave) {
+            const cNear = nearestCaveEntrance(walker.x, walker.z);
+            nearCaveEntrance = cNear.distance <= 4.4 ? cNear.entrance : null;
+            nearCaveExit = false;
+            nearMineral = null;
+          } else {
+            nearCaveEntrance = null;
+            nearCaveExit = Math.hypot(walker.x - CAVE_EXIT_PORTAL.x, walker.z - CAVE_EXIT_PORTAL.z) <= 4.2;
+            nearMineral = null;
+            let bestMinDist = 3.8;
+            for (const m of p.minerals ?? []) {
+              if (m.collected) continue;
+              const md = Math.hypot(walker.x - m.x, walker.z - m.z);
+              if (md < bestMinDist) {
+                bestMinDist = md;
+                nearMineral = m;
+              }
+            }
           }
         }
         if (props.planet === "mars") {
@@ -1131,7 +1404,23 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         wasCockpit = cockpitView;
         bigRover?.setCockpitView(cockpitView);
         if (astronautShadow) astronautShadow.mesh.visible = !rover.driving && third;
-        if (rover.driving) {
+        if (dropRunning && dropPodIntro) {
+          astronaut.visible = true;
+          const groundHeight = model.heightAt(walker.x, walker.z);
+          astronaut.position.set(walker.x, groundHeight, walker.z);
+          const podState = dropPodIntro.update(dt, camera, {
+            x: walker.x,
+            y: groundHeight,
+            z: walker.z,
+          });
+          if (time - lastDropUiUpdate > 80) {
+            lastDropUiUpdate = time;
+            setIntroTelemetry({ alt: podState.altitudeMeters, speed: podState.speedMs });
+          }
+          if (!podState.active) {
+            setIntroActive(false);
+          }
+        } else if (rover.driving && !inCave) {
           orbitInitialized = false;
           astronaut.visible = false;
           const roverGround = rover.chassisY ?? model.heightAt(rover.x, rover.z);
@@ -1155,7 +1444,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
         } else {
           astronaut.visible = third;
-          const groundHeight = model.heightAt(walker.x, walker.z);
+          const groundHeight = activeHeightAt(walker.x, walker.z);
           astronaut.position.set(walker.x, groundHeight + jump.height, walker.z);
           if (astronautShadow) {
             astronautShadow.mesh.position.set(walker.x, groundHeight + 0.024, walker.z);
@@ -1163,10 +1452,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
           const speed = Math.hypot(walker.vx, walker.vz);
 
-          // GTA 5 style controller:
-          // In 1st person: character faces camera direction.
-          // In 3rd person: character turns smoothly towards movement direction when walking/sprinting;
-          // when stationary (idle), character remains in place while the mouse freely orbits the camera 360 degrees.
           const airborne = props.planet === "mars" && (jump.height > 0 || jump.velocity > 0);
           if (!airborne && !third) {
             characterYaw = cameraYaw;
@@ -1177,7 +1462,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
           astronaut.rotation.y = characterYaw;
 
-          if (p.enabled) footprints?.(walker.x, walker.z, characterYaw, jump.height < .04);
+          if (p.enabled && !inCave) footprints?.(walker.x, walker.z, characterYaw, jump.height < .04);
 
           gaitPhase += speed * dt * 2.4;
           gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
@@ -1196,13 +1481,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             leftArm.rotation.x = -stride * 0.65;
             rightArm.rotation.x = stride * 0.65;
           }
-          const back = props.planet === "mars" ? 5.2 : 4.3;
+          const back = props.planet === "mars" ? (inCave ? 4.1 : 5.2) : 4.3;
           const shoulder = props.planet === "mars" ? 0.28 : 0.6;
           if (airborne) cameraGround = groundHeight;
           else cameraGround += (groundHeight - cameraGround) * (1 - Math.exp(-14 * dt));
           if (third) {
-            // GTA 5 style spherical camera boom:
-            // Target pivot on astronaut upper chest/shoulders
             const targetY = cameraGround + jump.height + (props.planet === "mars" ? 1.45 : 1.55);
             const horizBack = Math.cos(pitch) * back;
             const vertBack = -Math.sin(pitch) * back;
@@ -1211,7 +1494,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               targetY + vertBack,
               walker.z + Math.cos(cameraYaw) * horizBack - Math.sin(cameraYaw) * shoulder,
             );
-            const groundUnderCam = model.heightAt(desiredCamera.x, desiredCamera.z);
+            const groundUnderCam = activeHeightAt(desiredCamera.x, desiredCamera.z);
             desiredCamera.y = Math.max(desiredCamera.y, groundUnderCam + 0.45);
             if (!orbitInitialized || props.planet !== "mars") camera.position.copy(desiredCamera);
             camera.position.lerp(desiredCamera, 1 - Math.exp(-18 * dt));
@@ -1228,6 +1511,19 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           } else {
             orbitInitialized = false;
             camera.rotation.set(pitch, cameraYaw, 0, "YXZ");
+          }
+        }
+        if (helmetLamp && helmetTarget) {
+          const lampActive = inCave || storm || eclipse;
+          helmetLamp.intensity = inCave ? 7.2 : (storm || eclipse) && !rover.driving ? 2.6 : 0;
+          if (lampActive) {
+            const hy = activeHeightAt(walker.x, walker.z) + 1.75 + jump.height;
+            helmetLamp.position.set(walker.x, hy, walker.z);
+            helmetTarget.position.set(
+              walker.x - Math.sin(cameraYaw) * 12,
+              hy + Math.sin(pitch) * 6 - 0.8,
+              walker.z - Math.cos(cameraYaw) * 12,
+            );
           }
         }
         if (sage) {
@@ -1249,32 +1545,44 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           aim.current.style.left = "50%";
           aim.current.style.top = "50%";
         }
-        light.intensity = eclipse ? .22 : props.planet === "mars" ? 3.4 : 3.5;
-        ambient.intensity = eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .65 : 1.65;
+        light.intensity = inCave ? 0.02 : eclipse ? .22 : flare ? 4.3 : storm ? 1.4 : props.planet === "mars" ? 3.4 : 3.5;
+        ambient.intensity = inCave ? 0.14 : eclipse ? (props.planet === "mars" ? .60 : .65) : props.planet === "mars" ? .65 : 1.65;
         if (props.planet === "mars") {
-          ambient.color.setHex(eclipse ? 0x7f9dca : 0xc5ccd5);
-          ambient.groundColor.setHex(eclipse ? 0x312a36 : 0x77543e);
-          light.color.setHex(eclipse ? 0x9ab4dc : 0xffe5c7);
-          scene.environmentIntensity = eclipse ? .15 : .85;
+          ambient.color.setHex(inCave ? 0x162a3d : eclipse ? 0x7f9dca : 0xc5ccd5);
+          ambient.groundColor.setHex(inCave ? 0x050911 : eclipse ? 0x312a36 : 0x77543e);
+          light.color.setHex(eclipse ? 0x9ab4dc : flare ? 0xffbb7a : 0xffe5c7);
+          scene.environmentIntensity = inCave ? 0.06 : eclipse ? .15 : .85;
           const shadowStep = 68 / light.shadow.mapSize.x;
           const sx = Math.round((walker.x - Math.sin(cameraYaw) * 15) / shadowStep) * shadowStep;
           const sz = Math.round((walker.z - Math.cos(cameraYaw) * 15) / shadowStep) * shadowStep;
           light.target.position.set(sx, 0, sz);
           light.position.copy(MARS_SUN_DIRECTION).multiplyScalar(100).add(light.target.position);
-          starField.visible = eclipse; earth.visible = eclipse;
+          starField.visible = !inCave && eclipse;
+          earth.visible = !inCave && eclipse;
         }
-        if (props.planet === "mars" && lastMarsNight !== eclipse) {
-          scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
-          scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.003 : 0.0022);
+        if (props.planet === "mars" && (lastMarsNight !== eclipse || lastEnvWeather !== p.weather || lastEnvBiome !== activeBiome)) {
+          if (inCave) {
+            scene.background = new T.Color(0x03070d);
+            scene.fog = new T.FogExp2(0x040b14, 0.052);
+          } else if (storm) {
+            scene.background = new T.Color(eclipse ? 0x261a18 : 0x9c5a3c);
+            scene.fog = new T.FogExp2(eclipse ? 0x2c1d18 : 0x9e5938, 0.024);
+          } else {
+            scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
+            scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.0038 : 0.0022);
+          }
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
-          if (dust) (dust.material as import("three").ShaderMaterial).uniforms.opacity.value = reduced.matches ? .025 : eclipse ? .045 : .09;
+          if (dust) (dust.material as import("three").ShaderMaterial).uniforms.opacity.value = reduced.matches ? .025 : storm ? .26 : eclipse ? .045 : .09;
           if (bigRover) {
-            bigRover.headlightL.castShadow = activeTier.shadows && eclipse;
+            bigRover.headlightL.castShadow = activeTier.shadows && (eclipse || storm);
             bigRover.headlightR.castShadow = false;
           }
           lastMarsNight = eclipse;
+          lastEnvWeather = p.weather;
+          lastEnvBiome = activeBiome;
         }
-        sun.visible = props.planet !== "mars" || !eclipse;
+        sun.visible = !inCave && (props.planet !== "mars" || !eclipse);
+        earth.visible = !inCave && earth.visible;
         earth.position.set(
           eclipse ? -70 : 65,
           eclipse ? 65 : 40,
@@ -1294,6 +1602,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             hover = o.userData.station;
             if (hover === "curiosity" && curiosity) {
               range = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
+            } else if (hover === "weather-terminal") {
+              range = Math.hypot(walker.x - WEATHER_TERM_POS.x, walker.z - WEATHER_TERM_POS.z);
             } else {
               const station = STATIONS.find((s) => s.id === hover);
               if (station) range = Math.hypot(walker.x - station.x, walker.z - station.z);
@@ -1307,7 +1617,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             const distance = Math.hypot(walker.x - station.x, walker.z - station.z);
             if (distance <= 5.5 && distance < range) { hover = station.id; range = distance; }
           }
-          if (curiosity) {
+          if (props.planet === "mars" && !inCave) {
+            const wtDist = Math.hypot(walker.x - WEATHER_TERM_POS.x, walker.z - WEATHER_TERM_POS.z);
+            if (wtDist <= 4.5 && wtDist < range) { hover = "weather-terminal"; range = wtDist; }
+          }
+          if (curiosity && !inCave) {
             const cDist = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
             if (cDist <= 5.5 && cDist < range) { hover = "curiosity"; range = cDist; }
           }

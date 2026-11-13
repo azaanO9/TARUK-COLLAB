@@ -5,6 +5,11 @@ import { STATIONS } from "../content/marsBase";
 import { MARS_HABITAT } from "../game/marsColonyCollision";
 import { rank, type Mission } from "../game/juniorMission";
 import type { View } from "./SurvivalWorld";
+import { CAVE_ENTRANCES, CAVE_EXIT_PORTAL, CAVE_PILLARS } from "../game/marsCaveData";
+import type { BaseDefenseUnit } from "../game/baseDefenses";
+import type { StalkerEntity } from "../game/marsStalkers";
+import type { BiomeId, NetworkPlayerState } from "../game/multiplayerTypes";
+import type { WeatherEventType } from "../game/marsWeather";
 
 const RADAR_CRATERS: readonly [number, number, number][] = [
   [24, -29, 7],
@@ -19,12 +24,21 @@ export function MarsRadarMinimap({
   view,
   target,
   found,
+  defenses,
+  stalkers,
+  remotePlayers,
+  selfPlayerId,
 }: {
   view?: View;
   target?: string;
   found: readonly string[];
+  defenses?: readonly BaseDefenseUnit[];
+  stalkers?: readonly StalkerEntity[];
+  remotePlayers?: readonly NetworkPlayerState[];
+  selfPlayerId?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const inCave = view?.biome === "cave";
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -44,18 +58,16 @@ export function MarsRadarMinimap({
     ctx.scale(dpr, dpr);
 
     // Base radar fill
-    ctx.fillStyle = "#0b141c";
+    ctx.fillStyle = inCave ? "#050d16" : "#0b141c";
     ctx.fillRect(0, 0, w, h);
 
     const px = view?.x ?? 0;
     const pz = view?.z ?? 12;
     const yaw = view?.roverDriving ? view.roverYaw ?? 0 : view?.yaw ?? 0;
-    const scale = 2.05; // pixels per meter (~54m radius visible)
+    const scale = inCave ? 2.6 : 2.05;
     const cx = w * 0.5;
     const cy = h * 0.52;
 
-    // Helper: transform world (wx, wz) into GTA V camera-aligned radar space (up = facing direction)
-    // Forward vector is (-sin(yaw), -cos(yaw)); Right vector is (cos(yaw), -sin(yaw))
     const cosY = Math.cos(yaw);
     const sinY = Math.sin(yaw);
     const toRadar = (wx: number, wz: number): [number, number] => {
@@ -67,7 +79,7 @@ export function MarsRadarMinimap({
     };
 
     // Subtle rotating grid lines
-    ctx.strokeStyle = "rgba(130, 175, 195, 0.08)";
+    ctx.strokeStyle = inCave ? "rgba(56, 189, 248, 0.1)" : "rgba(130, 175, 195, 0.08)";
     ctx.lineWidth = 1;
     for (let gx = -90; gx <= 90; gx += 15) {
       const [x1, y1] = toRadar(gx, -90);
@@ -85,115 +97,200 @@ export function MarsRadarMinimap({
       ctx.stroke();
     }
 
-    // Playable boundary outline (-85..+85)
-    const corners = [
-      toRadar(-85, -85),
-      toRadar(85, -85),
-      toRadar(85, 85),
-      toRadar(-85, 85),
-    ];
-    ctx.strokeStyle = "rgba(235, 138, 90, 0.32)";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(corners[0][0], corners[0][1]);
-    for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
-    ctx.closePath();
-    ctx.stroke();
-
-    // Craters & soft mud basins
-    for (const [crX, crZ, crR] of RADAR_CRATERS) {
-      const [rx, ry] = toRadar(crX, crZ);
-      const rr = crR * scale;
-      ctx.fillStyle = "rgba(86, 56, 38, 0.34)";
+    if (inCave) {
+      // Underground cave boundary, pillars, exit portal, and mineral nodes
+      const [originX, originY] = toRadar(0, 0);
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.35)";
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(rx, ry, rr * 0.85, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(195, 128, 86, 0.28)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+      ctx.arc(originX, originY, 36 * scale, 0, Math.PI * 2);
       ctx.stroke();
-    }
 
-    // Mars Habitat footprint
-    const [hx, hy] = toRadar(MARS_HABITAT.x, MARS_HABITAT.z);
-    ctx.fillStyle = "rgba(218, 198, 170, 0.22)";
-    ctx.strokeStyle = "rgba(235, 215, 185, 0.55)";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(hx, hy, MARS_HABITAT.radius * scale, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // GPS Route line to active next target
-    const targetStation = target ? STATIONS.find((s) => s.id === target) : undefined;
-    if (targetStation) {
-      const [tx, ty] = toRadar(targetStation.x, targetStation.z);
-      ctx.save();
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = "rgba(154, 205, 50, 0.72)";
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(tx, ty);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Station blips
-    for (const s of STATIONS) {
-      const [sx, sy] = toRadar(s.x, s.z);
-      const isTarget = s.id === target;
-      const isDone = found.includes(s.id);
-      if (isTarget) {
-        ctx.fillStyle = "#facc15";
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1.5;
+      for (const p of CAVE_PILLARS) {
+        const [rx, ry] = toRadar(p.x, p.z);
+        ctx.fillStyle = "rgba(71, 85, 105, 0.65)";
         ctx.beginPath();
-        ctx.arc(sx, sy, 4.2, 0, Math.PI * 2);
+        ctx.arc(rx, ry, p.radius * scale, 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = isDone ? "#4ade80" : "#94a3b8";
+      }
+
+      const [ex, ey] = toRadar(CAVE_EXIT_PORTAL.x, CAVE_EXIT_PORTAL.z);
+      ctx.fillStyle = "#67e8f9";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(ex, ey, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      for (const m of view?.minerals ?? []) {
+        if (m.collected) continue;
+        const [mx, my] = toRadar(m.x, m.z);
+        ctx.fillStyle = m.kind === "ice_core" ? "#38bdf8" : "#f59e0b";
+        ctx.fillRect(mx - 2.5, my - 2.5, 5, 5);
+      }
+    } else {
+      // Playable boundary outline (-85..+85)
+      const corners = [
+        toRadar(-85, -85),
+        toRadar(85, -85),
+        toRadar(85, 85),
+        toRadar(-85, 85),
+      ];
+      ctx.strokeStyle = "rgba(235, 138, 90, 0.32)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(corners[0][0], corners[0][1]);
+      for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Craters & soft mud basins
+      for (const [crX, crZ, crR] of RADAR_CRATERS) {
+        const [rx, ry] = toRadar(crX, crZ);
+        const rr = crR * scale;
+        ctx.fillStyle = "rgba(86, 56, 38, 0.34)";
         ctx.beginPath();
-        ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+        ctx.arc(rx, ry, rr * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(195, 128, 86, 0.28)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Mars Habitat footprint
+      const [hx, hy] = toRadar(MARS_HABITAT.x, MARS_HABITAT.z);
+      ctx.fillStyle = "rgba(218, 198, 170, 0.22)";
+      ctx.strokeStyle = "rgba(235, 215, 185, 0.55)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(hx, hy, MARS_HABITAT.radius * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Surface Cave Entrances (cyan diamonds)
+      for (const ent of CAVE_ENTRANCES) {
+        const [ex, ey] = toRadar(ent.surfaceX, ent.surfaceZ);
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = "#38bdf8";
+        ctx.fillRect(-3, -3, 6, 6);
+        ctx.restore();
+      }
+
+      // Active Base Perimeter Defenses
+      for (const def of defenses ?? []) {
+        const [dx, dy] = toRadar(def.x, def.z);
+        ctx.strokeStyle = def.kind === "emp_emitter" ? "rgba(163, 230, 53, 0.5)" : "rgba(34, 211, 238, 0.5)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(dx, dy, def.radius * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = def.kind === "emp_emitter" ? "#bef264" : "#22d3ee";
+        ctx.beginPath();
+        ctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // GPS Route line to active next target
+      const targetStation = target ? STATIONS.find((s) => s.id === target) : undefined;
+      if (targetStation) {
+        const [tx, ty] = toRadar(targetStation.x, targetStation.z);
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(154, 205, 50, 0.72)";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Station blips
+      for (const s of STATIONS) {
+        const [sx, sy] = toRadar(s.x, s.z);
+        const isTarget = s.id === target;
+        const isDone = found.includes(s.id);
+        if (isTarget) {
+          ctx.fillStyle = "#facc15";
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 4.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = isDone ? "#4ade80" : "#94a3b8";
+          ctx.beginPath();
+          ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Yellow-green Exploration Rover blip when walking on foot
+      if (view && !view.roverDriving && view.roverX !== undefined && view.roverZ !== undefined) {
+        const [rx, ry] = toRadar(view.roverX, view.roverZ);
+        ctx.save();
+        ctx.translate(rx, ry);
+        ctx.rotate(-(view.roverYaw ?? 0) + yaw);
+        ctx.fillStyle = "#9acd32";
+        ctx.strokeStyle = "#111a14";
+        ctx.lineWidth = 1;
+        ctx.fillRect(-3.5, -5.5, 7, 11);
+        ctx.strokeRect(-3.5, -5.5, 7, 11);
+        ctx.restore();
+      }
+
+      // Autonomous NASA Curiosity science rover blip (cyan driving, amber scanning)
+      if (view && view.curiosityX !== undefined && view.curiosityZ !== undefined) {
+        const [qx, qy] = toRadar(view.curiosityX, view.curiosityZ);
+        ctx.save();
+        ctx.translate(qx, qy);
+        ctx.rotate(-(view.curiosityYaw ?? 0) + yaw);
+        ctx.fillStyle = view.curiosityPhase === "scanning" ? "#f59e0b" : "#38bdf8";
+        ctx.strokeStyle = "#082f49";
+        ctx.lineWidth = 1;
+        ctx.fillRect(-3, -4, 6, 8);
+        ctx.strokeRect(-3, -4, 6, 8);
+        ctx.restore();
+      }
+
+      // Lidar returns share the collision system used by the rover.
+      for (const contact of view?.lidar?.contacts ?? []) {
+        const [rx, ry] = toRadar(contact.x, contact.z);
+        ctx.fillStyle = contact.inPath ? "#ff6363" : "#efbb65";
+        ctx.beginPath();
+        ctx.arc(rx, ry, Math.max(2, Math.min(7, contact.radius * scale)), 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // Yellow-green Exploration Rover blip when walking on foot
-    if (view && !view.roverDriving && view.roverX !== undefined && view.roverZ !== undefined) {
-      const [rx, ry] = toRadar(view.roverX, view.roverZ);
-      ctx.save();
-      ctx.translate(rx, ry);
-      ctx.rotate(-(view.roverYaw ?? 0) + yaw);
-      ctx.fillStyle = "#9acd32";
-      ctx.strokeStyle = "#111a14";
-      ctx.lineWidth = 1;
-      ctx.fillRect(-3.5, -5.5, 7, 11);
-      ctx.strokeRect(-3.5, -5.5, 7, 11);
-      ctx.restore();
+    // Remote Co-op Teammate Blips
+    const activeBiome: BiomeId = inCave ? "cave" : "surface";
+    for (const p of remotePlayers ?? []) {
+      if (p.id === selfPlayerId || p.biome !== activeBiome) continue;
+      const [pxR, pyR] = toRadar(p.x, p.z);
+      ctx.fillStyle = p.suitColor || "#38bdf8";
+      ctx.strokeStyle = "#09131d";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(pxR, pyR, 3.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     }
 
-    // Autonomous NASA Curiosity science rover blip (cyan driving, amber scanning)
-    if (view && view.curiosityX !== undefined && view.curiosityZ !== undefined) {
-      const [qx, qy] = toRadar(view.curiosityX, view.curiosityZ);
-      ctx.save();
-      ctx.translate(qx, qy);
-      ctx.rotate(-(view.curiosityYaw ?? 0) + yaw);
-      ctx.fillStyle = view.curiosityPhase === "scanning" ? "#f59e0b" : "#38bdf8";
-      ctx.strokeStyle = "#082f49";
-      ctx.lineWidth = 1;
-      ctx.fillRect(-3, -4, 6, 8);
-      ctx.strokeRect(-3, -4, 6, 8);
-      ctx.restore();
-    }
-
-    // Lidar returns share the collision system used by the rover.
-    for (const contact of view?.lidar?.contacts ?? []) {
-      const [rx, ry] = toRadar(contact.x,contact.z);
-      ctx.fillStyle = contact.inPath ? "#ff6363" : "#efbb65";
-      ctx.beginPath(); ctx.arc(rx,ry,Math.max(2,Math.min(7,contact.radius*scale)),0,Math.PI*2); ctx.fill();
+    // Martian Stalker crimson threat blips
+    for (const st of stalkers ?? []) {
+      if (st.biome !== activeBiome || st.state === "dormant") continue;
+      const [sx, sy] = toRadar(st.x, st.z);
+      ctx.fillStyle = st.state === "repelled" ? "#38bdf8" : "#ff2e43";
+      ctx.beginPath();
+      ctx.arc(sx, sy, st.state === "approaching" ? 4.2 : 3.2, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     // Subtle range vignette & player arrow in center
@@ -238,13 +335,13 @@ export function MarsRadarMinimap({
     ctx.fillText("N", clampedNx, clampedNy + 0.5);
 
     ctx.restore();
-  }, [view, target, found]);
+  }, [view, target, found, inCave, defenses, stalkers, remotePlayers, selfPlayerId]);
 
   return (
     <div className="gta-radar-frame" aria-label="Tactical Mars surface radar">
       <canvas ref={canvasRef} className="gta-radar-canvas" />
       <span className="gta-radar-tag">
-        {view?.roverDriving ? "LIDAR · 30 m" : "EVA RADAR"}
+        {inCave ? "ICE CAVE SONAR" : view?.roverDriving ? "LIDAR · 30 m" : "EVA RADAR"}
       </span>
       {view?.roverDriving && <span className="gta-lidar-status" role="status" style={{color:view.lidar?.threatDistance != null ? "#ff8585" : "#a5ded0"}}>
         {view.lidar?.threatDistance != null ? `Blocked in ${view.lidar.threatDistance.toFixed(1)} m` : view.lidar ? "Path clear · 12 m" : "Scanning…"}
@@ -262,16 +359,36 @@ export function MarsHud({
   target,
   onGuide,
   onLog,
+  tempC,
+  weather,
+  defenses,
+  stalkers,
+  remotePlayers,
+  selfPlayerId,
+  morale = 95,
+  inventory,
 }: {
   mission: Mission;
   view?: View;
   target?: string;
   onGuide: () => void;
   onLog: () => void;
+  tempC?: number;
+  weather?: WeatherEventType;
+  defenses?: readonly BaseDefenseUnit[];
+  stalkers?: readonly StalkerEntity[];
+  remotePlayers?: readonly NetworkPlayerState[];
+  selfPlayerId?: string | null;
+  morale?: number;
+  inventory?: { iceCores: number; titanium: number };
 }) {
-  const oxygenPct = Math.max(0, Math.min(100, mission.resources.oxygen));
-  const suitIntegrityPct = Math.max(0, Math.min(100, 100 - mission.resources.risk));
-  const powerPct = Math.max(0, Math.min(100, mission.resources.power));
+  const selfNet = remotePlayers?.find((p) => p.id === selfPlayerId);
+  const oxygenPct = Math.round(Math.max(0, Math.min(100, selfNet?.supplies.oxygen ?? mission.resources.oxygen)));
+  const suitIntegrityPct = Math.round(
+    Math.max(0, Math.min(100, selfNet?.supplies.suitIntegrity ?? 100 - mission.resources.risk)),
+  );
+  const powerPct = Math.round(Math.max(0, Math.min(100, selfNet?.supplies.powerCells ?? mission.resources.power)));
+  const moralePct = Math.round(Math.max(0, Math.min(100, selfNet?.supplies.morale ?? morale)));
   const [radarCollapsed, setRadarCollapsed] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse) and (max-height: 560px)").matches
   );
@@ -313,9 +430,19 @@ export function MarsHud({
         </div>
       </div>
 
-      {!radarCollapsed && <MarsRadarMinimap view={view} target={target} found={mission.found} />}
+      {!radarCollapsed && (
+        <MarsRadarMinimap
+          view={view}
+          target={target}
+          found={mission.found}
+          defenses={defenses}
+          stalkers={stalkers}
+          remotePlayers={remotePlayers}
+          selfPlayerId={selfPlayerId}
+        />
+      )}
 
-      {/* GTA V style 3-bar vital telemetry directly below the radar */}
+      {/* GTA V style vital telemetry directly below the radar */}
       <section className="gta-vitals-bars" aria-label="Mission resources">
         <div className="gta-bar-col" title={`Oxygen: ${oxygenPct}%`}>
           <div className="gta-bar-track">
@@ -326,12 +453,21 @@ export function MarsHud({
           </span>
         </div>
 
-        <div className="gta-bar-col" title={`Suit Integrity: ${suitIntegrityPct}% (Rad risk ${mission.resources.risk})`}>
+        <div className="gta-bar-col" title={`Suit Integrity: ${suitIntegrityPct}%`}>
           <div className="gta-bar-track">
             <div className="gta-bar-fill bar-suit" style={{ width: `${suitIntegrityPct}%` }} />
           </div>
           <span className="gta-bar-label">
             <i>SUIT</i> <strong>{suitIntegrityPct}</strong>
+          </span>
+        </div>
+
+        <div className="gta-bar-col" title={`Morale / Stamina: ${moralePct}%`}>
+          <div className="gta-bar-track">
+            <div className="gta-bar-fill bar-morale" style={{ width: `${moralePct}%` }} />
+          </div>
+          <span className="gta-bar-label">
+            <i>MRL</i> <strong>{moralePct}</strong>
           </span>
         </div>
 
@@ -346,11 +482,16 @@ export function MarsHud({
       </section>
 
       <div className="gta-secondary-res">
-        <span>Water <b>{mission.resources.water}</b></span>
-        <span>Food <b>{mission.resources.food}</b></span>
-        <span>Rad <b>{mission.resources.risk}</b></span>
-        <small>Illustrative</small>
+        <span>Water <b>{Math.round(selfNet?.supplies.water ?? mission.resources.water)}</b></span>
+        <span>Ti <b>{selfNet?.supplies.titanium ?? inventory?.titanium ?? 0}</b></span>
+        <span>Ice <b>{selfNet?.supplies.iceCores ?? inventory?.iceCores ?? 0}</b></span>
+        <span>Temp <b style={{ color: (tempC ?? -24) <= -72 ? "#7dd3fc" : undefined }}>{tempC !== undefined ? `${tempC.toFixed(0)}°C` : "-24°C"}</b></span>
       </div>
+      {weather && (
+        <div className={`gta-weather-strip wx-${weather.toLowerCase()}`}>
+          <span>{view?.biome === "cave" ? "ICE CAVE · SUBSURFACE" : `WX: ${weather}`}</span>
+        </div>
+      )}
     </aside>
   );
 }
