@@ -10,6 +10,9 @@ import type {
 } from "../../game/multiplayerTypes";
 import type { DefenseKind } from "../../game/baseDefenses";
 import type { WeatherEventType } from "../../game/marsWeather";
+import type { BaseModuleKind, PlacedModule } from "../../game/baseBuilding";
+import type { RoverUpgradeId } from "../../game/roverUpgrades";
+import type { SkillNodeId } from "../../game/crewSkills";
 
 export type CoopSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -110,5 +113,47 @@ export function sendStationResupply(
   kind: "oxygen" | "water" | "power" | "shelter",
 ) {
   socket.emit("station:resupply", kind);
+}
+
+export async function placeBaseModule(
+  socket: CoopSocket,
+  kind: BaseModuleKind,
+  x: number,
+  z: number,
+  rotationY = 0,
+): Promise<{ ok: boolean; module?: PlacedModule; error?: string }> {
+  return new Promise((resolve) => {
+    socket.emit("module:place", { kind, x, z, rotationY }, (res) => resolve(res));
+  });
+}
+
+export async function upgradeRover(
+  socket: CoopSocket,
+  upgradeId: RoverUpgradeId,
+): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    socket.emit("rover:upgrade", upgradeId, (res) => resolve(res));
+  });
+}
+
+export async function unlockCrewSkill(
+  socket: CoopSocket,
+  skillId: SkillNodeId,
+): Promise<{ ok: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    socket.emit("skills:unlock", skillId, (res) => resolve(res));
+  });
+}
+
+export function gainPlayerXp(socket: CoopSocket, amount: number, reason: string) {
+  socket.emit("xp:gain", amount, reason);
+}
+
+export function toggleRoverWinch(
+  socket: CoopSocket,
+  active: boolean,
+  anchor?: { x: number; y: number; z: number } | null,
+) {
+  socket.emit("winch:toggle", { active, anchor });
 }
 

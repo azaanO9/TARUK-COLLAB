@@ -4,6 +4,9 @@ import type { MineableNode } from "./marsCaveData.ts";
 import type { StalkerEntity } from "./marsStalkers.ts";
 import type { MarsEnvironmentSnapshot, WeatherEventType } from "./marsWeather.ts";
 import type { RoverGear } from "./roverVehicle.ts";
+import type { BaseModuleKind, PlacedModule } from "./baseBuilding.ts";
+import type { RoverUpgradeId } from "./roverUpgrades.ts";
+import type { SkillNodeId } from "./crewSkills.ts";
 
 export type BiomeId = "surface" | "cave";
 
@@ -34,6 +37,9 @@ export type NetworkPlayerState = {
   speed: number;
   inRover: boolean;
   talking: boolean;
+  xp: number;
+  level: number;
+  skills: SkillNodeId[];
   supplies: PlayerSupplies;
 };
 
@@ -48,6 +54,9 @@ export type NetworkRoverState = {
   roll: number;
   chassisY: number;
   gear: RoverGear;
+  upgrades: RoverUpgradeId[];
+  winchActive?: boolean;
+  winchAnchor?: { x: number; y: number; z: number } | null;
 };
 
 export type TeamResourcePool = {
@@ -83,6 +92,7 @@ export type RoomStateSnapshot = {
   defenses: BaseDefenseUnit[];
   stalkers: StalkerEntity[];
   minerals: MineableNode[];
+  modules: PlacedModule[];
   alerts: string[];
 };
 
@@ -151,6 +161,20 @@ export interface ClientToServerEvents {
     payload: { kind: DefenseKind; x: number; z: number },
     ack?: (res: { ok: boolean; error?: string }) => void,
   ) => void;
+  "module:place": (
+    payload: { kind: BaseModuleKind; x: number; z: number; rotationY?: number },
+    ack?: (res: { ok: boolean; module?: PlacedModule; error?: string }) => void,
+  ) => void;
+  "rover:upgrade": (
+    upgradeId: RoverUpgradeId,
+    ack?: (res: { ok: boolean; error?: string }) => void,
+  ) => void;
+  "skills:unlock": (
+    skillId: SkillNodeId,
+    ack?: (res: { ok: boolean; error?: string }) => void,
+  ) => void;
+  "xp:gain": (amount: number, reason: string) => void;
+  "winch:toggle": (payload: { active: boolean; anchor?: { x: number; y: number; z: number } | null }) => void;
   "weather:override": (weather: WeatherEventType | null) => void;
   "station:resupply": (kind: "oxygen" | "water" | "power" | "shelter") => void;
   "rtc:offer": (payload: RtcSignalPayload) => void;

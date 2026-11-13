@@ -69,6 +69,23 @@ import { createStalkerRenderer } from "./world/createStalkerEntity";
 import { createBaseDefensesRenderer } from "./world/createBaseDefenses";
 import { createDropPodIntro } from "./world/createDropPodIntro";
 import { createRemoteAstronautsManager } from "./world/remoteAstronauts";
+import { createBaseModulesRenderer, type BaseModulesRenderer } from "./world/createBaseModules";
+import { createGarageZone, type GarageZoneRenderer } from "./world/createGarageZone";
+import { createMaxGraphicsPipeline, type MaxGraphicsPipeline } from "./world/maxGraphicsPipeline";
+import {
+  snapToBuildingGrid,
+  validateModulePlacement,
+  GRID_SNAP_SIZE,
+  type BaseModuleKind,
+  type PlacedModule,
+} from "../game/baseBuilding";
+import {
+  isInsideGarageZone,
+  findNearestWinchAnchor,
+  calculateWinchForce,
+  type RoverUpgradeId,
+} from "../game/roverUpgrades";
+import { getActivePerks, type SkillNodeId } from "../game/crewSkills";
 
 function shortestAngleDiff(from: number, to: number): number {
   let diff = (to - from) % (Math.PI * 2);
@@ -105,6 +122,11 @@ export type View = {
   curiosityScans?: number;
   curiositySample?: string;
   lidar?: LidarScan;
+  nearGarage?: boolean;
+  winchActive?: boolean;
+  winchAnchor?: { x: number; y: number; z: number } | null;
+  canArmMine?: boolean;
+  hologramValid?: boolean;
 };
 type Props = {
   enabled: boolean;
@@ -144,12 +166,23 @@ type Props = {
   onOpenWeatherTerminal?: () => void;
   onOpenDefenseCraft?: () => void;
   onOpenTrade?: () => void;
+  modules?: readonly PlacedModule[];
+  placingModuleKind?: BaseModuleKind | null;
+  onPlaceModule?: (kind: BaseModuleKind, x: number, z: number, rotationY: number) => void;
+  roverUpgrades?: readonly RoverUpgradeId[];
+  crewSkills?: readonly SkillNodeId[];
+  onOpenGarage?: () => void;
+  onOpenBuildMenu?: () => void;
+  onOpenSkillTree?: () => void;
+  onToggleWinch?: () => void;
 };
 export type SurvivalWorldHandle = {
   captureMouse: () => void;
   toggleRover?: () => void;
   toggleBiome?: () => void;
   skipIntro?: () => void;
+  toggleWinch?: () => void;
+  rotateBuildingHologram?: () => void;
 };
 const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWorld(props, ref) {
   const STATIONS = props.planet === "mars" ? marsStations : lunarStations;
@@ -164,6 +197,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const toggleRoverAction = useRef<() => void>(() => {});
   const toggleBiomeAction = useRef<() => void>(() => {});
   const skipIntroAction = useRef<() => void>(() => {});
+  const toggleWinchAction = useRef<() => void>(() => {});
+  const rotateHologramAction = useRef<() => void>(() => {});
   const inspectAction = useRef<() => void>(() => {});
   const analogWalk = useRef<MoveAxes>({});
   const analogDrive = useRef<RoverAnalogInput>({});
@@ -197,6 +232,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       toggleRover: () => toggleRoverAction.current(),
       toggleBiome: () => toggleBiomeAction.current(),
       skipIntro: () => skipIntroAction.current(),
+      toggleWinch: () => toggleWinchAction.current(),
+      rotateBuildingHologram: () => rotateHologramAction.current(),
     }),
     [],
   );
@@ -332,6 +369,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       const remoteAstronauts = props.planet === "mars" ? createRemoteAstronautsManager() : null;
       if (remoteAstronauts) scene.add(remoteAstronauts.root);
+      const baseModulesRenderer = props.planet === "mars" ? createBaseModulesRenderer(scene) : null;
+      const garageZone = props.planet === "mars" ? createGarageZone(scene, model.heightAt) : null;
       // Helmet SpotLight for subterranean Ice Caves and extreme night shadows
       const helmetLamp = props.planet === "mars" ? new T.SpotLight(0xdbeafe, 0, 32, 0.58, 0.55, 1.3) : null;
       const helmetTarget = helmetLamp ? new T.Object3D() : null;
@@ -499,6 +538,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
       let occlusion: import("three/examples/jsm/postprocessing/GTAOPass.js").GTAOPass | null = null;
       let bloom: import("three/examples/jsm/postprocessing/UnrealBloomPass.js").UnrealBloomPass | null = null;
+      let dofPass: import("three/examples/jsm/postprocessing/BokehPass.js").BokehPass | null = null;
+      let fxaaPass: import("three/examples/jsm/postprocessing/ShaderPass.js").ShaderPass | null = null;
+      let stormGodRays: import("three").Mesh | null = null;
       let effectsLoading: Promise<void> | null = null;
       let autoOcclusion = true;
       const desiredCamera = new T.Vector3();
@@ -506,11 +548,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let lastLidarScan = -Infinity;
       let lidar: LidarScan | undefined;
       function disposeEffects() {
+        if (stormGodRays) { scene.remove(stormGodRays); stormGodRays.geometry?.dispose(); }
+        stormGodRays = null;
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
-        composer = null; occlusion = null; bloom = null;
+        composer = null; occlusion = null; bloom = null; dofPass = null; fxaaPass = null;
       }
       function renderEffects() {
-        if (!composer || (!occlusion?.enabled && !bloom?.enabled)) return false;
+        if (!composer || (!occlusion?.enabled && !bloom?.enabled && !dofPass?.enabled)) return false;
         try { composer.render(); return true; }
         catch {
           // Optional effects must not take the mission down on unsupported GPUs.
@@ -520,32 +564,61 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       }
       const prepareEffects = () => effectsLoading ??= (async () => {
-        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { BoundedGTAOPass }] = await Promise.all([
+        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { BoundedGTAOPass }, { ShaderPass }, { FXAAShader }, { BokehPass }] = await Promise.all([
           import("three/examples/jsm/postprocessing/EffectComposer.js"),
           import("three/examples/jsm/postprocessing/RenderPass.js"),
           import("three/examples/jsm/postprocessing/UnrealBloomPass.js"),
           import("three/examples/jsm/postprocessing/OutputPass.js"),
           import("./world/BoundedGTAOPass"),
+          import("three/examples/jsm/postprocessing/ShaderPass.js"),
+          import("three/examples/jsm/shaders/FXAAShader.js"),
+          import("three/examples/jsm/postprocessing/BokehPass.js"),
         ]);
         if (cancelled) return;
-        // HDR resolves with MSAA can produce black rectangular tiles on some
-        // drivers. The main renderer already handles geometry antialiasing.
+        // HDR resolves with HalfFloatType
         const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: 0 });
         composer = new EffectComposer(renderer, target);
         composer.addPass(new RenderPass(scene, camera));
         occlusion = new BoundedGTAOPass(scene, camera, 256, 256);
-        occlusion.updateGtaoMaterial({ radius: .48, thickness: .55, distanceFallOff: 1, samples: 8 });
+        occlusion.updateGtaoMaterial({ radius: .52, thickness: .55, distanceFallOff: 1.2, samples: 10 });
         occlusion.updatePdMaterial({ samples: 8, radius: 4, rings: 2 });
-        occlusion.blendIntensity = .48; occlusion.enabled = false;
+        occlusion.blendIntensity = .52; occlusion.enabled = false;
         composer.addPass(occlusion);
-        bloom = new UnrealBloomPass(new T.Vector2(512, 512), .09, .45, 1.35);
+        bloom = new UnrealBloomPass(new T.Vector2(512, 512), .28, .55, .88);
         composer.addPass(bloom);
+        dofPass = new BokehPass(scene, camera, { focus: 10.0, aperture: 0.00018, maxblur: 0.012 });
+        dofPass.enabled = false;
+        composer.addPass(dofPass);
+        fxaaPass = new ShaderPass(FXAAShader);
+        composer.addPass(fxaaPass);
         composer.addPass(new OutputPass());
+
+        const rayGeom = new T.CylinderGeometry(1.2, 54.0, 110.0, 16, 1, true);
+        rayGeom.rotateX(Math.PI / 2);
+        const rayMat = new T.MeshBasicMaterial({ color: 0xffbb7a, transparent: true, opacity: 0.0, blending: T.AdditiveBlending, side: T.BackSide, depthWrite: false });
+        stormGodRays = new T.Mesh(rayGeom, rayMat);
+        stormGodRays.visible = false;
+        scene.add(stormGodRays);
       })().catch(() => { disposeEffects(); });
       function configureEffects(render = false) {
         const preset = graphicsTier(effectiveQuality());
+        const isMax = effectiveQuality() === "ultra" || effectiveQuality() === "high";
         if (occlusion) occlusion.enabled = preset.ssao && (cameraSettings.current.quality !== "auto" || autoOcclusion);
         if (bloom) bloom.enabled = preset.bloom && !reduced.matches;
+        if (dofPass) {
+          const focusMode = (rover.driving && !cameraSettings.current.thirdPerson) || Boolean(current.current.placingModuleKind);
+          dofPass.enabled = isMax && focusMode && !reduced.matches;
+          if (dofPass.enabled && dofPass.uniforms) (dofPass.uniforms as Record<string, { value: unknown }>)["focus"].value = rover.driving ? 4.5 : 8.5;
+        }
+        if (stormGodRays) {
+          const stormActive = current.current.weather === "DUST_STORM";
+          stormGodRays.visible = stormActive && effectiveQuality() !== "performance";
+          if (stormGodRays.visible) {
+            stormGodRays.position.copy(camera.position).addScaledVector(MARS_SUN_DIRECTION, 40);
+            stormGodRays.quaternion.setFromUnitVectors(new T.Vector3(0, 0, -1), MARS_SUN_DIRECTION.clone().negate());
+            (stormGodRays.material as import("three").MeshBasicMaterial).opacity = effectiveQuality() === "ultra" ? 0.075 : 0.038;
+          }
+        }
         if (render && effectiveQuality() !== "performance") renderEffects();
       }
       if (props.planet === "mars" && !mobileMars && effectiveQuality() !== "performance") await prepareEffects();
@@ -611,7 +684,38 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         lastDropUiUpdate = 0,
         nearCaveEntrance: CaveEntrance | null = null,
         nearCaveExit = false,
-        nearMineral: MineableNode | null = null;
+        nearMineral: MineableNode | null = null,
+        nearGarageZone = false,
+        winchActive = false,
+        winchAnchor: { x: number; y: number; z: number } | null = null,
+        previewRotationY = 0,
+        lastHologramValid = false,
+        lastHologramPos = { x: 0, z: 0 };
+      rotateHologramAction.current = () => {
+        previewRotationY = (previewRotationY + Math.PI / 2) % (Math.PI * 2);
+      };
+      toggleWinchAction.current = () => {
+        if (!current.current.roverUpgrades?.includes("heavy_winch")) {
+          showTransientNotice("Requires Heavy Winch upgrade (install in Garage).", "Requires Heavy Winch");
+          return;
+        }
+        if (winchActive) {
+          winchActive = false;
+          winchAnchor = null;
+          showTransientNotice("Winch cable disengaged.", "Winch cable");
+          current.current.onToggleWinch?.();
+          return;
+        }
+        const anchor = findNearestWinchAnchor(rover.x, rover.chassisY, rover.z, rover.yaw, model.obstacles);
+        if (anchor) {
+          winchActive = true;
+          winchAnchor = anchor;
+          showTransientNotice("Winch cable locked to anchor rock! Pulling vehicle.", "Winch cable locked");
+          current.current.onToggleWinch?.();
+        } else {
+          showTransientNotice("No solid rock anchor within 32m forward cone.", "No solid rock anchor");
+        }
+      };
       const enterBiome = (targetBiome: BiomeId) => {
         if (props.planet !== "mars" || targetBiome === activeBiome) return;
         activeBiome = targetBiome;
@@ -706,8 +810,29 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       observer.observe(element);
       resize();
       const inspect = () => {
-        if (!current.current.enabled || rover.driving) return;
+        if (!current.current.enabled) return;
+        if (current.current.placingModuleKind) {
+          if (lastHologramValid) {
+            current.current.onPlaceModule?.(current.current.placingModuleKind, lastHologramPos.x, lastHologramPos.z, previewRotationY);
+          }
+          return;
+        }
+        if (rover.driving) {
+          if (nearGarageZone) {
+            current.current.onOpenGarage?.();
+            return;
+          }
+          if (current.current.roverUpgrades?.includes("robotic_arm") && nearMineral && !nearMineral.collected) {
+            current.current.onMineNode?.(nearMineral.id);
+            return;
+          }
+          return;
+        }
         if (props.planet === "mars") {
+          if (nearGarageZone) {
+            current.current.onOpenGarage?.();
+            return;
+          }
           if (activeBiome === "surface" && nearCaveEntrance) {
             enterBiome("cave");
             return;
@@ -871,6 +996,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (e.detail === 0) return;
         const targetEl = e.target as HTMLElement | null;
         if (!isSceneTarget(targetEl)) return;
+        if (current.current.placingModuleKind) {
+          if (lastHologramValid) {
+            current.current.onPlaceModule?.(current.current.placingModuleKind, lastHologramPos.x, lastHologramPos.z, previewRotationY);
+          }
+          return;
+        }
         const resuming = cursorReleased.current;
         setCursorMode(false);
         if (document.pointerLockElement !== element) {
@@ -1004,13 +1135,37 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         if (k === "q") keys.add("look-left");
         if (k === "shift") keys.add("shift");
-        if (k === "r") keys.add("look-right");
+        if (k === "r") {
+          if (current.current.placingModuleKind) {
+            e.preventDefault();
+            rotateHologramAction.current();
+            return;
+          }
+          keys.add("look-right");
+        }
         if (k === "v" && !e.repeat) {
           e.preventDefault();
           setThirdPerson((v) => !v);
         }
         if (k === "b" && !e.repeat && current.current.planet === "mars") {
-          e.preventDefault(); current.current.onToggleSage?.();
+          e.preventDefault();
+          if (current.current.onOpenBuildMenu) {
+            current.current.onOpenBuildMenu();
+          } else {
+            current.current.onToggleSage?.();
+          }
+        }
+        if (k === "g" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault();
+          current.current.onToggleSage?.();
+        }
+        if (k === "tab" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault();
+          current.current.onOpenSkillTree?.();
+        }
+        if (k === "h" && !e.repeat && current.current.planet === "mars") {
+          e.preventDefault();
+          toggleWinchAction.current();
         }
         if (k === "f" && !e.repeat && current.current.planet === "mars") {
           e.preventDefault();
@@ -1028,6 +1183,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           e.preventDefault();
           if (dropPodIntro?.isActive()) {
             skipIntroAction.current();
+            return;
+          }
+          if (current.current.placingModuleKind && lastHologramValid) {
+            current.current.onPlaceModule?.(current.current.placingModuleKind, lastHologramPos.x, lastHologramPos.z, previewRotationY);
             return;
           }
           keys.add("jump");
@@ -1198,6 +1357,20 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             }
             if (rover.driving && !remoteControlled) {
               const prevRoverYaw = rover.yaw;
+              rover.upgrades = p.roverUpgrades;
+              const perks = getActivePerks(p.crewSkills ?? []);
+              const speedMultiplier = perks.roverSpeedMultiplier;
+              if (winchActive && winchAnchor) {
+                const wForce = calculateWinchForce(rover.x, rover.chassisY ?? model.heightAt(rover.x, rover.z), rover.z, rover.yaw, winchAnchor);
+                rover.speed += wForce.forwardForce * dt * 0.45;
+                rover.yaw += wForce.yawTorque * dt * 0.35;
+                if (wForce.distance < 3.2) {
+                  winchActive = false;
+                  winchAnchor = null;
+                  showTransientNotice("Winch reached anchor target. Disengaged.", "Winch reached");
+                  current.current.onToggleWinch?.();
+                }
+              }
               for (let i = 0; i < steps; i++) {
                 rover = stepRoverVehicle(
                   rover,
@@ -1207,6 +1380,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                   model.roverHeightAt,
                   model.mudAt,
                   analogDrive.current,
+                  { speedMultiplier },
                 );
               }
               walker.x = rover.x;
@@ -1346,12 +1520,54 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           stalkerRenderer?.update(p.stalkers ?? [], activeBiome, activeHeightAt, timeSec);
           remoteAstronauts?.update(p.remotePlayers ?? [], p.selfPlayerId ?? null, activeBiome, activeHeightAt, dt);
 
+          baseModulesRenderer?.update(p.modules ?? [], model.heightAt, timeSec);
+          garageZone?.update(timeSec);
+          garageZone?.updateWinch(
+            rover.driving
+              ? { x: rover.x, y: rover.chassisY ?? model.heightAt(rover.x, rover.z), z: rover.z, yaw: rover.yaw }
+              : null,
+            winchAnchor,
+            winchActive,
+          );
+          nearGarageZone = isInsideGarageZone(rover.driving ? rover.x : walker.x, rover.driving ? rover.z : walker.z);
+
+          if (p.placingModuleKind && !inCave) {
+            ray.setFromCamera(center, camera);
+            const groundHits = ray.intersectObject(model.root, true);
+            if (groundHits.length > 0 && groundHits[0].distance < 60) {
+              const rawHit = groundHits[0].point;
+              const snapped = snapToBuildingGrid(rawHit.x, rawHit.z);
+              const existing = p.modules ?? [];
+              const validation = validateModulePlacement(p.placingModuleKind, snapped.x, snapped.z, existing);
+              lastHologramValid = validation.valid;
+              lastHologramPos = snapped;
+              baseModulesRenderer?.setPreview(p.placingModuleKind, snapped.x, snapped.z, validation.valid, previewRotationY, model.heightAt);
+            } else {
+              lastHologramValid = false;
+              baseModulesRenderer?.setPreview(null, 0, 0, false);
+            }
+          } else {
+            lastHologramValid = false;
+            baseModulesRenderer?.setPreview(null, 0, 0, false);
+          }
+
           // Proximity to cave portals or mineable ore veins
           if (!inCave) {
             const cNear = nearestCaveEntrance(walker.x, walker.z);
             nearCaveEntrance = cNear.distance <= 4.4 ? cNear.entrance : null;
             nearCaveExit = false;
             nearMineral = null;
+            if (rover.driving && p.roverUpgrades?.includes("robotic_arm")) {
+              let armMinDist = 7.5;
+              for (const m of p.minerals ?? []) {
+                if (m.collected) continue;
+                const md = Math.hypot(rover.x - m.x, rover.z - m.z);
+                if (md < armMinDist) {
+                  armMinDist = md;
+                  nearMineral = m;
+                }
+              }
+            }
           } else {
             nearCaveEntrance = null;
             nearCaveExit = Math.hypot(walker.x - CAVE_EXIT_PORTAL.x, walker.z - CAVE_EXIT_PORTAL.z) <= 4.2;
@@ -1732,6 +1948,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             curiosityScans: curiosity?.scanCount,
             curiositySample: curiosity?.lastScanSample,
             lidar: rover.driving ? lidar : undefined,
+            nearGarage: nearGarageZone,
+            winchActive,
+            winchAnchor,
+            canArmMine: Boolean(rover.driving && p.roverUpgrades?.includes("robotic_arm") && nearMineral),
+            nearbyMineral: nearMineral,
+            hologramValid: lastHologramValid,
           });
         }
         renderer.info.reset();
@@ -1805,6 +2027,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         renderer.dispose();
         disposeEffects();
         environment?.dispose();
+        baseModulesRenderer?.dispose();
+        garageZone?.dispose();
         bigRover?.dispose();
         curiosityRover?.dispose();
         marsAstronaut?.dispose();

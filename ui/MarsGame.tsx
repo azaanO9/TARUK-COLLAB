@@ -5,7 +5,7 @@ import {rank,discoveryIds,forecast,isNight,type Mission,type Action} from "../ga
 import SurvivalWorld,{type SurvivalWorldHandle,type View} from "./SurvivalWorld";
 import { MarsHud, MissionDialogFrame, SolQuizDialog } from "./MarsPanels";
 import { MarsRadarMinimap } from "./MarsPanels";
-import { Pause, Navigation2, Battery, Wind, Shield, Mic, MicOff, CloudLightning, Wrench, Users, ArrowLeftRight } from "lucide-react";
+import { Pause, Navigation2, Battery, Wind, Shield, Mic, MicOff, CloudLightning, Wrench, Users, ArrowLeftRight, Building2, Sparkles } from "lucide-react";
 import "./mobileCockpit.css";
 import "./survival.css"; import "./mars.css"; import "./junior.css";
 const initial:View={x:-23,z:15,yaw:0,target:null,distance:Infinity,locked:false,jumpHeight:0,biome:"surface"};
@@ -28,12 +28,37 @@ import {
   sendResourceTrade,
   sendRoverState,
   sendStationResupply,
+  placeBaseModule,
+  upgradeRover,
+  unlockCrewSkill,
+  gainPlayerXp,
+  toggleRoverWinch,
   type CoopSocket,
 } from "./multiplayer/socketClient";
 import { ProximityVoiceController } from "./multiplayer/voiceChat";
 import { WeatherTerminalModal } from "./WeatherTerminalModal";
 import { DefenseCraftModal } from "./DefenseCraftModal";
 import { TeamTradeModal } from "./TeamTradeModal";
+import { BaseBuildModal } from "./BaseBuildModal";
+import { GarageModal } from "./GarageModal";
+import { SkillTreeModal } from "./SkillTreeModal";
+import {
+  type BaseModuleKind,
+  type PlacedModule,
+  MODULE_RECIPES,
+  calculateBaseGrid,
+} from "../game/baseBuilding";
+import {
+  type RoverUpgradeId,
+  ROVER_UPGRADES,
+  canPurchaseRoverUpgrade,
+} from "../game/roverUpgrades";
+import {
+  type SkillNodeId,
+  SKILL_TREE,
+  canUnlockSkill,
+  XP_PER_EVENT,
+} from "../game/crewSkills";
 
 type DialogState={modal:string|null;stage:"task"|"quiz"|"result";answer:number|null;progress:number;angle:number;drill:number;led:number;water:number;shield:number};
 const initialDialog:DialogState={modal:null,stage:"task",answer:null,progress:0,angle:45,drill:40,led:25,water:30,shield:50};
@@ -89,6 +114,11 @@ export default function MarsGame({
  const [soloInventory,setSoloInventory]=useState<CraftInventory>({iceCores:1,titanium:2,powerCells:mission.resources.power});
  const [soloStalkers,setSoloStalkers]=useState<StalkerEntity[]>(()=>spawnInitialStalkers());
  const [soloMorale,setSoloMorale]=useState(96);
+ const [soloModules,setSoloModules]=useState<PlacedModule[]>([]);
+ const [placingModuleKind,setPlacingModuleKind]=useState<BaseModuleKind|null>(null);
+ const [soloRoverUpgrades,setSoloRoverUpgrades]=useState<RoverUpgradeId[]>([]);
+ const [soloSkills,setSoloSkills]=useState<SkillNodeId[]>([]);
+ const [soloXp,setSoloXp]=useState(mission.xp);
  const [stalkerAlert,setStalkerAlert]=useState<string|null>(null);
  const [micLive,setMicLive]=useState(false);
  const [micError,setMicError]=useState<string|null>(null);
@@ -115,10 +145,15 @@ export default function MarsGame({
  const activeDefenses=coopRoom?.defenses??soloDefenses;
  const activeMinerals=coopRoom?.minerals??soloMinerals;
  const activeStalkers=coopRoom?.stalkers??soloStalkers;
+ const activeModules=coopRoom?.modules??soloModules;
+ const activeRoverUpgrades=(coopRoom?.rover?.upgrades as readonly RoverUpgradeId[]|undefined)??soloRoverUpgrades;
  const selfCoopPlayer=useMemo(
   ()=>coopRoom?.players.find((pl)=>pl.id===coopSocket?.id)??null,
   [coopRoom,coopSocket],
  );
+ const activeSkills=(selfCoopPlayer?.skills as readonly SkillNodeId[]|undefined)??soloSkills;
+ const activeXp=selfCoopPlayer?.xp??soloXp;
+ const baseGrid=useMemo(()=>calculateBaseGrid(activeModules),[activeModules]);
  const activeInventory:CraftInventory=selfCoopPlayer
   ? {iceCores:selfCoopPlayer.supplies.iceCores,titanium:selfCoopPlayer.supplies.titanium,powerCells:selfCoopPlayer.supplies.powerCells}
   : {...soloInventory,powerCells:mission.resources.power};
@@ -216,20 +251,32 @@ export default function MarsGame({
   }
  },[]);
 
- // Global sci-fi shortcut keys: C = Base Defenses, T = Team Trade, M = Mic
+ // Global sci-fi shortcut keys: C = Base Defenses, B = Modular Building, Tab = Skills, T = Team Trade, M = Mic
  useEffect(()=>{
   const onKey=(e:KeyboardEvent)=>{
    const el=e.target as HTMLElement|null;
    if(el&&(el.tagName==="INPUT"||el.tagName==="TEXTAREA"||el.tagName==="SELECT")) return;
-   if(mission.ended||mission.failure||modal) return;
+   if(mission.ended||mission.failure) return;
    const k=e.key.toLowerCase();
-   if(k==="c"){e.preventDefault();setModal("defenseCraft");}
-   else if(k==="t"&&coopRoom){e.preventDefault();setModal("trade");}
+   if(k==="c"&&!modal){e.preventDefault();setModal("defenseCraft");}
+   else if(k==="b"&&!modal){e.preventDefault();setModal("build");}
+   else if(k==="tab"&&!modal){e.preventDefault();setModal("skills");}
+   else if(k==="t"&&coopRoom&&!modal){e.preventDefault();setModal("trade");}
    else if(k==="m"&&coopSocket){e.preventDefault();void toggleCoopMic();}
   };
   window.addEventListener("keydown",onKey);
   return ()=>window.removeEventListener("keydown",onKey);
  },[mission.ended,mission.failure,modal,coopRoom,coopSocket,toggleCoopMic]);
+
+ useEffect(()=>{
+  const onEsc=(e:KeyboardEvent)=>{
+   if(e.key==="Escape"&&placingModuleKind){
+    setPlacingModuleKind(null);
+   }
+  };
+  window.addEventListener("keydown",onEsc);
+  return ()=>window.removeEventListener("keydown",onEsc);
+ },[placingModuleKind]);
 
  const dialogRef=useRef<HTMLElement>(null);
  const activeDialog=Boolean(mission.failure || modal || ((mission.ended && modal!=="solQuiz"&&modal!=="debrief")));
@@ -268,16 +315,86 @@ export default function MarsGame({
  const night=isNight(mission.sol);
  const next=flightPlan[mission.sol-1].station, destination=route?.sol===mission.sol?route.id:next, station=STATIONS.find(s=>s.id===destination)!, current=STATIONS.find(s=>s.id===view.target), curiosityTarget=view.target==="curiosity", distance=Math.round(Math.hypot(view.x-station.x,view.z-station.z));
  const bearing=Math.atan2(station.x-view.x,-(station.z-view.z)); const relative=bearing+view.yaw; const dir=Math.sin(relative)>.35?"↗":Math.sin(relative)<-.35?"↖":"↑";
+ const handleSelectModule=useCallback((kind:BaseModuleKind|null)=>{
+  setPlacingModuleKind(kind);
+  setModal(null);
+ },[]);
+
+ const handlePlaceModule=useCallback(async(kind:BaseModuleKind,x:number,z:number,rotationY:number)=>{
+  if(coopSocket){
+   const res=await placeBaseModule(coopSocket,kind,x,z,rotationY);
+   if(res.ok){
+    setPlacingModuleKind(null);
+   }else{
+    triggerStalkerAlert(res.error??"Failed to deploy module.");
+   }
+   return;
+  }
+  const recipe=MODULE_RECIPES[kind];
+  if(activeInventory.titanium<recipe.titaniumCost||activeInventory.powerCells<recipe.powerCost){
+   triggerStalkerAlert("Insufficient Titanium or Power to fabricate module.");
+   return;
+  }
+  setSoloInventory((inv)=>({
+   ...inv,
+   titanium:inv.titanium-recipe.titaniumCost,
+   powerCells:inv.powerCells-recipe.powerCost,
+  }));
+  const newMod:PlacedModule={
+   id:`mod-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+   kind,
+   x,
+   y:0,
+   z,
+   rotationY,
+   builderCallsign:callsign,
+   createdAt:Date.now(),
+   connected:true,
+  };
+  setSoloModules((prev)=>[...prev,newMod]);
+  setPlacingModuleKind(null);
+  setSoloXp((x)=>x+XP_PER_EVENT.module_built);
+ },[coopSocket,activeInventory,callsign,triggerStalkerAlert]);
+
+ const handleRoverUpgrade=useCallback(async(upgradeId:RoverUpgradeId)=>{
+  if(coopSocket){
+   return upgradeRover(coopSocket,upgradeId);
+  }
+  const check=canPurchaseRoverUpgrade(upgradeId,activeRoverUpgrades,activeInventory,activeInventory.powerCells);
+  if(!check.ok) return {ok:false,error:check.reason};
+  const upDef=ROVER_UPGRADES[upgradeId];
+  setSoloInventory((inv)=>({
+   ...inv,
+   titanium:inv.titanium-upDef.titaniumCost,
+   powerCells:inv.powerCells-upDef.powerCost,
+  }));
+  setSoloRoverUpgrades((prev)=>[...prev,upgradeId]);
+  setSoloXp((x)=>x+75);
+  return {ok:true};
+ },[coopSocket,activeRoverUpgrades,activeInventory]);
+
+ const handleUnlockSkill=useCallback(async(nodeId:SkillNodeId)=>{
+  if(coopSocket){
+   return unlockCrewSkill(coopSocket,nodeId);
+  }
+  const check=canUnlockSkill(nodeId,activeSkills,activeXp);
+  if(!check.ok) return {ok:false,error:check.reason};
+  setSoloSkills((prev)=>[...prev,nodeId]);
+  return {ok:true};
+ },[coopSocket,activeSkills,activeXp]);
+
  const handleMineNode=useCallback(async(nodeId:string)=>{
   if(coopSocket){
    const res=await mineCaveNode(coopSocket,nodeId);
    if(!res.ok&&res.error) triggerStalkerAlert(res.error);
+   else void gainPlayerXp(coopSocket,XP_PER_EVENT.mineral_mined,"mineral_mined");
    return;
   }
   const targetNode=soloMinerals.find(n=>n.id===nodeId&&!n.collected);
   if(!targetNode) return;
   setSoloMinerals(prev=>prev.map(n=>n.id===nodeId?{...n,collected:true}:n));
   setSoloInventory(inv=>targetNode.kind==="ice_core"?{...inv,iceCores:inv.iceCores+targetNode.yieldAmount}:{...inv,titanium:inv.titanium+targetNode.yieldAmount});
+  setSoloXp(x=>x+XP_PER_EVENT.mineral_mined);
  },[coopSocket,soloMinerals,triggerStalkerAlert]);
 
  const handleDeployDefense=useCallback(async(kind:DefenseKind,x:number,z:number)=>{
@@ -344,18 +461,30 @@ export default function MarsGame({
   onOpenWeatherTerminal={()=>setModal("weatherTerminal")}
   onOpenDefenseCraft={()=>setModal("defenseCraft")}
   onOpenTrade={()=>{if(coopRoom) setModal("trade");}}
- />}
+   modules={activeModules}
+   placingModuleKind={placingModuleKind}
+   onPlaceModule={handlePlaceModule}
+   roverUpgrades={activeRoverUpgrades}
+   crewSkills={activeSkills}
+   onOpenGarage={()=>setModal("garage")}
+   onOpenBuildMenu={()=>setModal("build")}
+   onOpenSkillTree={()=>setModal("skills")}
+   onToggleWinch={()=>{if(coopSocket) toggleRoverWinch(coopSocket,!view.winchActive,view.winchAnchor??null);}}
+  />}
  {!modal&&!mission.ended&&!mission.failure&&<RotateToLandscapeGate onBlockedChange={setPortraitBlocked} />}
  {worldFailure&&<div className="mars-dialog-backdrop"><section className="mars-dialog junior-dialog" role="alert"><h2>We couldn’t start the 3D world</h2><p>Your browser may have lost its graphics connection. Try again, or choose the lighter graphics setting.</p><button onClick={()=>{setLowGraphics(false);setWorldFailure(false);setWorldAttempt(v=>v+1)}}>Retry</button><button onClick={()=>{setLowGraphics(true);setWorldFailure(false);setWorldAttempt(v=>v+1)}}>Retry with low graphics</button><button onClick={()=>{setWorldFailure(false);setMapTravel(true);setModal("atlas")}}>Use base map</button><button onClick={onHub}>Mission hub</button></section></div>}
  {showControlHint&&!touchMode&&<div className="junior-hint" role="note"><strong>Ready, explorer?</strong> WASD walks, C opens Defense Fabrication, E interacts/mines/opens Weather Terminal, F drives rover, V switches camera.{coopRoom?" T trades supplies & M toggles proximity voice.":""} <button onClick={()=>{setShowControlHint(false);document.querySelector<HTMLElement>(".sv-world")?.focus()}}>Got it</button></div>}
  {stalkerAlert&&!activeDialog&&<div className="sci-stalker-alert" role="alert">{stalkerAlert}</div>}
  {!touchMode&&!activeDialog&&!portraitBlocked&&!worldFailure&&<div className="sci-action-dock" role="toolbar" aria-label="Tactical field systems">
-  <button type="button" onClick={()=>setModal("weatherTerminal")}><CloudLightning size={14}/><span>Weather</span></button>
-  <button type="button" onClick={()=>setModal("defenseCraft")}><Wrench size={14}/><span>Defenses · C</span></button>
-  {coopRoom&&<button type="button" onClick={()=>setModal("trade")}><ArrowLeftRight size={14}/><span>Trade · T</span></button>}
-  {coopSocket&&<button type="button" className={micLive?"is-live":""} onClick={()=>void toggleCoopMic()} title={micError??"Toggle proximity voice chat"}>{micLive?<Mic size={14}/>:<MicOff size={14}/>}<span>{micLive?"Mic Live":"Mic Muted"} · M</span></button>}
-  {onOpenLobby&&<button type="button" onClick={onOpenLobby}><Users size={14}/><span>{coopRoom?`Co-op ${coopRoom.code} (${coopRoom.players.length}/4)`:"Co-op Lobby"}</span></button>}
- </div>}
+   <button type="button" onClick={()=>setModal("weatherTerminal")}><CloudLightning size={14}/><span>Weather</span></button>
+   <button type="button" onClick={()=>setModal("defenseCraft")}><Wrench size={14}/><span>Defenses · C</span></button>
+   <button type="button" onClick={()=>setModal("build")}><Building2 size={14}/><span>Build · B</span></button>
+   <button type="button" onClick={()=>setModal("skills")}><Sparkles size={14}/><span>Skills · Tab</span></button>
+   {view.roverDriving&&view.nearGarage&&<button type="button" onClick={()=>setModal("garage")}><Wrench size={14}/><span>Garage</span></button>}
+   {coopRoom&&<button type="button" onClick={()=>setModal("trade")}><ArrowLeftRight size={14}/><span>Trade · T</span></button>}
+   {coopSocket&&<button type="button" className={micLive?"is-live":""} onClick={()=>void toggleCoopMic()} title={micError??"Toggle proximity voice chat"}>{micLive?<Mic size={14}/>:<MicOff size={14}/>}<span>{micLive?"Mic Live":"Mic Muted"} · M</span></button>}
+   {onOpenLobby&&<button type="button" onClick={onOpenLobby}><Users size={14}/><span>{coopRoom?`Co-op ${coopRoom.code} (${coopRoom.players.length}/4)`:"Co-op Lobby"}</span></button>}
+  </div>}
  {touchMode ? !activeDialog && !portraitBlocked && !worldFailure && <div className="flight-mobile">
    <button className="flight-scope" aria-label="Open mission map" onClick={()=>setModal("atlas")}><MarsRadarMinimap view={view} found={mission.found} target={destination} defenses={activeDefenses} stalkers={activeStalkers} remotePlayers={coopRoom?.players} selfPlayerId={coopSocket?.id??null}/></button>
    <button className="flight-track" onClick={()=>setModal("atlas")} aria-label={`Track ${labels[destination]}, ${distance} metres`}><Navigation2 size={16} style={{transform:`rotate(${relative}rad)`}}/>{distance} m</button>
@@ -372,7 +501,29 @@ export default function MarsGame({
  <aside className={`mars-sage${sageExpanded?" sage-open":" sage-collapsed"}`}><button type="button" className="mars-sage-toggle" aria-expanded={sageExpanded} onClick={()=>setSageExpanded(v=>!v)}><span className="sage-face" aria-hidden="true">⌒ ⌒</span> <b>SAGE</b> · {sageExpanded?"Hide ▴":"Hint ▾"}</button><div className="mars-sage-body"><div className="sage-comms"><span className="sage-face" aria-hidden="true">⌒ ⌒</span><p><b>SAGE:</b> {hint}</p></div><details className="sage-options"><summary>Sage &amp; audio controls</summary><div className="sage-controls"><button type="button" className="sage-follow" aria-pressed={sageFollowing} onClick={()=>setSageFollowing(value=>!value)}>{sageFollowing?"Send Sage home":"Bring Sage along"} {!touchMode&&<span>· B</span>}</button><small aria-live="polite">{sageFollowing?"Follow mode on":"Home mode on"}</small><button onClick={()=>{setVoice(true);if("speechSynthesis" in window){speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(hint))}}}>{voice?"Read again":"🔊 Read hint"}</button></div></details></div></aside>
  {!modal&&!mission.ended&&!mission.failure&&<div className="junior-shift field-objective" role="status"><small>SOL {mission.sol} / FIELD ASSIGNMENT</small><strong>{flightPlan[mission.sol-1].title}</strong><span>{mission.activityDone?"Return to":"Reach"} {labels[next]} · {mission.activityDone?"choose your plan":"interact to begin"}</span></div>}
  </>}
- {!activeDialog && !portraitBlocked && !worldFailure && !view.roverDriving && (
+ {!activeDialog && !portraitBlocked && !worldFailure && view.roverDriving && (
+    view.nearGarage ? (
+      <div className="mars-target">
+        <strong>Outpost Alpha Exploration Rover Garage</strong>
+        <span>Parked on maintenance lift · Press E to modify vehicle</span>
+        <button onClick={()=>setModal("garage")}>Modify Rover [E]</button>
+      </div>
+    ) : view.canArmMine && view.nearbyMineral && !view.nearbyMineral.collected ? (
+      <div className="mars-target">
+        <strong>Rover Robotic Arm Ore Harvester</strong>
+        <span>In range of {view.nearbyMineral.kind==="ice_core"?"Cryo-Ice":"Titanium"} · Press E to mine from cockpit</span>
+        <button onClick={()=>void handleMineNode(view.nearbyMineral!.id)}>Mine with Robotic Arm [E]</button>
+      </div>
+    ) : null
+  )}
+  {!activeDialog && !portraitBlocked && !worldFailure && placingModuleKind && (
+    <div className="mars-target">
+      <strong>Fabricating {MODULE_RECIPES[placingModuleKind].name}</strong>
+      <span>{view.hologramValid ? "Grid position valid · Click or Space to place" : "Cannot place: snap to base core and avoid obstacles"} · R to rotate · Esc to cancel</span>
+      <button onClick={()=>setPlacingModuleKind(null)}>Cancel</button>
+    </div>
+  )}
+  {!activeDialog && !portraitBlocked && !worldFailure && !view.roverDriving && (
    view.nearbyMineral && !view.nearbyMineral.collected ? (
      <div className="mars-target">
        <strong>{view.nearbyMineral.kind==="ice_core"?"Cryo-Ice Core Deposit":"Titanium Ore Vein"}</strong>
@@ -404,7 +555,10 @@ export default function MarsGame({
  {modal==="weatherTerminal"&&<WeatherTerminalModal environment={activeEnvironment} canOverride={!coopRoom||coopRoom.hostId===coopSocket?.id} onOverrideWeather={handleOverrideWeather} onClose={()=>setModal(null)}/>}
  {modal==="defenseCraft"&&<DefenseCraftModal inventory={activeInventory} teamPower={selfCoopPlayer?.supplies.powerCells??mission.resources.power} defenses={activeDefenses} playerX={view.x} playerZ={view.z} inCave={view.biome==="cave"} onDeploy={handleDeployDefense} onClose={()=>setModal(null)}/>}
  {modal==="trade"&&coopRoom&&selfCoopPlayer&&<TeamTradeModal selfPlayer={selfCoopPlayer} teammates={coopRoom.players.filter(pl=>pl.id!==selfCoopPlayer.id)} onTransfer={(toPlayerId,resource,amount)=>coopSocket?sendResourceTrade(coopSocket,{toPlayerId,resource,amount}):Promise.resolve({ok:false,error:"Not connected."})} onClose={()=>setModal(null)}/>}
- {(mission.failure||(modal&&modal!=="weatherTerminal"&&modal!=="defenseCraft"&&modal!=="trade"))&&(!mission.ended||modal==="solQuiz"||modal==="debrief")&&<div className="mars-dialog-backdrop"><MissionDialogFrame dialogRef={dialogRef}>
+ {modal==="build"&&<BaseBuildModal inventory={activeInventory} teamPower={activeInventory.powerCells} modules={activeModules} selectedKind={placingModuleKind} onSelectKind={handleSelectModule} onRotatePreview={()=>world.current?.rotateBuildingHologram?.()} onClose={()=>setModal(null)}/>}
+  {modal==="garage"&&<GarageModal installedUpgrades={activeRoverUpgrades} inventory={activeInventory} teamPower={activeInventory.powerCells} roverSpeed={view.roverSpeed??0} roverGear={view.roverGear??"N"} onUpgrade={handleRoverUpgrade} onClose={()=>setModal(null)}/>}
+  {modal==="skills"&&<SkillTreeModal callsign={callsign} totalXp={activeXp} unlockedSkills={activeSkills} onUnlockSkill={handleUnlockSkill} onClose={()=>setModal(null)}/>}
+  {(mission.failure||(modal&&modal!=="weatherTerminal"&&modal!=="defenseCraft"&&modal!=="trade"&&modal!=="build"&&modal!=="garage"&&modal!=="skills"))&&(!mission.ended||modal==="solQuiz"||modal==="debrief")&&<div className="mars-dialog-backdrop"><MissionDialogFrame dialogRef={dialogRef}>
  {mission.failure?<><h2>Try another plan</h2><p>{mission.failure}</p><p>Your pre-decision supplies are ready for a retry.</p><button onClick={()=>{send({type:"RETRY"});setModal(mapTravel?"atlas":null)}}>Retry this sol</button></>:
  modal==="fieldMenu"?<section className="flight-sheet"><small>SOL {mission.sol} / 10</small><h2>{flightPlan[mission.sol-1].title}</h2><p>{hint}</p>
  <dl>{Object.entries(mission.resources).map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>

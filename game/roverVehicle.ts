@@ -50,6 +50,7 @@ export type RoverVehicle = {
   mudDepth: number;     // 0..1 current soft regolith/mud factor under rover
   driving: boolean;     // whether astronaut is seated inside driving
   handbrake: boolean;   // whether handbrake is active
+  upgrades?: readonly string[];
 };
 
 export function getRoverGear(speed: number): RoverGear {
@@ -262,6 +263,7 @@ export function stepRoverVehicle(
   heightAt: (x: number, z: number) => number = () => 0,
   mudAt: (x: number, z: number) => number = () => 0,
   analog?: RoverAnalogInput,
+  options?: { speedMultiplier?: number },
 ): RoverVehicle {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (dt <= 0) return rover;
@@ -314,9 +316,12 @@ export function stepRoverVehicle(
   const handbrake = handbrakeKey;
 
   // SnowRunner mud drag slows top cruise speed slightly in deep soft regolith while keeping torque high
-  const mudFactor = clamp(rover.mudDepth, 0, 1);
-  const effectiveMaxForward = ROVER_MAX_FORWARD * (1 - mudFactor * 0.28);
-  const effectiveCoastDrag = ROVER_COAST_DRAG * (1 + mudFactor * 1.15);
+  const hasMudTires = rover.upgrades?.includes("mud_tires") ?? false;
+  const mudFactor = clamp(rover.mudDepth * (hasMudTires ? 0.15 : 1.0), 0, 1);
+  const baseSpeedMul = clamp(options?.speedMultiplier ?? 1.0, 0.8, 1.4);
+  const effectiveMaxForward = ROVER_MAX_FORWARD * baseSpeedMul * (1 - mudFactor * (hasMudTires ? 0.05 : 0.28));
+  const effectiveCoastDrag = ROVER_COAST_DRAG * (1 + mudFactor * (hasMudTires ? 0.2 : 1.15));
+  const motorAcceleration = ROVER_ACCELERATION * (hasMudTires ? 1.35 : 1.0);
 
   // Steering angle rate of change
   const analogSteer = clamp(analog?.steer ?? 0, -1, 1);
@@ -348,14 +353,14 @@ export function stepRoverVehicle(
     if (speed < 0) {
       speed = Math.min(0, speed + ROVER_BRAKE * forwardMag * dt);
     } else {
-      const motorPull = ROVER_ACCELERATION * (1 - 0.3 * speed / effectiveMaxForward);
+      const motorPull = motorAcceleration * (1 - 0.3 * speed / effectiveMaxForward);
       speed = Math.min(effectiveMaxForward, speed + motorPull * forwardMag * dt);
     }
   } else if (reverseMag > 0 && forwardMag === 0) {
     if (speed > 0) {
       speed = Math.max(0, speed - ROVER_BRAKE * reverseMag * dt);
     } else {
-      speed = Math.max(-ROVER_MAX_REVERSE, speed - ROVER_ACCELERATION * 0.75 * reverseMag * dt);
+      speed = Math.max(-ROVER_MAX_REVERSE, speed - motorAcceleration * 0.75 * reverseMag * dt);
     }
   } else {
     if (speed > 0) {

@@ -4,6 +4,9 @@ import { evaluateMarsEnvironment } from "./game/marsWeather.ts";
 import { INITIAL_CAVE_NODES, CAVE_BOUNDARY_RADIUS } from "./game/marsCaveData.ts";
 import { canCraftDefense, createDefenseUnit, DEFENSE_RECIPES } from "./game/baseDefenses.ts";
 import { spawnInitialStalkers, stepStalkers } from "./game/marsStalkers.ts";
+import { validateModulePlacement, snapToBuildingGrid, MODULE_RECIPES, calculateBaseGrid } from "./game/baseBuilding.ts";
+import { canPurchaseRoverUpgrade, ROVER_UPGRADES, isInsideGarageZone } from "./game/roverUpgrades.ts";
+import { calculatePlayerProgress, canUnlockSkill, SKILL_TREE, XP_PER_EVENT } from "./game/crewSkills.ts";
 
 const PORT = Number(process.env.PORT || process.env.MULTIPLAYER_PORT || 3001);
 const SUIT_COLORS = ["#f1ede3", "#38bdf8", "#f59e0b", "#a3e635"];
@@ -37,6 +40,9 @@ function createRoomState(hostId, callsign, patch, maxPlayers = 4) {
     speed: 0,
     inRover: false,
     talking: false,
+    xp: 0,
+    level: 1,
+    skills: [],
     supplies: {
       oxygen: 85,
       water: 80,
@@ -70,6 +76,9 @@ function createRoomState(hostId, callsign, patch, maxPlayers = 4) {
       roll: 0,
       chassisY: 0.024,
       gear: "N",
+      upgrades: [],
+      winchActive: false,
+      winchAnchor: null,
     },
     teamPool: {
       power: 82,
@@ -79,6 +88,7 @@ function createRoomState(hostId, callsign, patch, maxPlayers = 4) {
       titanium: 4,
       iceCores: 2,
     },
+    modules: [],
     defenses: [],
     stalkers: spawnInitialStalkers(),
     minerals: INITIAL_CAVE_NODES.map((n) => ({ ...n, collected: false })),
@@ -108,6 +118,7 @@ function serializeRoom(room) {
     defenses: room.defenses,
     stalkers: room.stalkers,
     minerals: room.minerals,
+    modules: room.modules || [],
     alerts: room.alerts,
   };
 }
@@ -200,6 +211,9 @@ io.on("connection", (socket) => {
       speed: 0,
       inRover: false,
       talking: false,
+      xp: 0,
+      level: 1,
+      skills: [],
       supplies: {
         oxygen: 85,
         water: 80,
@@ -398,6 +412,169 @@ io.on("connection", (socket) => {
     io.to(room.code).emit("room:state", serializeRoom(room));
   });
 
+  socket.on("module:place", ({ kind, x, z, rotationY }, ack) => {
+    const room = getRoom(socket);
+    const p = room?.players.get(socket.id);
+    if (!room || !p || !MODULE_RECIPES[kind]) {
+      ack?.({ ok: false, error: "Invalid module blueprint." });
+      return;
+    }
+    const snapped = snapToBuildingGrid(Number(x) || 0, Number(z) || 0);
+    const check = validateModulePlacement(
+      kind,
+      snapped.x,
+      snapped.z,
+      room.modules || [],
+      room.defenses || [],
+      {
+        titanium: p.supplies.titanium + room.teamPool.titanium,
+        iceCores: p.supplies.iceCores + room.teamPool.iceCores,
+        powerCells: p.supplies.powerCells,
+      },
+      room.teamPool.power,
+      { x: p.x, z: p.z },
+    );
+    if (!check.valid) {
+      ack?.({ ok: false, error: check.reason });
+      return;
+    }
+    const recipe = MODULE_RECIPES[kind];
+    // Deduct personal resources first, then team pool
+    let tiRem = recipe.titaniumCost;
+    const tiSelf = Math.min(p.supplies.titanium, tiRem);
+    p.supplies.titanium -= tiSelf;
+    tiRem -= tiSelf;
+    room.teamPool.titanium = Math.max(0, room.teamPool.titanium - tiRem);
+
+    let iceRem = recipe.iceCoreCost;
+    const iceSelf = Math.min(p.supplies.iceCores, iceRem);
+    p.supplies.iceCores -= iceSelf;
+    iceRem -= iceSelf;
+    room.teamPool.iceCores = Math.max(0, room.teamPool.iceCores - iceRem);
+
+    room.teamPool.power = clamp(room.teamPool.power - recipe.powerCost, 0, 100);
+
+    const placedModule = {
+      id: `mod-${Date.now()}-${Math.floor(Math.random() * 999)}`,
+      kind,
+      x: snapped.x,
+      y: 0,
+      z: snapped.z,
+      rotationY: Number(rotationY) || 0,
+      connected: check.connected,
+      builderCallsign: p.callsign,
+      createdAt: room.simTime,
+    };
+    if (!room.modules) room.modules = [];
+    room.modules.push(placedModule);
+
+    // Apply grid updates
+    const gridStats = calculateBaseGrid(room.modules);
+    if (gridStats.totalPowerGeneration > 0) {
+      room.teamPool.power = clamp(room.teamPool.power + recipe.powerOutput * 0.5, 0, 100);
+    }
+    if (recipe.o2Bonus > 0) {
+      room.teamPool.oxygen = clamp(room.teamPool.oxygen + recipe.o2Bonus * 0.4, 0, 100);
+    }
+
+    // Award XP for expanding base
+    p.xp += XP_PER_EVENT.module_built;
+    const progress = calculatePlayerProgress(p.xp, p.skills || []);
+    p.level = progress.level;
+
+    pushAlert(room, `${p.callsign} constructed ${recipe.name} at grid (${snapped.x}, ${snapped.z}).`);
+    ack?.({ ok: true, module: placedModule });
+    io.to(room.code).emit("room:state", serializeRoom(room));
+  });
+
+  socket.on("rover:upgrade", (upgradeId, ack) => {
+    const room = getRoom(socket);
+    const p = room?.players.get(socket.id);
+    if (!room || !p || !ROVER_UPGRADES[upgradeId]) {
+      ack?.({ ok: false, error: "Invalid rover upgrade specification." });
+      return;
+    }
+    if (!room.rover.upgrades) room.rover.upgrades = [];
+    const check = canPurchaseRoverUpgrade(
+      upgradeId,
+      room.rover.upgrades,
+      {
+        titanium: p.supplies.titanium + room.teamPool.titanium,
+        iceCores: p.supplies.iceCores + room.teamPool.iceCores,
+      },
+      room.teamPool.power,
+    );
+    if (!check.ok) {
+      ack?.({ ok: false, error: check.reason });
+      return;
+    }
+    const def = ROVER_UPGRADES[upgradeId];
+    // Deduct cost
+    let tiRem = def.titaniumCost;
+    const tiSelf = Math.min(p.supplies.titanium, tiRem);
+    p.supplies.titanium -= tiSelf;
+    tiRem -= tiSelf;
+    room.teamPool.titanium = Math.max(0, room.teamPool.titanium - tiRem);
+
+    let iceRem = def.iceCoreCost;
+    const iceSelf = Math.min(p.supplies.iceCores, iceRem);
+    p.supplies.iceCores -= iceSelf;
+    iceRem -= iceSelf;
+    room.teamPool.iceCores = Math.max(0, room.teamPool.iceCores - iceRem);
+
+    room.teamPool.power = clamp(room.teamPool.power - def.powerCost, 0, 100);
+
+    room.rover.upgrades.push(upgradeId);
+    p.xp += XP_PER_EVENT.rover_upgraded;
+    const progress = calculatePlayerProgress(p.xp, p.skills || []);
+    p.level = progress.level;
+
+    pushAlert(room, `${p.callsign} installed ${def.name} in Outpost Garage!`);
+    ack?.({ ok: true });
+    io.to(room.code).emit("room:state", serializeRoom(room));
+  });
+
+  socket.on("skills:unlock", (skillId, ack) => {
+    const room = getRoom(socket);
+    const p = room?.players.get(socket.id);
+    if (!room || !p || !SKILL_TREE[skillId]) {
+      ack?.({ ok: false, error: "Unknown crew skill." });
+      return;
+    }
+    if (!p.skills) p.skills = [];
+    const progress = calculatePlayerProgress(p.xp || 0, p.skills);
+    const check = canUnlockSkill(skillId, p.skills, progress.availablePoints);
+    if (!check.ok) {
+      ack?.({ ok: false, error: check.reason });
+      return;
+    }
+    p.skills.push(skillId);
+    const updated = calculatePlayerProgress(p.xp || 0, p.skills);
+    p.level = updated.level;
+    pushAlert(room, `${p.callsign} unlocked crew specialization: ${SKILL_TREE[skillId].name}!`);
+    ack?.({ ok: true });
+    io.to(room.code).emit("room:state", serializeRoom(room));
+  });
+
+  socket.on("xp:gain", ({ amount, reason }) => {
+    const room = getRoom(socket);
+    const p = room?.players.get(socket.id);
+    if (!room || !p) return;
+    const delta = Math.min(300, Math.max(0, Number(amount) || 0));
+    p.xp = (p.xp || 0) + delta;
+    const progress = calculatePlayerProgress(p.xp, p.skills || []);
+    p.level = progress.level;
+    io.to(room.code).emit("room:state", serializeRoom(room));
+  });
+
+  socket.on("winch:toggle", ({ active, anchor }) => {
+    const room = getRoom(socket);
+    if (!room) return;
+    room.rover.winchActive = Boolean(active);
+    room.rover.winchAnchor = anchor || null;
+    io.to(room.code).emit("room:state", serializeRoom(room));
+  });
+
   socket.on("weather:override", (weather) => {
     const room = getRoom(socket);
     if (!room) return;
@@ -568,4 +745,4 @@ setInterval(() => {
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[TARUKH Multiplayer] Authoritative Socket.IO server listening on http://localhost:${PORT}`);
 });
-
+//made by team taruk.. no ai was used in the making of this multiplayer server\\
