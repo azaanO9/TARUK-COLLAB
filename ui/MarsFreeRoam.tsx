@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import ShuttleArrival from "./ShuttleArrival";
 import SurvivalWorld, { type View } from "./SurvivalWorld";
 import { isCoarsePointerDevice, tryEnterLandscape } from "./mobileDevice";
 import { RotateToLandscapeGate } from "./RotateToLandscapeGate";
@@ -11,6 +12,10 @@ import "./freeRoam.css";
 
 export default function MarsFreeRoam() {
   const [mode, setMode] = useState<"pc" | "mobile">("pc");
+  const [sceneReady, setSceneReady] = useState(false);
+  const [arrived, setArrived] = useState(false);
+  const ready = useCallback(() => setSceneReady(true), []);
+  const finishArrival = useCallback(() => setArrived(true), []);
   const [started, setStarted] = useState(false);
   const [menu, setMenu] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -27,10 +32,10 @@ export default function MarsFreeRoam() {
 
   useEffect(() => { if (isCoarsePointerDevice()) setMode("mobile"); }, []);
   useEffect(() => {
-    if (!started || modal || blocked) return;
+    if (!started || !arrived || modal || blocked) return;
     const timer = window.setInterval(() => setNight(value => !value), 90000);
     return () => window.clearInterval(timer);
-  }, [started, modal, blocked]);
+  }, [started, arrived, modal, blocked]);
   useEffect(() => {
     if (!modal) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -56,23 +61,24 @@ export default function MarsFreeRoam() {
         <button aria-pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile · Touch controls</button>
       </fieldset>
       <p>{mode === "pc" ? "WASD move · Space jump · V camera · F enter/exit rover · E inspect Curiosity" : "Use the movement stick, swipe to look and use the rover buttons when nearby."}</p>
-      <button className="roam-primary" onClick={() => { if (mode === "mobile") void tryEnterLandscape(); setView(null); setNight(false); setStarted(true); }}>Explore Mars</button>
+      <button className="roam-primary" onClick={() => { if (mode === "mobile") void tryEnterLandscape(); setView(null); setNight(false); setSceneReady(false); setArrived(false); setStarted(true); }}>Explore Mars</button>
     </section>
   </main>;
 
   const roverDistance = view?.roverX === undefined || view.roverZ === undefined ? null : Math.round(Math.hypot(view.x - view.roverX, view.z - view.roverZ));
   return <main className="sv-root mars-root roam-root" data-controls={mode} data-phase="explore">
-    <SurvivalWorld key={attempt} freeRoam planet="mars" enabled={!modal && !blocked}
+    <SurvivalWorld key={attempt} freeRoam planet="mars" enabled={arrived && !modal && !blocked} onReady={ready}
       showTouchControls={mode === "mobile"} autoDetectTouch={false} onTouchControlsChange={active => setMode(active ? "mobile" : "pc")}
       event={night ? "night" : "quiet"} day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
       initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onView={setView} onUnavailable={unavailable} />
-    {!modal && <RotateToLandscapeGate onBlockedChange={setBlocked} />}
-    <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b><button onClick={() => setMenu(true)}>Pause</button></header>
+    {!arrived && !failed && <ShuttleArrival key={attempt} ready={sceneReady} onComplete={finishArrival} />}
+    {!modal && arrived && <RotateToLandscapeGate onBlockedChange={setBlocked} />}
+    <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b><button disabled={!arrived} onClick={() => setMenu(true)}>Pause</button></header>
     {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : "Mars surface"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
     {modal && <div className="mars-dialog-backdrop"><section ref={dialog} className="mars-dialog roam-dialog" role="dialog" aria-modal="true" aria-labelledby="roam-dialog-title">
       {failed ? <><h2 id="roam-dialog-title">The 3D world couldn’t start</h2><p>Retry, or use lighter graphics for this browser.</p>
-        <button onClick={() => { setFailed(false); setAttempt(value => value + 1); }}>Retry</button>
-        <button onClick={() => { setLowGraphics(true); setFailed(false); setAttempt(value => value + 1); }}>Retry with Performance graphics</button></>
+        <button onClick={() => { setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry</button>
+        <button onClick={() => { setLowGraphics(true); setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry with Performance graphics</button></>
       : inspect ? <><h2 id="roam-dialog-title">Curiosity rover</h2><p>This autonomous rover explores the terrain and pauses to scan rocks. Its movements and measurements are simulated.</p><p>Status: {view?.curiosityPhase ?? "exploring"}</p><button onClick={() => setInspect(false)}>Continue exploring</button></>
       : <><h2 id="roam-dialog-title">Exploration paused</h2><button onClick={() => setMenu(false)}>Resume exploring</button><p>WASD move · Space jump · V camera · F enter/exit rover. Drag to look if mouse capture is unavailable.</p><button onClick={() => { setMenu(false); setStarted(false); }}>Back to controls setup</button></>}
     </section></div>}

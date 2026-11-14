@@ -19,3 +19,5 @@ The public game is https://azaano9.github.io/TARUK-COLLAB/. Pushes to `main` run
 Mouse look uses pointer capture or click-and-drag; unpressed cursor movement does not rotate the camera. Cave portals and their entry triggers are disabled. Weather remains unchanged.
 
 The exploration area is now 352 by 352 world metres (four times the previous area), with extended rover bounds, rocks spread into the new area and the decorative canyon moved beyond the playable boundary. It remains a finite world with the same graphics; no new game modes or building mechanics were added.
+
+A lightweight original shuttle arrival animation covers scene preparation. Terrain, models and shaders load concurrently behind it. Exploration unlocks only after both scene readiness and the 5.5-second arrival have completed; slower loads keep the arrival visible. Reduced-motion devices show a still illustration and shorter minimum display. Failed loading still shows the retry dialog.

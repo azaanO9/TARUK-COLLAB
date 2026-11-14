@@ -99,6 +99,7 @@ export type View = {
 };
 type Props = {
   freeRoam?: boolean;
+  onReady?: () => void;
   enabled: boolean;
   showTouchControls: boolean;
   autoDetectTouch?: boolean;
@@ -1859,6 +1860,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       setLoadingStage("Launching exploration…");
       setLoadingProgress(100);
       setLoaded(true);
+      current.current.onReady?.();
       element.dataset.loadMs = (performance.now()-loadStarted).toFixed(0);
     }
     mount().catch(() => {

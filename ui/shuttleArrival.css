@@ -1,0 +1,8 @@
+.shuttle-arrival{position:absolute;inset:0;z-index:90;overflow:hidden;background:radial-gradient(ellipse at 70% 35%,#44302f,#101925 50%,#070e18);color:#fff4e4;display:grid;place-items:center;font:16px/1.5 system-ui;isolation:isolate}
+.arrival-stars{position:absolute;inset:0;background-image:radial-gradient(1px 1px at 10% 18%,#fff 90%,transparent),radial-gradient(2px 2px at 70% 12%,#d1eaff 90%,transparent),radial-gradient(1px 1px at 30% 44%,#fff 90%,transparent),radial-gradient(1px 1px at 90% 38%,#fff 90%,transparent);background-size:370px 260px;opacity:.7}
+.arrival-planet{position:absolute;width:135vw;height:95vw;border-radius:50%;left:12%;top:42%;background:radial-gradient(ellipse at 25% 5%,#edbb87,#bc704b 24%,#743c2b 48%,#221b23 70%);box-shadow:0 -14px 55px #f7b97b55;transform:rotate(-14deg)}
+.arrival-craft{position:absolute;width:min(640px,78vw);top:14%;left:calc(50% - min(320px,39vw));filter:drop-shadow(0 22px 24px #060b1880);animation:shuttle-approach 5.5s cubic-bezier(.2,.65,.25,1) both}
+.arrival-caption{position:absolute;bottom:max(7%,24px);left:8%;text-shadow:0 2px 14px #14151b}.arrival-caption h1{font-size:clamp(28px,5vw,52px);margin:4px 0 12px}.arrival-caption p{margin:6px 0}.arrival-caption p:first-child{letter-spacing:.18em;font-size:14px}.arrival-caption span{font-size:14px;opacity:.75}
+@keyframes shuttle-approach{from{transform:translate(-55vw,-14vh) scale(.35) rotate(9deg)}to{transform:translate(0,0) scale(1) rotate(-6deg)}}
+@media(max-height:500px){.arrival-craft{width:44vw;left:48%;top:0}.arrival-caption{bottom:8%;left:6%}}
+@media(prefers-reduced-motion:reduce){.arrival-craft{animation:none;transform:rotate(-6deg)}}
