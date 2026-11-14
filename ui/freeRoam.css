@@ -10,39 +10,244 @@
 
 .landing-caption{position:absolute;bottom:7%;left:50%;transform:translateX(-50%);z-index:35;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 24px;border-radius:14px;background:#172027dd;color:#fff4e4;font:16px/1.4 system-ui;white-space:nowrap}.landing-caption button{min-height:44px;padding:10px 20px;border:1px solid #a5ced0;border-radius:8px;background:#253d48;color:white;font:inherit;cursor:pointer}.landing-caption button:focus-visible{outline:3px solid #ffe0a0}
 
-.roam-minimap{position:absolute;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(16px,env(safe-area-inset-bottom));z-index:21;width:184px;color:#fff2df;font:14px/1.3 system-ui;pointer-events:none;text-align:center;background:#172027e8;border:1px solid #d9bc8d80;border-radius:12px;overflow:hidden}
-.roam-minimap button{pointer-events:auto;width:100%;min-height:44px;border:0;border-bottom:1px solid #d9bc8d55;background:#24313b;color:inherit;font:inherit;cursor:pointer}
-.roam-minimap button:focus-visible{outline:3px solid #a6e4ff;outline-offset:-4px}
-.roam-minimap svg{display:block;width:160px;height:160px;margin:4px auto}
-.roam-minimap svg text{font:700 14px system-ui}
-.roam-minimap p{margin:5px 6px;font-size:14px;line-height:1.3}
-.roam-map-mode{font-weight:700;color:#bdeaff}
-.roam-minimap .roam-lidar-status{font-variant-numeric:tabular-nums;min-height:18px;color:#bdeaff}
-.roam-minimap[data-blocked="true"] .roam-lidar-status{color:#ffce84;font-weight:700}
-.roam-minimap .roam-map-legend{padding-top:5px;margin-bottom:8px;border-top:1px solid #d9bc8d33}
-.roam-lidar-sweep{transform-origin:100px 100px;animation:roam-lidar-sweep 4s linear infinite}
-@keyframes roam-lidar-sweep{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.roam-lidar-sweep{animation:none;opacity:.4}}
+/* GTA 5 Style Rectangular Minimap with Topographic Background & Liquid Glass Blur */
+.roam-minimap{
+  position:absolute;
+  left:max(16px,env(safe-area-inset-left));
+  right:auto;
+  bottom:max(16px,env(safe-area-inset-bottom));
+  z-index:21;
+  width:172px;
+  color:#f8fafc;
+  font:12px/1.3 system-ui,sans-serif;
+  pointer-events:none;
+  text-align:center;
+  background:linear-gradient(165deg, rgba(11, 20, 32, 0.78) 0%, rgba(6, 12, 20, 0.7) 50%, rgba(3, 7, 13, 0.86) 100%);
+  backdrop-filter:blur(12px) saturate(180%) contrast(106%);
+  -webkit-backdrop-filter:blur(12px) saturate(180%) contrast(106%);
+  border:1px solid rgba(255, 255, 255, 0.16);
+  border-radius:10px;
+  box-shadow:0 14px 32px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  overflow:hidden;
+  transition:all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.roam-map-topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:4px 8px 3px 8px;
+  border-bottom:1px solid rgba(255, 255, 255, 0.08);
+  background:rgba(255, 255, 255, 0.02);
+}
+.roam-map-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-size:9.5px;
+  font-weight:800;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:#38bdf8;
+}
+.roam-badge-dot{
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#38bdf8;
+  box-shadow:0 0 6px #38bdf8;
+}
+.roam-map-toggle{
+  pointer-events:auto;
+  width:18px;
+  height:18px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(255, 255, 255, 0.14);
+  border-radius:4px;
+  background:rgba(255, 255, 255, 0.06);
+  color:#94a3b8;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all 0.15s ease;
+}
+.roam-map-toggle:hover{
+  background:rgba(255, 255, 255, 0.16);
+  color:#ffffff;
+}
+.roam-map-toggle:focus-visible{
+  outline:2px solid #38bdf8;
+  outline-offset:1px;
+}
+.roam-radar-frame{
+  padding:4px 5px 0;
+  display:flex;
+  justify-content:center;
+}
+.roam-radar-svg.roam-gta-rect-svg{
+  display:block;
+  width:162px;
+  height:119px;
+  margin:0 auto;
+  filter:drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+.roam-radar-svg text{
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  user-select:none;
+}
+
+/* GTA 5 Tri-Bars below rectangular map */
+.roam-gta-bars{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:3px;
+  padding:3px 5px 2px;
+}
+.roam-gta-bar{
+  height:3.5px;
+  background:rgba(0, 0, 0, 0.65);
+  border:1px solid rgba(255, 255, 255, 0.12);
+  border-radius:1.5px;
+  overflow:hidden;
+  position:relative;
+}
+.roam-gta-bar-fill{
+  height:100%;
+  transition:width 0.3s ease, background 0.3s ease;
+}
+.roam-bar-clearance.is-clear .roam-gta-bar-fill{
+  background:linear-gradient(90deg, #16a34a, #22c55e);
+  box-shadow:0 0 5px rgba(34, 197, 94, 0.6);
+}
+.roam-bar-clearance.is-hazard .roam-gta-bar-fill{
+  background:linear-gradient(90deg, #dc2626, #ef4444);
+  box-shadow:0 0 6px rgba(239, 68, 68, 0.8);
+  animation:roam-hazard-pulse 1s ease infinite;
+}
+@keyframes roam-hazard-pulse{
+  0%,100%{opacity:1}
+  50%{opacity:0.5}
+}
+.roam-bar-telemetry .roam-gta-bar-fill{
+  background:linear-gradient(90deg, #0284c7, #38bdf8);
+  box-shadow:0 0 5px rgba(56, 189, 248, 0.6);
+}
+.roam-bar-special .roam-gta-bar-fill{
+  background:linear-gradient(90deg, #ca8a04, #eab308);
+  box-shadow:0 0 5px rgba(234, 179, 8, 0.6);
+}
+
+/* GTA 5 Location & Telemetry readout */
+.roam-gta-readout{
+  padding:2px 7px 3px;
+  text-align:left;
+}
+.roam-gta-loc{
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-size:9.5px;
+  font-weight:800;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:#f8fafc;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.roam-gta-sub{
+  font-family:ui-monospace,'SF Mono',Consolas,monospace;
+  font-size:8.5px;
+  font-weight:600;
+  letter-spacing:0.04em;
+  color:#7dd3fc;
+  margin-top:1px;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.roam-gta-sub.is-blocked{
+  color:#f87171;
+  font-weight:700;
+  text-shadow:0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+/* Compact Minimap Legend with Color Dots */
+.roam-map-legend{
+  display:flex;
+  align-items:center;
+  justify-content:space-around;
+  padding:3px 6px 4px;
+  border-top:1px solid rgba(255, 255, 255, 0.08);
+  font-size:8.5px;
+  color:#94a3b8;
+  font-family:system-ui,sans-serif;
+}
+.roam-legend-item{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+}
+.roam-legend-dot{
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  display:inline-block;
+}
+.dot-shuttle{
+  background:#f59e0b;
+  box-shadow:0 0 4px #f59e0b;
+}
+.dot-crew{
+  background:#38bdf8;
+  box-shadow:0 0 4px #38bdf8;
+}
+.dot-scout{
+  background:#c084fc;
+  box-shadow:0 0 4px #c084fc;
+}
 
 /* Keep the map at the lower left, above the existing thumb/steering controls. */
-.roam-root[data-controls="mobile"] .roam-minimap{width:146px;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 100px)}
-.roam-root[data-controls="mobile"] .roam-minimap[data-driving="true"]{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px)}
-.roam-root[data-controls="mobile"] .roam-minimap svg{width:104px;height:104px}
-.roam-root[data-controls="mobile"] .roam-map-legend{display:none}
-.roam-root[data-controls="mobile"] .roam-info{left:174px;max-width:calc(100vw - 290px)}
-.roam-root[data-controls="mobile"]:has(.roam-minimap[data-driving="true"]) .roam-info{display:none}
-.roam-root[data-controls="mobile"] .roam-map-mode{padding-right:38px;min-height:36px;display:grid;place-content:center}
-.roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] button{position:absolute;right:0;top:0;width:44px;height:44px;font-size:0;border-radius:0 10px 0 10px;background:#24313bcc;border:1px solid #d9bc8d55}
-.roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] button::after{content:"−";font-size:24px}
+.roam-root[data-controls="mobile"] .roam-minimap{
+  width:138px;
+  bottom:calc(max(14px,env(safe-area-inset-bottom)) + 100px);
+}
+.roam-root[data-controls="mobile"] .roam-minimap[data-driving="true"]{
+  bottom:calc(max(14px,env(safe-area-inset-bottom)) + 76px);
+}
+.roam-root[data-controls="mobile"] .roam-minimap .roam-radar-svg{
+  width:128px;
+  height:94px;
+}
+.roam-root[data-controls="mobile"] .roam-map-legend{
+  display:none;
+}
+.roam-root[data-controls="mobile"] .roam-info{
+  left:154px;
+  max-width:calc(100vw - 260px);
+}
+.roam-root[data-controls="mobile"]:has(.roam-minimap[data-driving="true"]) .roam-info{
+  display:none;
+}
+.roam-root[data-controls="mobile"] .roam-map-toggle{
+  width:22px;
+  height:22px;
+}
 @media(max-width:850px){
- .roam-minimap{width:146px}
- .roam-minimap svg{width:126px;height:126px}
- .roam-map-legend{display:none}
+  .roam-minimap{width:138px}
+  .roam-minimap .roam-radar-svg{width:128px;height:94px}
+  .roam-map-legend{display:none}
 }
 @media(max-height:360px){
- .roam-minimap svg,.roam-root[data-controls="mobile"] .roam-minimap svg{width:88px;height:88px}
- .roam-map-legend{display:none}
+  .roam-minimap .roam-radar-svg,
+  .roam-root[data-controls="mobile"] .roam-minimap .roam-radar-svg{width:104px;height:76px}
+  .roam-map-legend{display:none}
 }
-@media(max-height:340px){
- .roam-root[data-controls="mobile"] .roam-minimap[data-driving="false"] .roam-map-mode{display:none}
+
+/* Aerospace liquid glass telemetry HUD for exploration rover */
+.roam-root .sv-rover-hud {
+  bottom: max(28px, env(safe-area-inset-bottom));
 }

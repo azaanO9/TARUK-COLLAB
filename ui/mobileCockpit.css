@@ -52,14 +52,37 @@
 .junior-root[data-controls="mobile"] .sv-world .sv-look-controls {top:max(10px,env(safe-area-inset-top));right:calc(max(14px,env(safe-area-inset-right)) + 51px);left:auto;width:auto;z-index:8}
 .junior-root[data-controls="mobile"] .sv-look-controls summary {display:grid;place-items:center;width:44px;height:44px;min-width:0;padding:0;margin-left:auto;border-radius:50%;color:white;background:#10222ccc}
 .junior-root[data-controls="mobile"] .sv-look-controls details:not([open]) {padding:0;background:none;border:0}
-.junior-root[data-controls="mobile"] .sv-world .sv-rover-hud {
-  left:50%; right:auto; top:auto; bottom:max(10px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:auto; pointer-events:none;
-  background:linear-gradient(155deg,rgba(24,46,62,.42),rgba(10,22,32,.26));
-  backdrop-filter:blur(20px) saturate(165%); -webkit-backdrop-filter:blur(20px) saturate(165%);
-  border:1px solid rgba(255,255,255,.28); border-radius:16px;
-  box-shadow:0 10px 28px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.32);
+.junior-root[data-controls="mobile"] .sv-world .sv-rover-hud,
+.roam-root[data-controls="mobile"] .sv-world .sv-rover-hud {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: auto;
+  pointer-events: none;
+  background: linear-gradient(
+    140deg,
+    rgba(14, 25, 41, 0.46) 0%,
+    rgba(8, 16, 28, 0.36) 45%,
+    rgba(3, 7, 16, 0.52) 100%
+  );
+  backdrop-filter: blur(24px) saturate(190%) contrast(108%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%) contrast(108%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 18px;
+  box-shadow:
+    0 16px 40px -6px rgba(0, 0, 0, 0.65),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 24px -2px rgba(56, 189, 248, 0.15);
 }
-.junior-root[data-controls="mobile"] .sv-rover-exit-btn,.junior-root[data-controls="mobile"] .sv-gear-rail {display:none}
+.junior-root[data-controls="mobile"] .sv-rover-exit-btn,
+.roam-root[data-controls="mobile"] .sv-rover-exit-btn,
+.junior-root[data-controls="mobile"] .sv-gear-rail,
+.roam-root[data-controls="mobile"] .sv-gear-rail {
+  display: none;
+}
 .junior-root[data-controls="mobile"] .mars-target,
 .junior-root .mars-target {
   top: auto !important;
