@@ -247,7 +247,17 @@
   .roam-map-legend{display:none}
 }
 
-/* Aerospace liquid glass telemetry HUD for exploration rover */
-.roam-root .sv-rover-hud {
-  bottom: max(28px, env(safe-area-inset-bottom));
+/* Aerospace liquid glass telemetry HUD for exploration rover (consistent across 3rd person and cockpit views) */
+.roam-root .sv-rover-hud,
+.roam-root .sv-rover-hud-cockpit {
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: max(24px, env(safe-area-inset-bottom)) !important;
+  transform: translateX(-50%) !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
 }

@@ -1542,17 +1542,18 @@
 .sv-rover-exit-btn:active {
   transform: translateY(0);
 }
-/* Keep the fitted cockpit instruments visible while retaining an accessible HUD. */
-@media (min-width: 801px) {
-  .sv-rover-hud-cockpit { bottom: auto; top: 150px; left: auto; right: 24px; transform: none; padding: 7px 10px; gap: 10px; }
-  .sv-rover-hud-cockpit .sv-rover-hints,
-  .sv-rover-hud-cockpit .sv-gear-rail,
-  .sv-rover-hud-cockpit .sv-rover-gearbox small,
-  .sv-rover-hud-cockpit .sv-rover-speedometer small { display: none; }
-  .sv-rover-hud-cockpit .sv-rover-gearbox,
-  .sv-rover-hud-cockpit .sv-rover-speedometer { display: flex; padding-right: 10px; }
-  .sv-rover-hud-cockpit .sv-gear-active,
-  .sv-rover-hud-cockpit .sv-rover-speedometer strong { font-size: 20px; }
+/* Cockpit interior camera HUD stays consistent with third-person horizontal bottom-center layout */
+.sv-rover-hud-cockpit {
+  position: absolute;
+  bottom: 84px;
+  top: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
 }
 /* --- Rotate To Landscape Gate (Portrait Mobile Lock) --- */
 .sv-rotate-gate {
