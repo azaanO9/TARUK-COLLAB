@@ -1,6 +1,7 @@
 "use client";
 import { createStreamedMars } from "./world/streamedMars";
-import { streamingCandidate, streamingBenchmarkPass, STREAM_LIMIT } from "../game/terrainStreaming";
+import { streamingBudget, STREAM_LIMIT } from "../game/terrainStreaming";
+import { nightAmount, daylightPhase } from "../game/daylightCycle";
 import { safeLookDelta } from "../game/mouseLook";
 import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -72,6 +73,7 @@ function shortestAngleDiff(from: number, to: number): number {
 }
 
 export type View = {
+  lightPhase?: string;
   x: number;
   z: number;
   yaw: number;
@@ -239,7 +241,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const gpuInfo = gl.getExtension("WEBGL_debug_renderer_info");
       const gpuName = gpuInfo ? String(gl.getParameter(gpuInfo.UNMASKED_RENDERER_WEBGL)) : "";
       let autoProfile = startingProfile(gpuName, navigator.hardwareConcurrency, (navigator as Navigator & {deviceMemory?:number}).deviceMemory);
-      const eligibleStreaming = !!props.freeRoam && streamingCandidate(gpuName,navigator.hardwareConcurrency,(navigator as Navigator & {deviceMemory?:number}).deviceMemory,mobileMars,props.initialQuality ?? "auto");
+      const terrainBudget = streamingBudget(gpuName,navigator.hardwareConcurrency,(navigator as Navigator & {deviceMemory?:number}).deviceMemory,mobileMars,props.initialQuality ?? "auto");
       const effectiveQuality = () => cameraSettings.current.quality === "auto" ? autoProfile : cameraSettings.current.quality;
       const profileLabel = () => autoProfile === "auto" ? "Balanced" : autoProfile === "high" ? "High" : "Performance";
       setAutoLabel(profileLabel());
@@ -487,6 +489,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       sg.setAttribute("position", new T.BufferAttribute(stars, 3));
       const starField = new T.Points(sg, new T.PointsMaterial({ size: 0.3, color: 0xdbe7ed }));
       scene.add(starField);
+      let daylightElapsed=0;
+      const daySky=new T.Color(0xe3b6a1),nightSky=new T.Color(0x111824),dayFog=new T.Color(0xb3866b),nightFog=new T.Color(0x232638);
+      const dayAmbient=new T.Color(0xc5ccd5),nightAmbient=new T.Color(0x7f9dca),dayGround=new T.Color(0x77543e),nightGround=new T.Color(0x312a36);
+      const dayLight=new T.Color(0xffe5c7),nightLight=new T.Color(0x9ab4dc),sunsetLight=new T.Color(0xf2b18a),sunDirection=MARS_SUN_DIRECTION.clone();
+      if(props.freeRoam){sun.material.transparent=true;sun.material.depthWrite=false;earth.material.transparent=true;earth.material.depthWrite=false;starField.material.transparent=true;starField.material.depthWrite=false;}
       let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
       let occlusion: import("three/examples/jsm/postprocessing/GTAOPass.js").GTAOPass | null = null;
       let bloom: import("three/examples/jsm/postprocessing/UnrealBloomPass.js").UnrealBloomPass | null = null;
@@ -1151,7 +1158,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         last = time;
         const p = current.current;
         if(streaming){
-          streaming.update(walker.x,walker.z,lastQuality==="performance" ? .7 : 2);
+          streaming.update(walker.x,walker.z,lastQuality==="performance" ? .7 : terrainBudget.generationMs);
           skyMesh?.position.set(walker.x,0,walker.z);
           starField.position.set(walker.x,0,walker.z);
         }
@@ -1302,6 +1309,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           lidar = scanRoverLidar(rover, lidarObstacles);
           lastLidarScan = time;
         }
+        if(props.freeRoam && p.enabled && !dropRunning) daylightElapsed+=dt;
+        const nightBlend=props.freeRoam ? nightAmount(daylightElapsed) : 0;
         const eclipse = p.event === "eclipse" || p.event === "night" || p.weather === "CRYO_FREEZE";
         const storm = p.weather === "DUST_STORM";
         const flare = p.weather === "SOLAR_FLARE";
@@ -1518,7 +1527,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
         }
         if (helmetLamp && helmetTarget) {
-          const lampActive = inCave || storm || eclipse;
+          const lampActive = inCave || storm || eclipse || props.freeRoam;
           helmetLamp.intensity = inCave ? 7.2 : (storm || eclipse) && !rover.driving ? 2.6 : 0;
           if (lampActive) {
             const hy = activeHeightAt(walker.x, walker.z) + 1.75 + jump.height;
@@ -1585,7 +1594,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if (scene.fog && "color" in scene.fog) {
             const f = scene.fog as import("three").FogExp2;
             f.color.setHex(targetFog);
-            f.density = streaming ? Math.max(.01,targetDensity) : targetDensity;
+            f.density = streaming ? Math.max(terrainBudget.fog,targetDensity) : targetDensity;
           }
 
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
@@ -1606,6 +1615,25 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           eclipse ? 65 : 40,
           eclipse ? -179 : -170,
         );
+        if(props.freeRoam && !inCave){
+          const n=nightBlend,twilight=4*n*(1-n);
+          light.intensity=T.MathUtils.lerp(3.4,.22,n);
+          ambient.intensity=T.MathUtils.lerp(.65,.60,n);
+          ambient.color.copy(dayAmbient).lerp(nightAmbient,n);ambient.groundColor.copy(dayGround).lerp(nightGround,n);
+          light.color.copy(dayLight).lerp(sunsetLight,twilight*.55).lerp(nightLight,n);
+          scene.environmentIntensity=T.MathUtils.lerp(.85,.15,n);
+          sunDirection.set(MARS_SUN_DIRECTION.x,T.MathUtils.lerp(.25,-.18,n),MARS_SUN_DIRECTION.z).normalize();
+          if(marsSky){marsSky.uniforms.night.value=n;marsSky.uniforms.sunDirection.value.copy(sunDirection);}
+          light.position.set(sunDirection.x*100+light.target.position.x,Math.max(.18,sunDirection.y)*100,sunDirection.z*100+light.target.position.z);
+          sun.visible=true;sun.position.copy(sunDirection).multiplyScalar(185);sun.position.x+=walker.x;sun.position.z+=walker.z;sun.material.opacity=1-n;
+          starField.visible=true;starField.material.opacity=n*n;earth.visible=true;earth.material.opacity=n*n;earth.position.set(walker.x-70,65,walker.z-179);
+          (scene.background as import("three").Color).copy(daySky).lerp(nightSky,n);
+          const fog=scene.fog as import("three").FogExp2;fog.color.copy(dayFog).lerp(nightFog,n);fog.density=terrainBudget.fog;
+          if(dust)(dust.material as import("three").ShaderMaterial).uniforms.opacity.value=reduced.matches?.025:T.MathUtils.lerp(.09,.045,n);
+          if(helmetLamp)helmetLamp.intensity=rover.driving?0:2.6*n;
+          if(astronautShadow)astronautShadow.material.opacity=Math.max(.12,(activeTier.shadows?.18:.44)-jump.height*.16)*T.MathUtils.lerp(1,.45,n);
+          if(bigRover){const intensity=T.MathUtils.lerp(rover.driving?1.4:0,8.5,n);bigRover.headlightL.intensity=intensity;bigRover.headlightR.intensity=intensity;}
+        }
         if (time - lastAimCheck >= 80) {
         lastAimCheck = time;
         ray.setFromCamera(center, camera);
@@ -1730,6 +1758,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           current.current.onView({
             x: walker.x,
             z: walker.z,
+            lightPhase:props.freeRoam ? daylightPhase(daylightElapsed) : undefined,
             yaw: cameraYaw,
             target: hover,
             distance: range,
@@ -1762,6 +1791,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         metricFrames++;
         if (time - metricStart > 1000) {
           element.dataset.cameraFov = String(camera.fov);
+          element.dataset.daylightPhase=daylightPhase(daylightElapsed);
+          element.dataset.nightBlend=nightBlend.toFixed(4);
           element.dataset.worldX = walker.x.toFixed(2);
           element.dataset.worldZ = walker.z.toFixed(2);
           element.dataset.terrainChunks = String(streaming?.count() ?? 0);
@@ -1889,30 +1920,20 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       }
       if (cancelled) return;
-      if(eligibleStreaming) {
-        setLoadingStage("Checking graphics headroom…");
-        const samples:number[]=[];
-        for(let i=0;i<16;i++){
+      if(props.freeRoam && props.planet==="mars") {
+        setLoadingStage("Preparing the expanding Mars landscape…");
+        const ground=model.root.getObjectByName("mars-ground") as import("three").Mesh;
+        streaming=createStreamedMars(model.root,ground,baseHeight,{...terrainBudget,obstacles:model.obstacles});
+        streaming.update(walker.x,walker.z,terrainBudget.generationMs);
+        while(streaming.pending()){
           await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
           if(cancelled)return;
-          const start=performance.now();
-          renderer.render(scene,camera);configureEffects(true);gl.finish();
-          if(i>=4)samples.push(performance.now()-start);
+          streaming.update(walker.x,walker.z,terrainBudget.generationMs);
         }
-        if(streamingBenchmarkPass(samples)) {
-          const ground=model.root.getObjectByName("mars-ground") as import("three").Mesh;
-          streaming=createStreamedMars(model.root,ground,baseHeight);
-          streaming.update(walker.x,walker.z,2);
-          while(streaming.pending()){
-            await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
-            if(cancelled)return;
-            streaming.update(walker.x,walker.z,4);
-          }
-          const backdrop=model.root.getObjectByName("mars-backdrop");if(backdrop)backdrop.visible=false;
-          (scene.fog as import("three").FogExp2).density=.01;
-          await renderer.compileAsync(scene,camera);
-          renderer.render(scene,camera);configureEffects(true);
-        }
+        const backdrop=model.root.getObjectByName("mars-backdrop");if(backdrop)backdrop.visible=false;
+        (scene.fog as import("three").FogExp2).density=terrainBudget.fog;
+        await renderer.compileAsync(scene,camera);
+        renderer.render(scene,camera);configureEffects(true);
       }
       if(cancelled)return;
       current.current.onTerrainMode?.(!!streaming);

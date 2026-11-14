@@ -6,7 +6,7 @@ export const MARS_SUN_DIRECTION = new T.Vector3(-80, 46, -160).normalize();
 export function createMarsSkyMaterial(environment = false) {
   return new T.ShaderMaterial({
     side: T.BackSide, depthWrite: false,
-    uniforms: { night: { value: 0 }, sunDirection: { value: MARS_SUN_DIRECTION }, environment: { value: environment ? 1 : 0 } },
+    uniforms: { night: { value: 0 }, sunDirection: { value: MARS_SUN_DIRECTION.clone() }, environment: { value: environment ? 1 : 0 } },
     vertexShader: `varying vec3 direction; void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
     fragmentShader: `varying vec3 direction; uniform float night; uniform float environment; uniform vec3 sunDirection;
       void main(){
@@ -21,6 +21,8 @@ export function createMarsSkyMaterial(environment = false) {
         float sunPower=mix(170.0,360.0,environment);
         float sunStrength=mix(1.0,1.85,environment);
         sky+=vec3(.34,.29,.20)*glareStrength*pow(mu,glarePower)+vec3(.65,.57,.38)*sunStrength*pow(mu,sunPower);
+        float twilight=4.0*night*(1.0-night);
+        sky+=vec3(.08,.15,.29)*pow(mu,18.0)*twilight;
         // The lower environment hemisphere reflects sunlit dusty regolith so shadow-facing surfaces stay readable.
         vec3 ground=mix(vec3(.26,.13,.068),vec3(.15,.080,.045),clamp(-d.y,0.0,1.0));
         sky=mix(sky,ground,environment*(1.0-smoothstep(-.12,.025,d.y)));

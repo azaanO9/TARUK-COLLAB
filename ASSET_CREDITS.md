@@ -45,3 +45,6 @@ Generation prompts: the regolith prompt requested a seamless orthographic, evenl
 ## Mars arrival shuttle (2026-11-14)
 
 Original procedural fictional spacecraft in `ui/world/createShuttleLanding.ts`: modeled hull, swept wings, landing struts, footpads and original runtime-generated glow/dust textures. No external models or image downloads. The 14-second powered descent is an artistic animation, not a NASA vehicle or flight-validated trajectory. Terrain contacts reuse the game surface.
+
+## Streamed exploration rocks
+Original runtime-generated dodecahedral rocks use deterministic scale, rotation and ochre/basalt colour variation. Instanced meshes share geometry and material; no downloaded assets or services are used.

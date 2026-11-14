@@ -23,7 +23,6 @@ export default function MarsFreeRoam() {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [lowGraphics, setLowGraphics] = useState(false);
-  const [night, setNight] = useState(false);
   const [view, setView] = useState<View | null>(null);
   const [inspect, setInspect] = useState(false);
   const dialog = useRef<HTMLElement>(null);
@@ -32,11 +31,6 @@ export default function MarsFreeRoam() {
   const modal = menu || failed || inspect;
 
   useEffect(() => { if (isCoarsePointerDevice()) setMode("mobile"); }, []);
-  useEffect(() => {
-    if (!started || !arrived || modal || blocked) return;
-    const timer = window.setInterval(() => setNight(value => !value), 90000);
-    return () => window.clearInterval(timer);
-  }, [started, arrived, modal, blocked]);
   useEffect(() => {
     if (!modal) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -62,7 +56,7 @@ export default function MarsFreeRoam() {
         <button aria-pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile · Touch controls</button>
       </fieldset>
       <p>{mode === "pc" ? "WASD move · Space jump · V camera · F enter/exit rover · E inspect Curiosity" : "Use the movement stick, swipe to look and use the rover buttons when nearby."}</p>
-      <button className="roam-primary" onClick={() => { if (mode === "mobile") void tryEnterLandscape(); setView(null); setNight(false); setSceneReady(false); setArrived(false); setStarted(true); }}>Explore Mars</button>
+      <button className="roam-primary" onClick={() => { if (mode === "mobile") void tryEnterLandscape(); setView(null); setSceneReady(false); setArrived(false); setStarted(true); }}>Explore Mars</button>
     </section>
   </main>;
 
@@ -70,12 +64,12 @@ export default function MarsFreeRoam() {
   return <main className="sv-root mars-root roam-root" data-controls={mode} data-phase="explore">
     <SurvivalWorld key={attempt} freeRoam playDropPodIntro planet="mars" enabled={arrived && !modal && !blocked} onReady={ready} onTerrainMode={setStreamed}
       showTouchControls={mode === "mobile"} autoDetectTouch={false} onTouchControlsChange={active => setMode(active ? "mobile" : "pc")}
-      event={night ? "night" : "quiet"} day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
+      event="quiet" day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
       initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onView={setView} onUnavailable={unavailable} />
     {!arrived && !failed && <ShuttleArrival key={`arrival-${attempt}`} ready={sceneReady} onComplete={finishArrival} />}
     {!modal && arrived && <RotateToLandscapeGate onBlockedChange={setBlocked} />}
     <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b><button disabled={!arrived} onClick={() => setMenu(true)}>Pause</button></header>
-    {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : streamed ? "Expanding Mars terrain" : "Mars surface · fixed map"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
+    {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : streamed ? "Expanding Mars terrain" : "Mars surface"} · {view?.lightPhase ?? "Day"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
     {modal && <div className="mars-dialog-backdrop"><section ref={dialog} className="mars-dialog roam-dialog" role="dialog" aria-modal="true" aria-labelledby="roam-dialog-title">
       {failed ? <><h2 id="roam-dialog-title">The 3D world couldn’t start</h2><p>Retry, or use lighter graphics for this browser.</p>
         <button onClick={() => { setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry</button>
