@@ -390,7 +390,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
 
   for (const [count, big] of [[6500, false], [450, true]] as const) {
     for (let i = 0; i < count; i++) {
-      const seed = i + (big ? 9000 : 0), x = (random(seed * 7) - .5) * 240, z = (random(seed * 7 + 1) - .5) * 240;
+      const seed = i + (big ? 9000 : 0), x = (random(seed * 7) - .5) * (freeRoam ? 390 : 240), z = (random(seed * 7 + 1) - .5) * (freeRoam ? 390 : 240);
       const near = STATIONS.some(s => Math.hypot(x - s.x, z - s.z) < 4.5) || Math.hypot(x, z - 12) < 5;
       const gravelPatch=smooth(.28,.72,terrainNoise(x*.065,z*.065));
       const size = near && big ? .07 : big ? .35 + random(seed + 3) * 1.15 : .025 + random(seed + 4) ** 3 * .29 * gravelPatch;
@@ -447,7 +447,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   // Scanned fracture detail on all cliff faces; one dust/stone palette throughout.
   const cliffMat = new T.MeshStandardMaterial({ vertexColors: true, map: surfaces.rock.color, bumpMap: surfaces.rock.relief, bumpScale: .1, roughness: .98 });
   const close = new T.Color(0x89634d), lightStrata = new T.Color(0xc39a77), dustHaze = new T.Color(0xc09b80);
-  const landscape = new T.PlaneGeometry(720, 720, 168, 168);
+  const landscape = new T.PlaneGeometry(freeRoam ? 1100 : 720, freeRoam ? 1100 : 720, 168, 168);
   landscape.rotateX(-Math.PI / 2);
   const lp = landscape.attributes.position, landColors = new Float32Array(lp.count * 3);
   for (let i = 0; i < lp.count; i++) {
@@ -456,7 +456,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     const warped = terrainFbm(x * .017 + broad * 2.7, z * .016 - broad * 1.8);
     const plateau = smooth(.43, .62, warped);
     const ridge = 1 - Math.abs(terrainFbm(x * .031, z * .031) * 2 - 1);
-    const apron = smooth(110, 240, r);
+    const apron = freeRoam ? smooth(280, 480, r) : smooth(110, 240, r);
     const rightWall = .72 + smooth(-20, 150, x) * .6;
     let height = (plateau * 57 + ridge * 14 + terrainNoise(x * .07, z * .07) * 3) * rightWall;
     // Eroded flutes break up the distant escarpment; playable ground is untouched.

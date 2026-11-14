@@ -3,7 +3,7 @@ import { ROVER_WHEEL_OFFSETS, type RoverVehicle } from "../../game/roverVehicle.
 import { CURIOSITY_WHEEL_OFFSETS, type CuriosityRoverState } from "../../game/curiosityRover.ts";
 
 export const TRACK_TEX_SIZE = 1024;
-export const TRACK_WORLD_HALF = 96; // covers [-96, +96] meters
+export const TRACK_WORLD_HALF = 192; // covers the expanded exploration area
 const TRACK_WORLD_SPAN = TRACK_WORLD_HALF * 2;
 const TEXEL_SIZE = TRACK_WORLD_SPAN / TRACK_TEX_SIZE; // 0.1875m per texel
 const PATCH_SIZE = 48; // 48x48 texels = 9m x 9m box enclosing all 6 wheels

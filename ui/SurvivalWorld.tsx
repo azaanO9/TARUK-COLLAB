@@ -1,4 +1,5 @@
 "use client";
+import { safeLookDelta } from "../game/mouseLook";
 import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
@@ -296,7 +297,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       // Mars systems: Subterranean Ice Cave biome, Weather Terminal podium, Drop-Pod Intro
-      const caveBiome = props.planet === "mars" ? createCaveBiomeScene(model.heightAt) : null;
+      const caveBiome = props.planet === "mars" && !props.freeRoam ? createCaveBiomeScene(model.heightAt) : null;
       if (caveBiome) {
         scene.add(caveBiome.surfacePortals, caveBiome.root);
       }
@@ -644,6 +645,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         current.current.onBiomeChange?.(activeBiome);
       };
       toggleBiomeAction.current = () => {
+        if (!caveBiome) return;
         if (rover.driving) {
           showTransientNotice("Exit rover [F] before entering cavern shaft.", "Exit rover");
           return;
@@ -818,7 +820,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           captureFailureCount += 1;
           if (!options?.silent && captureFailureCount === 1) {
             showTransientNotice(
-              "Mouse capture is unavailable here. Drag or move mouse to look; WASD walks.",
+              "Mouse capture is unavailable here. Drag to look; WASD walks.",
               "Mouse capture is unavailable",
             );
           }
@@ -905,12 +907,12 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           resetHover();
           if (discardCapturedMove) { discardCapturedMove = false; return; }
           cameraYaw -=
-            Math.max(-180, Math.min(180, e.movementX)) * 0.0023 * cameraSettings.current.sensitivity;
+            safeLookDelta(e.movementX) * 0.0023 * cameraSettings.current.sensitivity;
           pitch = Math.max(
             minPitch,
             Math.min(
               maxPitch,
-              pitch - Math.max(-180, Math.min(180, e.movementY)) * 0.0023 * cameraSettings.current.sensitivity,
+              pitch - safeLookDelta(e.movementY) * 0.0023 * cameraSettings.current.sensitivity,
             ),
           );
         } else if (
@@ -918,19 +920,19 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           dragging && e.pointerId === lookPointer
         ) {
           cameraYaw -=
-            (e.clientX - px) * 0.0023 * cameraSettings.current.sensitivity;
+            safeLookDelta(e.clientX - px) * 0.0023 * cameraSettings.current.sensitivity;
           pitch = Math.max(
             minPitch,
             Math.min(
               maxPitch,
-              pitch - (e.clientY - py) * 0.0023 * cameraSettings.current.sensitivity,
+              pitch - safeLookDelta(e.clientY - py) * 0.0023 * cameraSettings.current.sensitivity,
             ),
           );
           px = e.clientX;
           py = e.clientY;
           hoverPx = e.clientX;
           hoverPy = e.clientY;
-        } else if (e.pointerType === "mouse" && !cameraSettings.current.touchControlsActive && !cursorReleased.current) {
+        } else if (!props.freeRoam && e.pointerType === "mouse" && !cameraSettings.current.touchControlsActive && !cursorReleased.current) {
           const overScene = isSceneTarget(targetEl);
           if (!overScene) {
             resetHover();
@@ -1324,7 +1326,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           // Proximity to cave portals or mineable ore veins
           if (!inCave) {
             const cNear = nearestCaveEntrance(walker.x, walker.z);
-            nearCaveEntrance = cNear.distance <= 4.4 ? cNear.entrance : null;
+            nearCaveEntrance = caveBiome && cNear.distance <= 4.4 ? cNear.entrance : null;
             nearCaveExit = false;
             nearMineral = null;
           } else {
@@ -1916,7 +1918,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 <button onClick={() => lockAction.current()}>
                   {locked ? "Release mouse · Esc" : cursorFree ? "Resume mouse look" : "Capture mouse for 360° look"}
                 </button>
-                <span>{cursorFree ? "Cursor free for UI · click the 3D view to resume look" : "Move mouse or drag to look, or click view for 360° capture · Esc frees cursor · Q/R turn · V changes view"}</span>
+                <span>{cursorFree ? "Cursor free for UI · click the 3D view to resume look" : "Drag to look, or click view for 360° capture · Esc frees cursor · Q/R turn · V changes view"}</span>
               </>
             )}
             <label>

@@ -1,7 +1,7 @@
 /** Pure first-person walking: metres are illustrative world units. No reserve changes. */
 import { moveAndSlide, type CollisionObstacle } from "./collision.ts";
 export const WALKER_RADIUS = .32;
-export const WORLD_LIMIT = 88;
+export const WORLD_LIMIT = 176;
 export const WALK_SPEED = 5.2;
 /** Illustrative jump motion, not a simulation of lunar suit physics. */
 export type JumpState = { height: number; velocity: number };
