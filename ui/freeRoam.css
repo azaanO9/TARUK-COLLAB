@@ -479,12 +479,16 @@
 .roam-atlas-open small{color:#eacda4}
 .roam-dialog:has(.roam-atlas-layout){max-width:850px;width:94vw;max-height:90dvh;overflow-y:auto}
 .roam-atlas-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-.roam-atlas-plot{position:relative;aspect-ratio:1;border:1px solid #d3b28b;border-radius:12px;overflow:hidden}
-.roam-atlas-plot canvas{display:block;width:100%;height:100%}
-.roam-atlas-plot button{position:absolute;transform:translate(-50%,-50%);margin:0;min-width:44px;min-height:44px;padding:4px;border-radius:50%;background:#24343ee8}
-.roam-atlas-plot button[aria-pressed=true],.roam-atlas-list button[aria-pressed=true]{border:2px solid #fff0b1;background:#394c51}
+.roam-atlas-plot{position:relative;aspect-ratio:1;border:1px solid #d3b28b;border-radius:12px;overflow:hidden;background:#2a3034}
+.roam-atlas-plot svg{display:block;width:100%;height:100%}
+.roam-atlas-views button[aria-pressed=true],.roam-atlas-list button[aria-pressed=true]{border:2px solid #fff0b1;background:#394c51}
+.roam-atlas-pin{position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center;width:22px;height:22px;border:2px solid #d7f5ff;border-radius:50%;background:#24343e;color:#fff;font:bold 14px system-ui;pointer-events:none}
+.roam-atlas-plot[data-view=region] .roam-atlas-pin:not([data-selected=true]){width:7px;height:7px}
+.roam-atlas-pin[data-selected=true]{z-index:2;background:#ffe4aa;color:#17232d;border-color:#fff}
+.roam-atlas-pin b{position:absolute;bottom:27px;left:50%;transform:translateX(-50%);padding:3px 6px;white-space:nowrap;border-radius:4px;background:#17232de8;color:#fff;font:14px system-ui}
+.roam-atlas-extent,.roam-atlas-keys{font-size:14px;color:#e9cfb1}
 .roam-atlas-north,.roam-atlas-scale,.roam-atlas-you{position:absolute;padding:3px 7px;border-radius:4px;background:#19242edc;color:#fff;font-size:14px;pointer-events:none}
-.roam-atlas-north{top:8px;left:8px}.roam-atlas-scale{bottom:6px;left:6px}.roam-atlas-you{transform:translate(-50%,-50%);background:#fff2cf;color:#18242c}
+.roam-atlas-north{top:8px;left:8px}.roam-atlas-scale{bottom:0;left:0;width:100%;box-sizing:border-box;padding:8px}.roam-atlas-scale i{display:block;border-top:3px solid #fff;margin-bottom:3px}.roam-atlas-you{transform:translate(-50%,0);background:#fff2cf;color:#18242c}
 .roam-atlas-list{list-style:none;padding:0;margin:0}.roam-atlas-list button{width:100%;margin:0 0 6px;text-align:left;padding:8px 12px}.roam-atlas-list span{display:block;color:#dec4a0;font-size:14px}.roam-atlas-list p{margin:6px 6px 14px}
 .roam-dialog a{color:#bcecff;text-underline-offset:3px}.roam-dialog a:focus-visible{outline:3px solid #fff0b1}
 .roam-root:has(.landing-caption) .roam-minimap,.roam-root:has(.landing-caption) .roam-info{display:none}
@@ -504,3 +508,18 @@
 @media(prefers-reduced-motion:reduce){.roam-minimap,.roam-map-toggle,.roam-gta-bar-fill{transition:none;animation:none}}
 .roam-root[data-controls="mobile"] .roam-minimap[data-driving="false"] .roam-gta-readout{display:none}
 .roam-root > .mars-dialog-backdrop{z-index:1000}
+
+/* The meter reuses the existing one-second samples. It never intercepts input. */
+.roam-root .mars-debug{z-index:26;top:29px;right:110px;padding:6px 10px;border-radius:7px;font:14px/1.4 monospace;pointer-events:none;max-width:calc(100vw - 32px)}
+.roam-root .mars-debug[data-mode=detailed]{top:190px;right:20px}
+.roam-root .sv-world:has(.sv-look-controls details[open]) .mars-debug[data-mode=detailed]{visibility:hidden}
+.roam-root .sv-look-controls{z-index:28;width:auto;max-width:min(310px,calc(100vw - 40px))}
+.roam-root .sv-look-controls details{background:#14212bf2;border:1px solid #b4c6ce55;border-radius:9px;padding:0 10px;max-width:min(310px,calc(100vw - 40px));max-height:calc(100dvh - 150px);overflow-y:auto}
+.roam-root .sv-look-controls summary,.roam-root .sv-look-controls button,.roam-root .sv-look-controls select{min-height:44px;font-size:14px}
+.roam-root .sv-look-controls details[open]{width:min(280px,calc(100vw - 40px));box-sizing:border-box}
+.roam-root .sv-look-controls summary{cursor:pointer;align-content:center;min-width:44px}
+.roam-root .sv-look-controls label{font:14px system-ui;justify-content:space-between}
+.roam-root .sv-look-controls select{min-width:112px;padding:5px;background:#20343e;color:#fff;border:1px solid #a2c6cc;border-radius:4px}
+.roam-root .sv-look-controls span{display:block;font-size:14px;line-height:1.4}
+.roam-root .sv-look-controls :focus-visible{outline:3px solid #9be9ed;outline-offset:2px}
+@media(max-height:460px){.roam-root .sv-look-controls{top:76px}.roam-root .sv-look-controls details{max-height:calc(100dvh - 90px)}.roam-root .mars-debug[data-mode=detailed]{top:128px;right:72px}}

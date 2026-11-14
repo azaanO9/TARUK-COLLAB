@@ -357,7 +357,7 @@ export default function ExplorationMinimap({view,selected,onOpenAtlas}:{view:Vie
               <span className="roam-legend-dot dot-scout" /> Curiosity
             </span>
           </div>
-          <button className="roam-atlas-open" onClick={onOpenAtlas} aria-label={`Open landmark atlas. Selected ${target.name}`}><span>{target.number}. {target.name}</span><small>{Math.round(Math.hypot(target.x-x,target.z-z))} game m · Atlas</small></button>
+          <button className="roam-atlas-open" onClick={onOpenAtlas} aria-keyshortcuts="CapsLock" title="Open map · Caps Lock" aria-label={`Open landmark atlas. Selected ${target.name}`}><span>{target.number}. {target.name}</span><small>{Math.round(Math.hypot(target.x-x,target.z-z))} game m · Atlas</small></button>
         </div>
       )}
     </aside>

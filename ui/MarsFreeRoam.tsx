@@ -28,6 +28,7 @@ export default function MarsFreeRoam() {
   const [view, setView] = useState<View | null>(null);
   const [inspect, setInspect] = useState(false);
   const [atlas,setAtlas]=useState(false);
+  const openAtlas=useCallback(()=>setAtlas(true),[]);
   const [landmark,setLandmark]=useState('elysium');
   const dialog = useRef<HTMLElement>(null);
   const unavailable = useCallback(() => setFailed(true), []);
@@ -41,6 +42,10 @@ export default function MarsFreeRoam() {
     document.exitPointerLock?.();
     dialog.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const keys = (event: KeyboardEvent) => {
+      if (event.code === "CapsLock" && atlas && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        // Do not let the same key bubble to the newly resumed world's opener.
+        event.preventDefault(); event.stopPropagation(); setAtlas(false); return;
+      }
       if (event.key === "Escape" && !failed) { setMenu(false); setInspect(false); setAtlas(false); }
       if (event.key !== "Tab") return;
       const buttons = Array.from(dialog.current?.querySelectorAll<HTMLElement>("button, a[href]") ?? []);
@@ -53,7 +58,7 @@ export default function MarsFreeRoam() {
       if(previous?.isConnected)previous.focus();
       else document.querySelector<HTMLElement>(atlas?'.roam-atlas-open, .roam-header button':'.sv-world')?.focus();
     }); };
-  }, [modal, failed]);
+  }, [modal, failed, atlas]);
 
   if (!started) return <main className="roam-launch">
     <section><p>TARUKH</p><h1>Mars Open World</h1>
@@ -62,7 +67,7 @@ export default function MarsFreeRoam() {
         <button aria-pressed={mode === "pc"} onClick={() => setMode("pc")}>PC · Keyboard & mouse</button>
         <button aria-pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile · Touch controls</button>
       </fieldset>
-      <p>{mode === "pc" ? "WASD move · Space jump · V camera · F enter/exit rover · E inspect Curiosity" : "Use the movement stick, swipe to look and use the rover buttons when nearby."}</p>
+      <p>{mode === "pc" ? "WASD move · Space jump · V camera · F enter/exit rover · E inspect Curiosity · Caps Lock map" : "Use the movement stick, swipe to look and use the rover buttons when nearby. Tap Atlas below the minimap for the full region."}</p>
       <button className="roam-primary" onClick={() => { if (mode === "mobile") void tryEnterLandscape(); setView(null); setSceneReady(false); setArrived(false); setStarted(true); }}>Explore Mars</button>
     </section>
   </main>;
@@ -72,10 +77,10 @@ export default function MarsFreeRoam() {
     <SurvivalWorld key={attempt} freeRoam playDropPodIntro planet="mars" enabled={arrived && !modal && !blocked} onReady={ready} onTerrainMode={setStreamed}
       showTouchControls={mode === "mobile"} autoDetectTouch={false} onTouchControlsChange={active => setMode(active ? "mobile" : "pc")}
       event="quiet" day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
-      initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onView={setView} onUnavailable={unavailable} />
+      initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onOpenMap={openAtlas} onView={setView} onUnavailable={unavailable} />
     {!arrived && !failed && <ShuttleArrival key={`arrival-${attempt}`} ready={sceneReady} onComplete={finishArrival} />}
     {!modal && arrived && <RotateToLandscapeGate onBlockedChange={setBlocked} />}
-    <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b>{view?.cockpitView&&<button onClick={()=>setAtlas(true)}>Atlas</button>}<button disabled={!arrived} onClick={() => setMenu(true)}>Pause</button></header>
+    <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b>{view?.cockpitView&&<button aria-keyshortcuts="CapsLock" onClick={openAtlas}>Atlas</button>}<button disabled={!arrived} onClick={() => setMenu(true)}>Pause</button></header>
     {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : streamed ? "Expanding Mars terrain" : "Mars surface"} · {view?.lightPhase ?? "Day"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
     {!modal && arrived && view && !view.cockpitView && <ExplorationMinimap view={view} selected={landmark} onOpenAtlas={()=>setAtlas(true)} />}
     {modal && <div className="mars-dialog-backdrop"><section ref={dialog} className="mars-dialog roam-dialog" role="dialog" aria-modal="true" aria-labelledby="roam-dialog-title">
@@ -84,7 +89,7 @@ export default function MarsFreeRoam() {
         <button onClick={() => { setLowGraphics(true); setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry with Performance graphics</button></>
       : atlas && view ? <MarsAtlas x={view.x} z={view.z} selected={landmark} onSelect={setLandmark} onClose={()=>setAtlas(false)}/>
       : inspect ? <><h2 id="roam-dialog-title">Curiosity rover</h2><p>This autonomous rover explores the terrain and pauses to scan rocks. Its movements and measurements are simulated.</p><p>Status: {view?.curiosityPhase ?? "exploring"}</p><button onClick={() => setInspect(false)}>Continue exploring</button></>
-      : <><h2 id="roam-dialog-title">Exploration paused</h2><button onClick={() => setMenu(false)}>Resume exploring</button><p>WASD move · Space jump · V camera · F enter/exit rover. Drag to look if mouse capture is unavailable.</p><button onClick={() => { setMenu(false); setStarted(false); }}>Back to controls setup</button></>}
+      : <><h2 id="roam-dialog-title">Exploration paused</h2><button onClick={() => setMenu(false)}>Resume exploring</button><p>WASD move · Space jump · V camera · F enter/exit rover · Caps Lock map. Drag to look if mouse capture is unavailable.</p><button onClick={() => { setMenu(false); setStarted(false); }}>Back to controls setup</button></>}
     </section></div>}
   </main>;
 }

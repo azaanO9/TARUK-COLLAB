@@ -1,5 +1,9 @@
 ## Mars Trek regional exploration and shuttle egress (2026-11-14)
 
+- `atlasBounds` and `atlasPoint` register both full-region and player-centred nearby views to the same MOLA WebP used by the minimap/cockpit. No runtime raster generation is needed when opening the atlas. Landmark selection remains in-memory only.
+- `SurvivalWorld.onOpenMap?` handles Caps Lock after landing, ignoring repeats/modifier chords and editable fields. The free-roam dialog handles Caps Lock again to close; Escape and the touch Atlas button remain available. Opening pauses exploration and releases mouse capture; closing restores focus.
+- `PerformanceMeterMode` is `off | fps | detailed`, selected under Camera & graphics. `performanceReadout` formats the world's existing one-second measurement window; no new render loop, React frame updates, persistence or network telemetry. Hidden-tab time and initial loading are excluded from measurement windows. `debug=1` initially selects Detailed, which can still be turned off in settings.
+
 - `marsRegion.ts`: pure world/geographic projection, bilinear MOLA elevation sampling, bounds/scale metadata. East is +X, north is −Z. `marsExpeditionHeight` supplies this surface plus artistic local roughness to both free-roam terrain and streaming. Legacy `marsHeight` remains unchanged.
 - `createStreamedMars` accepts optional `sampleHeight`; callers without it retain legacy sampling. `coverage()` returns a reused Vector4 for the currently guaranteed local-tile rectangle. The regional far LOD clips that rectangle and the permanent spawn mesh.
 - `ExplorationMinimap` receives `selected` landmark ID and `onOpenAtlas`; selection is in-memory presentation only. `mapRectPoint` keeps distant bearings inside the teammate's rectangular map. Atlas pauses exploration and restores keyboard focus on close.

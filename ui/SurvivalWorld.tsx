@@ -6,6 +6,7 @@ import {ARRIVAL_SPAWN,ARRIVAL_YAW} from "../game/shuttleLanding";
 import { streamingBudget, STREAM_LIMIT } from "../game/terrainStreaming";
 import { nightAmount, daylightPhase, daylightAngle } from "../game/daylightCycle";
 import { safeLookDelta } from "../game/mouseLook";
+import { performanceReadout, type PerformanceMeterMode } from "../game/performanceMeter";
 import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Mesh, MeshStandardMaterial, Object3D } from "three";
@@ -125,6 +126,7 @@ type Props = {
   sageFollowing?: boolean;
   onToggleSage?: () => void;
   onInspect: (id: string) => void;
+  onOpenMap?: () => void;
   onView: (view: View) => void;
   onUnavailable: () => void;
   solarClean?: boolean;
@@ -152,6 +154,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const aim = useRef<HTMLDivElement>(null);
   const debugPanel = useRef<HTMLPreElement>(null);
   const [debug] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "1");
+  const [performanceMeter,setPerformanceMeter] = useState<PerformanceMeterMode>(debug ? "detailed" : "off");
   current.current = props;
   const controls = useRef(new Set<string>()),
     lockAction = useRef<() => void>(() => {});
@@ -205,8 +208,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [quality, setQuality] = useState(props.initialQuality ?? (props.planet === "mars" ? "auto" : "high"));
   const [autoLabel,setAutoLabel]=useState("Detecting");
   const cursorReleased = useRef(false);
-  const cameraSettings = useRef({ thirdPerson, sensitivity, quality, touchControlsActive });
-  cameraSettings.current = { thirdPerson, sensitivity, quality, touchControlsActive };
+  const cameraSettings = useRef({ thirdPerson, sensitivity, quality, touchControlsActive, performanceMeter });
+  cameraSettings.current = { thirdPerson, sensitivity, quality, touchControlsActive, performanceMeter };
   useEffect(() => {
     cursorReleased.current = false;
     setCursorFree(false);
@@ -990,7 +993,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (e.pointerId === lookPointer) { dragging = false; lookPointer = null; }
       };
       const keydown = (e: KeyboardEvent) => {
-        if (!current.current.enabled) return;
+        if (e.defaultPrevented || !current.current.enabled) return;
         const active = document.activeElement as HTMLElement | null;
         const tag = active?.tagName;
         if (active?.closest?.("dialog, [role='dialog']")) return;
@@ -1016,6 +1019,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const k = e.key.toLowerCase();
         if(dropPodIntro?.isActive()){
           if(e.code==="Space"&&!onInteractive){e.preventDefault();skipIntroAction.current();}
+          return;
+        }
+        if (e.code === "CapsLock" && !e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && tag !== "INPUT" && current.current.onOpenMap) {
+          e.preventDefault();
+          current.current.onOpenMap();
           return;
         }
         if (
@@ -1129,6 +1137,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       };
       const saveOnHide = () => {
+        // Browsers may suspend rAF entirely in a background tab.
+        metricStart = 0; metricFrames = 0; slowWindows = 0; fastWindows = 0;
         if (document.hidden) saveCuriosityNow();
       };
       element.addEventListener("pointerdown", down);
@@ -1153,6 +1163,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         frame = requestAnimationFrame(animate);
         if (document.hidden) {
           last = time;
+          metricStart = 0; metricFrames = 0;
           keys.clear();
           return;
         }
@@ -1811,7 +1822,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.cameraSwitchMs = (performance.now()-frameStarted).toFixed(1);
           element.dataset.cameraSwitchPrograms = String((renderer.info.programs?.length ?? 0)-programsBefore);
         }
-        metricFrames++;
+        // Exclude initial loading and time spent in a hidden browser tab.
+        if (!metricStart) { metricStart = time; metricFrames = 0; }
+        else metricFrames++;
         if (time - metricStart > 1000) {
           element.dataset.cameraFov = String(camera.fov);
           element.dataset.daylightPhase=daylightPhase(daylightElapsed);
@@ -1837,7 +1850,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.antialiasing = composer && (occlusion?.enabled || bloom?.enabled) ? "fxaa" : renderer.getContext().getContextAttributes()?.antialias ? "native" : "off";
           element.dataset.aaTexel = fxaaPass ? `${fxaaPass.uniforms.resolution.value.x},${fxaaPass.uniforms.resolution.value.y}` : "";
           const fps = metricFrames * 1000 / (time - metricStart);
-          if (debugPanel.current) debugPanel.current.textContent = `Frame: ${(1000 / fps).toFixed(1)} ms (${fps.toFixed(1)} fps)\nDraw calls: ${renderer.info.render.calls}\nTriangles: ${renderer.info.render.triangles}\nTextures: ${renderer.info.memory.textures}\nRender scale: ${resolutionScale.toFixed(2)}\nTier: ${lastQuality}`;
+          if (debugPanel.current) debugPanel.current.textContent = performanceReadout(cameraSettings.current.performanceMeter, {
+            fps, calls:renderer.info.render.calls, triangles:renderer.info.render.triangles,
+            textures:renderer.info.memory.textures, scale:resolutionScale, tier:lastQuality,
+          });
           element.dataset.graphicsProfile = lastQuality;
           slowWindows = p.enabled && fps < 44 ? slowWindows + 1 : 0;
           fastWindows = p.enabled && fps > 57 ? fastWindows + 1 : 0;
@@ -2010,7 +2026,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} ${props.freeRoam ? "open world" : "outpost"}. ${touchControlsActive ? "Use the left thumbstick to move, drag the screen to look around, and tap the right buttons to jump or inspect." : "WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects."}`}
       tabIndex={0}
     >
-      {debug && props.planet === "mars" && <pre ref={debugPanel} className="mars-debug" aria-label="Graphics performance diagnostics">Collecting graphics measurements…</pre>}
+      {performanceMeter !== "off" && props.planet === "mars" && (debug || (props.enabled && !introActive)) &&
+        <pre key={performanceMeter} ref={debugPanel} className="mars-debug" data-mode={performanceMeter} aria-label="Graphics performance diagnostics">Measuring FPS…</pre>}
       {!loaded && (
         <div className="sv-loading" role="status">{loadingStage}<br/><progress aria-label="Scene preparation progress" max={100} value={loadingProgress}/><span> {loadingProgress}%</span></div>
       )}
@@ -2055,6 +2072,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             </button>
             {props.planet === "mars" && <label>Graphics <select aria-label="Graphics quality" value={quality} onChange={e => { setQuality(e.target.value); e.currentTarget.blur(); host.current?.focus({ preventScroll: true }); }}>
               <option value="auto">Auto · {autoLabel}</option><option value="performance">Performance</option><option value="high">High</option><option value="ultra">Ultra</option>
+            </select></label>}
+            {props.planet === "mars" && <label>FPS meter <select aria-label="FPS meter" value={performanceMeter} onChange={e=>setPerformanceMeter(e.target.value as PerformanceMeterMode)}>
+              <option value="off">Off</option><option value="fps">FPS only</option><option value="detailed">Detailed</option>
             </select></label>}
             </details>
           </div>
