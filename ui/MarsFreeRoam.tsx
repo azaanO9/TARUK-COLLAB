@@ -71,7 +71,7 @@ export default function MarsFreeRoam() {
       showTouchControls={mode === "mobile"} autoDetectTouch={false} onTouchControlsChange={active => setMode(active ? "mobile" : "pc")}
       event={night ? "night" : "quiet"} day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
       initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onView={setView} onUnavailable={unavailable} />
-    {!arrived && !failed && <ShuttleArrival key={attempt} ready={sceneReady} onComplete={finishArrival} />}
+    {!arrived && !failed && <ShuttleArrival key={`arrival-${attempt}`} ready={sceneReady} onComplete={finishArrival} />}
     {!modal && arrived && <RotateToLandscapeGate onBlockedChange={setBlocked} />}
     <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b><button disabled={!arrived} onClick={() => setMenu(true)}>Pause</button></header>
     {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : "Mars surface"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
