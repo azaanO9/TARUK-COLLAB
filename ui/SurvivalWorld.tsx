@@ -497,7 +497,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let composer: import("three/examples/jsm/postprocessing/EffectComposer.js").EffectComposer | null = null;
       let occlusion: import("three/examples/jsm/postprocessing/GTAOPass.js").GTAOPass | null = null;
       let bloom: import("three/examples/jsm/postprocessing/UnrealBloomPass.js").UnrealBloomPass | null = null;
-      let dofPass: import("three/examples/jsm/postprocessing/BokehPass.js").BokehPass | null = null;
       let fxaaPass: import("three/examples/jsm/postprocessing/ShaderPass.js").ShaderPass | null = null;
       let stormGodRays: import("three").Mesh | null = null;
       let effectsLoading: Promise<void> | null = null;
@@ -510,10 +509,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (stormGodRays) { scene.remove(stormGodRays); stormGodRays.geometry?.dispose(); }
         stormGodRays = null;
         if (composer) { for (const pass of composer.passes) pass.dispose(); composer.dispose(); }
-        composer = null; occlusion = null; bloom = null; dofPass = null; fxaaPass = null;
+        composer = null; occlusion = null; bloom = null; fxaaPass = null;
       }
       function renderEffects() {
-        if (!composer || (!occlusion?.enabled && !bloom?.enabled && !dofPass?.enabled)) return false;
+        if (!composer || (!occlusion?.enabled && !bloom?.enabled)) return false;
         try { composer.render(); return true; }
         catch {
           // Optional effects must not take the mission down on unsupported GPUs.
@@ -523,15 +522,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       }
       const prepareEffects = () => effectsLoading ??= (async () => {
-        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { BoundedGTAOPass }, { ShaderPass }, { FXAAShader }, { BokehPass }] = await Promise.all([
+        const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { BoundedGTAOPass }, { ResolutionFXAAPass }] = await Promise.all([
           import("three/examples/jsm/postprocessing/EffectComposer.js"),
           import("three/examples/jsm/postprocessing/RenderPass.js"),
           import("three/examples/jsm/postprocessing/UnrealBloomPass.js"),
           import("three/examples/jsm/postprocessing/OutputPass.js"),
           import("./world/BoundedGTAOPass"),
-          import("three/examples/jsm/postprocessing/ShaderPass.js"),
-          import("three/examples/jsm/shaders/FXAAShader.js"),
-          import("three/examples/jsm/postprocessing/BokehPass.js"),
+          import("./world/ResolutionFXAAPass"),
         ]);
         if (cancelled) return;
         // HDR resolves with HalfFloatType
@@ -545,12 +542,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         composer.addPass(occlusion);
         bloom = new UnrealBloomPass(new T.Vector2(512, 512), .28, .55, .88);
         composer.addPass(bloom);
-        dofPass = new BokehPass(scene, camera, { focus: 10.0, aperture: 0.00018, maxblur: 0.012 });
-        dofPass.enabled = false;
-        composer.addPass(dofPass);
-        fxaaPass = new ShaderPass(FXAAShader);
-        composer.addPass(fxaaPass);
+        // Detect edges after tone mapping, using display-space contrast.
         composer.addPass(new OutputPass());
+        fxaaPass = new ResolutionFXAAPass();
+        composer.addPass(fxaaPass);
 
         const rayGeom = new T.CylinderGeometry(1.2, 54.0, 110.0, 16, 1, true);
         rayGeom.rotateX(Math.PI / 2);
@@ -561,14 +556,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       })().catch(() => { disposeEffects(); });
       function configureEffects(render = false) {
         const preset = graphicsTier(effectiveQuality());
-        const isMax = effectiveQuality() === "ultra" || effectiveQuality() === "high";
         if (occlusion) occlusion.enabled = preset.ssao && (cameraSettings.current.quality !== "auto" || autoOcclusion);
         if (bloom) bloom.enabled = preset.bloom && !reduced.matches;
-        if (dofPass) {
-          const focusMode = rover.driving && !cameraSettings.current.thirdPerson;
-          dofPass.enabled = isMax && focusMode && !reduced.matches;
-          if (dofPass.enabled && dofPass.uniforms) (dofPass.uniforms as Record<string, { value: unknown }>)["focus"].value = rover.driving ? 4.5 : 8.5;
-        }
         if (stormGodRays) {
           const stormActive = current.current.weather === "DUST_STORM";
           stormGodRays.visible = stormActive && effectiveQuality() !== "performance";
@@ -1810,6 +1799,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.curiosityScans = String(curiosity?.scanCount ?? 0);
           element.dataset.resolutionScale = resolutionScale.toFixed(2);
           element.dataset.contactShading = String(occlusion?.enabled ?? false);
+          element.dataset.antialiasing = composer && (occlusion?.enabled || bloom?.enabled) ? "fxaa" : renderer.getContext().getContextAttributes()?.antialias ? "native" : "off";
+          element.dataset.aaTexel = fxaaPass ? `${fxaaPass.uniforms.resolution.value.x},${fxaaPass.uniforms.resolution.value.y}` : "";
           const fps = metricFrames * 1000 / (time - metricStart);
           if (debugPanel.current) debugPanel.current.textContent = `Frame: ${(1000 / fps).toFixed(1)} ms (${fps.toFixed(1)} fps)\nDraw calls: ${renderer.info.render.calls}\nTriangles: ${renderer.info.render.triangles}\nTextures: ${renderer.info.memory.textures}\nRender scale: ${resolutionScale.toFixed(2)}\nTier: ${lastQuality}`;
           element.dataset.graphicsProfile = lastQuality;

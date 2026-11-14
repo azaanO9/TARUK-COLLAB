@@ -1,0 +1,7 @@
+# Rover rendering clarity correction
+
+FXAA previously retained Three.js's fixed 1024 x 512 sampling size while the actual framebuffer changed with the window and adaptive resolution. ResolutionFXAAPass now receives physical dimensions from EffectComposer on every resize. FXAA follows OutputPass so edge detection sees tone-mapped display contrast. No temporal accumulation, motion blur, multisampled HDR buffer or extra full-screen pass was added.
+
+Removed the unused Bokeh/cockpit focus path and its dynamic import. It was only configured during warmup and was not confirmed active during normal driving; it is not claimed as the measured cause of the reported blur. Mobile and Performance retain the direct renderer; existing canvas antialiasing is unchanged. Adaptive resolution may still sacrifice fine detail to sustain frame rate.
+
+Validation: 141 tests, TypeScript, normal build and Pages build pass. Browser driving and cockpit switch showed no console errors. High used FXAA at a 1600 x 900 buffer with texels 1/1600, 1/900. Switching to Performance used direct native antialiasing on this desktop context at 1280 x 720, with the retained inactive FXAA pass correctly resized too. Test-machine diagnostic samples were around 60 fps; these are smoke checks, not a controlled before/after benchmark or a phone performance guarantee. Actual low-end phones and the user's exact distant-rover view still need visual comparison.
