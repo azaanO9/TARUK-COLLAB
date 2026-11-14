@@ -11,6 +11,7 @@ import "./mobileCockpit.css";
 import "./freeRoam.css";
 
 export default function MarsFreeRoam() {
+  const [streamed, setStreamed] = useState(false);
   const [mode, setMode] = useState<"pc" | "mobile">("pc");
   const [sceneReady, setSceneReady] = useState(false);
   const [arrived, setArrived] = useState(false);
@@ -67,14 +68,14 @@ export default function MarsFreeRoam() {
 
   const roverDistance = view?.roverX === undefined || view.roverZ === undefined ? null : Math.round(Math.hypot(view.x - view.roverX, view.z - view.roverZ));
   return <main className="sv-root mars-root roam-root" data-controls={mode} data-phase="explore">
-    <SurvivalWorld key={attempt} freeRoam planet="mars" enabled={arrived && !modal && !blocked} onReady={ready}
+    <SurvivalWorld key={attempt} freeRoam planet="mars" enabled={arrived && !modal && !blocked} onReady={ready} onTerrainMode={setStreamed}
       showTouchControls={mode === "mobile"} autoDetectTouch={false} onTouchControlsChange={active => setMode(active ? "mobile" : "pc")}
       event={night ? "night" : "quiet"} day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
       initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onView={setView} onUnavailable={unavailable} />
     {!arrived && !failed && <ShuttleArrival key={`arrival-${attempt}`} ready={sceneReady} onComplete={finishArrival} />}
     {!modal && arrived && <RotateToLandscapeGate onBlockedChange={setBlocked} />}
     <header className="roam-header"><b>TARUKH <span>· FREE EXPLORATION</span></b><button disabled={!arrived} onClick={() => setMenu(true)}>Pause</button></header>
-    {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : "Mars surface"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
+    {!modal && <aside className="roam-info">{view?.biome === "cave" ? "Ice caves" : streamed ? "Expanding Mars terrain" : "Mars surface · fixed map"} · {view?.roverDriving ? "Driving crew rover" : roverDistance !== null ? `Crew rover · ${roverDistance} m` : "Free exploration"}</aside>}
     {modal && <div className="mars-dialog-backdrop"><section ref={dialog} className="mars-dialog roam-dialog" role="dialog" aria-modal="true" aria-labelledby="roam-dialog-title">
       {failed ? <><h2 id="roam-dialog-title">The 3D world couldn’t start</h2><p>Retry, or use lighter graphics for this browser.</p>
         <button onClick={() => { setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry</button>

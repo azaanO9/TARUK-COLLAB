@@ -228,13 +228,14 @@ export function enterRover(rover: RoverVehicle): RoverVehicle {
 export function exitRover(
   rover: RoverVehicle,
   obstacles: readonly RoverObstacle[] = [],
+  worldLimit = ROVER_LIMIT,
 ): { rover: RoverVehicle; exitPosition: { x: number; z: number } | null } {
   // Exit to the driver's side (left flank of the vehicle)
   let exitPosition: {x:number;z:number}|null=null;
   for(const [side,end] of [[-2.4,0],[2.4,0],[-2.4,1.5],[2.4,1.5],[0,3.2],[0,-3.2]]){
     const x=rover.x+Math.cos(rover.yaw)*side+Math.sin(rover.yaw)*end;
     const z=rover.z-Math.sin(rover.yaw)*side+Math.cos(rover.yaw)*end;
-    if(Math.abs(x)>ROVER_LIMIT||Math.abs(z)>ROVER_LIMIT)continue;
+    if(Math.abs(x)>worldLimit||Math.abs(z)>worldLimit)continue;
     if(!obstacles.some(o=>o.id!=="rover"&&overlapDisc(x,z,.36,o))){exitPosition={x,z};break;}
   }
   if(!exitPosition)return {rover,exitPosition:null};
@@ -263,8 +264,9 @@ export function stepRoverVehicle(
   heightAt: (x: number, z: number) => number = () => 0,
   mudAt: (x: number, z: number) => number = () => 0,
   analog?: RoverAnalogInput,
-  options?: { speedMultiplier?: number },
+  options?: { speedMultiplier?: number; worldLimit?: number },
 ): RoverVehicle {
+  const worldLimit = options?.worldLimit ?? ROVER_LIMIT;
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (dt <= 0) return rover;
 
@@ -392,18 +394,18 @@ export function stepRoverVehicle(
   }
   yaw=safeYaw;
   const shape=roverFootprint(0,0,yaw);
-  const moved=moveAndSlide(rover.x,rover.z,-Math.sin(yaw)*speed*dt,-Math.cos(yaw)*speed*dt,[shape],solid,ROVER_LIMIT);
+  const moved=moveAndSlide(rover.x,rover.z,-Math.sin(yaw)*speed*dt,-Math.cos(yaw)*speed*dt,[shape],solid,worldLimit);
   let x=moved.x,z=moved.z;
   const travelled=(x-rover.x)*-Math.sin(yaw)+(z-rover.z)*-Math.cos(yaw);
   if(moved.normals.length) speed=Math.sign(speed)*Math.min(Math.abs(speed),Math.max(0,travelled*Math.sign(speed)/dt));
 
   // Boundary limits
-  if (x < -ROVER_LIMIT || x > ROVER_LIMIT) {
-    x = Math.max(-ROVER_LIMIT, Math.min(ROVER_LIMIT, x));
+  if (x < -worldLimit || x > worldLimit) {
+    x = Math.max(-worldLimit, Math.min(worldLimit, x));
     speed = 0;
   }
-  if (z < -ROVER_LIMIT || z > ROVER_LIMIT) {
-    z = Math.max(-ROVER_LIMIT, Math.min(ROVER_LIMIT, z));
+  if (z < -worldLimit || z > worldLimit) {
+    z = Math.max(-worldLimit, Math.min(worldLimit, z));
     speed = 0;
   }
 

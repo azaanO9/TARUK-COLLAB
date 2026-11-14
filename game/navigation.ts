@@ -49,6 +49,7 @@ export function stepWalker(
   speed = WALK_SPEED,
   grounded = true,
   analog?: MoveAxes,
+  worldLimit = WORLD_LIMIT,
 ): Walker {
   const dt = Math.max(0, Math.min(seconds, 0.05));
   if (!dt) return w;
@@ -70,7 +71,7 @@ export function stepWalker(
   const blend = grounded ? 1 - Math.exp(-14 * dt) : 0,
     vx = w.vx + (tx - w.vx) * blend,
     vz = w.vz + (tz - w.vz) * blend;
-  const moved = moveAndSlide(w.x, w.z, vx * dt, vz * dt, [{x:0,z:0,radius:WALKER_RADIUS}], obstacles, WORLD_LIMIT);
+  const moved = moveAndSlide(w.x, w.z, vx * dt, vz * dt, [{x:0,z:0,radius:WALKER_RADIUS}], obstacles, worldLimit);
   let slideX = vx, slideZ = vz;
   for (const n of moved.normals) {
     const into = Math.min(0, slideX * n.nx + slideZ * n.nz);

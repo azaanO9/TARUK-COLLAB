@@ -1,4 +1,6 @@
 "use client";
+import { createStreamedMars } from "./world/streamedMars";
+import { streamingCandidate, streamingBenchmarkPass, STREAM_LIMIT } from "../game/terrainStreaming";
 import { safeLookDelta } from "../game/mouseLook";
 import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -100,6 +102,7 @@ export type View = {
 type Props = {
   freeRoam?: boolean;
   onReady?: () => void;
+  onTerrainMode?: (enabled:boolean) => void;
   enabled: boolean;
   showTouchControls: boolean;
   autoDetectTouch?: boolean;
@@ -235,6 +238,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const gpuInfo = gl.getExtension("WEBGL_debug_renderer_info");
       const gpuName = gpuInfo ? String(gl.getParameter(gpuInfo.UNMASKED_RENDERER_WEBGL)) : "";
       let autoProfile = startingProfile(gpuName, navigator.hardwareConcurrency, (navigator as Navigator & {deviceMemory?:number}).deviceMemory);
+      const eligibleStreaming = !!props.freeRoam && streamingCandidate(gpuName,navigator.hardwareConcurrency,(navigator as Navigator & {deviceMemory?:number}).deviceMemory,mobileMars,props.initialQuality ?? "auto");
       const effectiveQuality = () => cameraSettings.current.quality === "auto" ? autoProfile : cameraSettings.current.quality;
       const profileLabel = () => autoProfile === "auto" ? "Balanced" : autoProfile === "high" ? "High" : "Performance";
       setAutoLabel(profileLabel());
@@ -296,6 +300,13 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const [regolithSurface,panelSurface] = await surfacePromise;
       if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam);
+      let streaming: ReturnType<typeof createStreamedMars> | null = null;
+      const streamOptions = {worldLimit:STREAM_LIMIT};
+      const baseHeight = model.heightAt;
+      const baseRoverHeight = model.roverHeightAt;
+      // Stable callbacks also keep footprints and suspension aligned after streaming activates.
+      model.heightAt = (x,z) => streaming ? streaming.heightAt(x,z) : baseHeight(x,z);
+      model.roverHeightAt = (x,z) => streaming && (Math.abs(x)>210 || Math.abs(z)>210) ? streaming.heightAt(x,z) : baseRoverHeight(x,z);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       // Mars systems: Subterranean Ice Cave biome, Weather Terminal podium, Drop-Pod Intro
       const caveBiome = props.planet === "mars" && !props.freeRoam ? createCaveBiomeScene(model.heightAt) : null;
@@ -369,6 +380,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         model.obstacles.push(boxObstacle(SAGE_DOCK.x,SAGE_DOCK.z-1.4,1.65,.1));
       }
       const marsSky = props.planet === "mars" ? createMarsSky(scene) : null;
+      const skyMesh=scene.getObjectByName("mars-sky");
       const windDust = props.planet === "mars" ? createMarsWindDust() : null;
       const dust = windDust?.points ?? null;
       if (dust) scene.add(dust);
@@ -680,7 +692,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const exitObstacles = curiosity
             ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
             : model.obstacles;
-          const { rover: nextRover, exitPosition } = exitRover(rover, exitObstacles);
+          const { rover: nextRover, exitPosition } = exitRover(rover, exitObstacles, streaming ? STREAM_LIMIT : undefined);
           if (!exitPosition) { setMessage("There isn't room to exit here. Move the rover to an open area."); return; }
           rover = nextRover;
           walker.x = exitPosition.x;
@@ -1132,6 +1144,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const dt = last ? Math.min((time - last) / 1000, 0.1) : 1 / 60;
         last = time;
         const p = current.current;
+        if(streaming){
+          streaming.update(walker.x,walker.z,lastQuality==="performance" ? .7 : 2);
+          skyMesh?.position.set(walker.x,0,walker.z);
+          starField.position.set(walker.x,0,walker.z);
+        }
         const cameraChanged = (rover.driving && !cameraSettings.current.thirdPerson) !== wasCockpit;
         const programsBefore = renderer.info.programs?.length ?? 0;
         if (beacon && beacon.userData.target !== p.target) { beacon.userData.target=p.target; const destination = STATIONS.find(s => s.id === p.target); if (destination) beacon.position.set(destination.x, model.heightAt(destination.x,destination.z),destination.z); }
@@ -1188,6 +1205,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                   model.roverHeightAt,
                   model.mudAt,
                   analogDrive.current,
+                  streaming ? streamOptions : undefined,
                 );
               }
               walker.x = rover.x;
@@ -1214,6 +1232,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                   sevObstacles,
                   model.roverHeightAt,
                   model.mudAt,
+                  undefined, streaming ? streamOptions : undefined,
                 );
               }
               const dynamicObstacles = [
@@ -1224,7 +1243,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
               walker.yaw = cameraYaw;
               for (let i = 0; i < steps; i++) {
                 if (props.planet === "mars") {
-                  const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles, analogWalk.current);
+                  const next = stepMarsLocomotion(walker, jump, keys, step, model.heightAt, dynamicObstacles, analogWalk.current, streaming ? STREAM_LIMIT : undefined);
                   walker = next.walker;
                   jump = next.jump;
                   keys.delete("jump");
@@ -1559,7 +1578,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if (scene.fog && "color" in scene.fog) {
             const f = scene.fog as import("three").FogExp2;
             f.color.setHex(targetFog);
-            f.density = targetDensity;
+            f.density = streaming ? Math.max(.01,targetDensity) : targetDensity;
           }
 
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
@@ -1736,6 +1755,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         metricFrames++;
         if (time - metricStart > 1000) {
           element.dataset.cameraFov = String(camera.fov);
+          element.dataset.worldX = walker.x.toFixed(2);
+          element.dataset.worldZ = walker.z.toFixed(2);
+          element.dataset.terrainChunks = String(streaming?.count() ?? 0);
           element.dataset.fps = (metricFrames * 1000 / (time - metricStart)).toFixed(1);
           element.dataset.renderCalls = String(renderer.info.render.calls);
           element.dataset.shaderPrograms = String(renderer.info.programs?.length ?? 0);
@@ -1801,6 +1823,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         bigRover?.dispose();
         curiosityRover?.dispose();
         marsAstronaut?.dispose();
+        streaming?.dispose();
         model.disposeTracks?.();
         disposeMarsSurfaceTextures(regolithSurface);
         scene.traverse((o) => {
@@ -1856,6 +1879,34 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
       }
       if (cancelled) return;
+      if(eligibleStreaming) {
+        setLoadingStage("Checking graphics headroom…");
+        const samples:number[]=[];
+        for(let i=0;i<16;i++){
+          await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+          if(cancelled)return;
+          const start=performance.now();
+          renderer.render(scene,camera);configureEffects(true);gl.finish();
+          if(i>=4)samples.push(performance.now()-start);
+        }
+        if(streamingBenchmarkPass(samples)) {
+          const ground=model.root.getObjectByName("mars-ground") as import("three").Mesh;
+          streaming=createStreamedMars(model.root,ground,baseHeight);
+          streaming.update(walker.x,walker.z,2);
+          while(streaming.pending()){
+            await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+            if(cancelled)return;
+            streaming.update(walker.x,walker.z,4);
+          }
+          const backdrop=model.root.getObjectByName("mars-backdrop");if(backdrop)backdrop.visible=false;
+          (scene.fog as import("three").FogExp2).density=.01;
+          await renderer.compileAsync(scene,camera);
+          renderer.render(scene,camera);configureEffects(true);
+        }
+      }
+      if(cancelled)return;
+      current.current.onTerrainMode?.(!!streaming);
+      element.dataset.terrainMode=streaming ? "streamed" : "finite";
       frame = requestAnimationFrame(animate);
       setLoadingStage("Launching exploration…");
       setLoadingProgress(100);

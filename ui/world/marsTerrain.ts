@@ -286,6 +286,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   };
   groundMat.customProgramCacheKey = () => "tarukh-height-blended-soil-v4";
   const ground = new T.Mesh(geometry, groundMat);
+  ground.name="mars-ground";
   ground.receiveShadow = true;
   root.add(ground);
 
@@ -519,6 +520,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   };
   cliffMat.customProgramCacheKey = () => "tarukh-canyon-mineral-relief-v4";
   const canyon = new T.Mesh(landscape, cliffMat);
+  canyon.name="mars-backdrop";
   root.add(canyon);
 
   // Performance-mode single-pass shaders preserve Mars palette, dust, tire tracks, and rock contrast at high iGPU frame rates.
@@ -758,7 +760,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
 export function createMarsSky(scene: T.Scene) {
   const material = createMarsSkyMaterial();
   const sky = new T.Mesh(new T.SphereGeometry(850, 40, 24), material);
-  scene.add(sky);
+  sky.name="mars-sky"; scene.add(sky);
   return material;
 }
 
