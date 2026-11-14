@@ -3,6 +3,9 @@ export type CollisionObstacle = {
   x: number; z: number; radius: number; id?: string; traversable?: boolean;
   /** World-space top of a jumpable rock; omitted obstacles stay solid at all heights. */
   topY?: number;
+  /** Convex horizontal rock outline, world-oriented offsets from x/z. */
+  hull?: readonly {x:number;z:number}[];
+  rockSupport?: {yaw:number;halfX:number;halfZ:number;height:number};
   halfX?: number; halfZ?: number; yaw?: number;
 };
 export type CollisionDisc = { x: number; z: number; radius: number; halfX?: number; halfZ?: number; yaw?: number };
@@ -89,9 +92,35 @@ function boxContact(a: CollisionObstacle, b: CollisionObstacle, dx: number, dz: 
   return {depth,nx:depX,nz:depZ,t:enter,hitX,hitZ,leave};
 }
 
+/** Swept SAT between the vehicle rectangle and a geometry-derived rock outline. */
+function rockBoxContact(x:number,z:number,body:CollisionDisc,o:CollisionObstacle,dx:number,dz:number){
+ const hull=o.hull!,c=Math.cos(body.yaw??0),s=Math.sin(body.yaw??0);
+ let enter=-Infinity,leave=Infinity,depth=Infinity,nx=0,nz=0,hitX=0,hitZ=0;
+ for(let i=-2;i<hull.length;i++){
+  let ax:number,az:number;
+  if(i===-2){ax=c;az=-s;}else if(i===-1){ax=s;az=c;}
+  else{const a=hull[i],b=hull[(i+1)%hull.length],length=Math.hypot(b.x-a.x,b.z-a.z);if(length<1e-9)continue;ax=-(b.z-a.z)/length;az=(b.x-a.x)/length;}
+  let low=Infinity,high=-Infinity;
+  for(const p of hull){const v=p.x*ax+p.z*az;low=Math.min(low,v);high=Math.max(high,v);}
+  const center=(x-o.x)*ax+(z-o.z)*az;
+  const extent=Math.abs(ax*c-az*s)*body.halfX!+Math.abs(ax*s+az*c)*body.halfZ!;
+  const left=center+extent-low,right=high-center+extent;
+  const penetration=Math.min(left,right);
+  if(penetration<depth){depth=penetration;const sign=left<right?-1:1;nx=ax*sign;nz=az*sign;}
+  const v=dx*ax+dz*az;
+  if(Math.abs(v)<1e-12){if(penetration<0)return null;continue;}
+  let lo=(low-extent-center)/v,hi=(high+extent-center)/v;
+  if(lo>hi)[lo,hi]=[hi,lo];
+  if(lo>enter){enter=lo;hitX=ax*(v>0?-1:1);hitZ=az*(v>0?-1:1);}
+  leave=Math.min(leave,hi);if(enter>leave)return null;
+ }
+ return {depth,nx,nz,t:enter,hitX,hitZ,leave};
+}
+
 export function overlapBody(x:number,z:number,body:CollisionDisc,o:CollisionObstacle):Contact|null {
   if(body.halfX===undefined || body.halfZ===undefined)return overlapDisc(x,z,body.radius,o);
   if(Math.abs(x-o.x)>body.radius+o.radius || Math.abs(z-o.z)>body.radius+o.radius)return null;
+  if(o.hull){const contact=rockBoxContact(x,z,body,o,0,0);return contact&&contact.depth>1e-9?contact:null;}
   const a={...body,x,z};
   if(o.halfX!==undefined && o.halfZ!==undefined){const c=boxContact(a,o,0,0);return c&&c.depth>0?c:null;}
   const c=overlapDisc(o.x,o.z,o.radius,a);
@@ -101,6 +130,7 @@ export function overlapBody(x:number,z:number,body:CollisionDisc,o:CollisionObst
 function sweepBody(x:number,z:number,dx:number,dz:number,body:CollisionDisc,o:CollisionObstacle){
   if(body.halfX===undefined || body.halfZ===undefined)return sweepDisc(x,z,dx,dz,body.radius,o);
   if(Math.abs(x-o.x)>body.radius+o.radius+Math.abs(dx) || Math.abs(z-o.z)>body.radius+o.radius+Math.abs(dz))return null;
+  if(o.hull){const contact=rockBoxContact(x,z,body,o,dx,dz);return contact&&contact.t>=-1e-8&&contact.t<=1&&contact.leave>=0?{t:Math.max(0,contact.t),nx:contact.hitX,nz:contact.hitZ}:null;}
   const a={...body,x,z};
   if(o.halfX!==undefined && o.halfZ!==undefined){
     const c=boxContact(a,o,dx,dz);

@@ -1,7 +1,7 @@
 "use client";
 import { createStreamedMars } from "./world/streamedMars";
 import { streamingBudget, STREAM_LIMIT } from "../game/terrainStreaming";
-import { nightAmount, daylightPhase } from "../game/daylightCycle";
+import { nightAmount, daylightPhase, daylightAngle } from "../game/daylightCycle";
 import { safeLookDelta } from "../game/mouseLook";
 import { assetUrl } from "../lib/assetUrl";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
@@ -74,6 +74,7 @@ function shortestAngleDiff(from: number, to: number): number {
 
 export type View = {
   lightPhase?: string;
+  mapRocks?: readonly {x:number;z:number;radius:number}[];
   x: number;
   z: number;
   yaw: number;
@@ -309,7 +310,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const baseRoverHeight = model.roverHeightAt;
       // Stable callbacks also keep footprints and suspension aligned after streaming activates.
       model.heightAt = (x,z) => streaming ? streaming.heightAt(x,z) : baseHeight(x,z);
-      model.roverHeightAt = (x,z) => streaming && (Math.abs(x)>210 || Math.abs(z)>210) ? streaming.heightAt(x,z) : baseRoverHeight(x,z);
+      model.roverHeightAt = (x,z) => streaming && (Math.abs(x)>210 || Math.abs(z)>210) ? streaming.roverHeightAt(x,z) : baseRoverHeight(x,z);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       // Mars systems: Subterranean Ice Cave biome, Weather Terminal podium, Drop-Pod Intro
       const caveBiome = props.planet === "mars" && !props.freeRoam ? createCaveBiomeScene(model.heightAt) : null;
@@ -707,6 +708,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let lastQuality = "", lastSelection = cameraSettings.current.quality;
       let metricStart = 0, metricFrames = 0;
       let slowWindows = 0, fastWindows = 0;
+      let lastMapReport=0;
+      let mapRocks: {x:number;z:number;radius:number}[]=[];
       let lastAimCheck = 0, lastCanInspect = false, resolutionScale = Math.min(devicePixelRatio, 1.25), qualityStart = 0;
       let gaitPhase = 0, gaitBlend = 0, cameraGround = 0;
       const center = new T.Vector2(0, 0);
@@ -1611,7 +1614,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           ambient.color.copy(dayAmbient).lerp(nightAmbient,n);ambient.groundColor.copy(dayGround).lerp(nightGround,n);
           light.color.copy(dayLight).lerp(sunsetLight,twilight*.55).lerp(nightLight,n);
           scene.environmentIntensity=T.MathUtils.lerp(.85,.15,n);
-          sunDirection.set(MARS_SUN_DIRECTION.x,T.MathUtils.lerp(.25,-.18,n),MARS_SUN_DIRECTION.z).normalize();
+          const sunAngle=daylightAngle(daylightElapsed),sunSin=Math.sin(sunAngle),sunCos=Math.cos(sunAngle);
+          sunDirection.set(MARS_SUN_DIRECTION.x*sunCos+MARS_SUN_DIRECTION.z*sunSin,.25*sunCos,MARS_SUN_DIRECTION.z*sunCos-MARS_SUN_DIRECTION.x*sunSin).normalize();
           if(marsSky){marsSky.uniforms.night.value=n;marsSky.uniforms.sunDirection.value.copy(sunDirection);}
           light.position.set(sunDirection.x*100+light.target.position.x,Math.max(.18,sunDirection.y)*100,sunDirection.z*100+light.target.position.z);
           sun.visible=true;sun.position.copy(sunDirection).multiplyScalar(185);sun.position.x+=walker.x;sun.position.z+=walker.z;sun.material.opacity=1-n;
@@ -1744,7 +1748,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         if (time - lastReport > 90) {
           lastReport = time;
+          if(props.freeRoam && time-lastMapReport>500){
+            lastMapReport=time;
+            mapRocks=model.obstacles.filter(o=>o.topY!==undefined && Math.hypot(o.x-walker.x,o.z-walker.z)<80)
+              .sort((a,b)=>Math.hypot(a.x-walker.x,a.z-walker.z)-Math.hypot(b.x-walker.x,b.z-walker.z))
+              .slice(0,48).map(o=>({x:o.x,z:o.z,radius:o.radius}));
+          }
           current.current.onView({
+            mapRocks:props.freeRoam?mapRocks:undefined,
             x: walker.x,
             z: walker.z,
             lightPhase:props.freeRoam ? daylightPhase(daylightElapsed) : undefined,

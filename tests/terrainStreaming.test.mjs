@@ -39,5 +39,10 @@ test("streamed chunks share borders, match contact heights, recycle and dispose 
  assert.equal(stream.heightAt(501.25,502.5),expected);
  assert.equal(root.children.length,98);
  assert.equal(obstacles.length,49*18);
+ const small=obstacles.find(o=>o.traversable),large=obstacles.find(o=>!o.traversable);
+ assert.ok(small&&large,"generated terrain includes climbable rocks and blocking boulders");
+ assert.ok(stream.roverHeightAt(small.x,small.z)>stream.heightAt(small.x,small.z)+.2);
+ assert.equal(stream.roverHeightAt(large.x,large.z),stream.heightAt(large.x,large.z));
+ assert.ok(obstacles.every(o=>o.hull.length>=3));
  stream.dispose();assert.equal(obstacles.length,0);assert.equal(root.children.length,0);ground.geometry.dispose();material.dispose();
 });

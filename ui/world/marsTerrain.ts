@@ -1,3 +1,5 @@
+import {convexRockOutline,rockContact,rockLiftAt} from "../../game/rockContact.ts";
+import type {CollisionObstacle} from "../../game/collision.ts";
 import * as T from "three";
 import { createMarsSkyMaterial } from "./marsAtmosphere.ts";
 import { STATIONS } from "../../content/marsBase.ts";
@@ -78,10 +80,9 @@ export function colonySurfaceElevation(x: number, z: number): number {
   return Math.max(support,0.215 * Math.min(rx, rz));
 }
 
-type TraversableRock = { x: number; z: number; r: number; bump: number };
 
 export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures, freeRoam = false) {
-  const obstacles: { x: number; z: number; radius: number; traversable?: boolean; topY?: number }[] = [];
+  const obstacles: CollisionObstacle[] = [];
   const surfaces = suppliedSurfaces ?? fallbackMarsSurfaceTextures();
 
   const PLANE_SIZE = 420;
@@ -383,10 +384,14 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   small.name = "mars-small-rocks";
   const large = Array.from({ length: 4 }, (_, i) => new T.InstancedMesh(makeRock(2, i), rockMat, Math.ceil((450 - i) / 4)));
   const dummy = new T.Object3D();
+  const outlines=[small,...large].map(mesh=>{
+    const p=mesh.geometry.attributes.position;
+    return convexRockOutline(Array.from({length:p.count},(_,i)=>({x:p.getX(i),z:p.getZ(i)})));
+  });
 
   // Spatial hash for O(1) wheel rock-climbing elevation lookup across 6,500+ rocks
   const ROCK_CELL = 4;
-  const rockHash = new Map<number, TraversableRock[]>();
+  const rockHash = new Map<number, CollisionObstacle[]>();
   const hashKey = (cx: number, cz: number) => ((cx + 512) << 10) | (cz + 512);
 
   for (const [count, big] of [[6500, false], [450, true]] as const) {
@@ -404,32 +409,15 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       const bounds=mesh.geometry.boundingBox!;
       const burial=-bounds.min.y*sy*.55;
       const rockTop=burial+bounds.max.y*sy;
-      const footprint=Math.max(sx,sz)*.94;
-
-      if (Math.abs(x) < 210 && Math.abs(z) < 210) {
-        if (big && rockTop > .55) {
-          // True large boulders block both walker and rover
-          obstacles.push({ x, z, radius: footprint, topY: baseH + rockTop, traversable: false });
-        } else if (rockTop > .22 || (big && size > .25)) {
-          // Medium scattered rocks: walker walks around them, rover crawls cleanly over them
-          if(rockTop>.22)obstacles.push({ x, z, radius: footprint, topY: baseH + rockTop, traversable: true });
-          const r = footprint;
-          const bump = rockTop;
-          const k = hashKey(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL));
-          let list = rockHash.get(k);
-          if (!list) { list = []; rockHash.set(k, list); }
-          list.push({ x, z, r, bump });
-        } else if (size >= 0.08) {
-          // Small scattered rocks: traversable wheel bumps for rocker-bogie articulation
-          const r = footprint;
-          const bump = rockTop;
-          const k = hashKey(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL));
-          let list = rockHash.get(k);
-          if (!list) { list = []; rockHash.set(k, list); }
-          list.push({ x, z, r, bump });
-        }
+      if(rockTop>.22 || size>=.08){
+      const contact=rockContact(x,z,outlines[big?1+i%4:0],sx,sz,seed*.6,baseH,rockTop);
+      if(rockTop>.22)obstacles.push(contact);
+      if(contact.traversable && size>=.08){
+        const k=hashKey(Math.floor(x/ROCK_CELL),Math.floor(z/ROCK_CELL));
+        let list=rockHash.get(k);if(!list){list=[];rockHash.set(k,list);}list.push(contact);
       }
 
+      }
       dummy.position.set(x, baseH + burial, z);
       dummy.scale.set(sx, sy, sz);
       dummy.rotation.set(0, seed * .6, 0);
@@ -727,13 +715,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
         if (!list) continue;
         for (let i = 0; i < list.length; i++) {
           const rock = list[i];
-          const reach = rock.r + 0.22; // tire contact half-width
-          const dist = Math.hypot(x - rock.x, z - rock.z);
-          if (dist < reach) {
-            const dome = 1 - Math.pow(dist / reach, 2);
-            const h = rock.bump * dome;
-            if (h > maxRockBump) maxRockBump = h;
-          }
+          maxRockBump=Math.max(maxRockBump,rockLiftAt(x,z,rock));
         }
       }
     }

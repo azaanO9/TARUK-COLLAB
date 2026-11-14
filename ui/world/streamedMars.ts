@@ -1,3 +1,4 @@
+import {convexRockOutline,rockContact,rockLiftAt} from "../../game/rockContact.ts";
 import * as T from "three";
 import {marsHeight} from "./marsTerrain.ts";
 import {CHUNK_SIZE as S, CHUNK_RADIUS as R, chunkKey, isBaseChunk, streamedHeight, streamedRock} from "../../game/terrainStreaming.ts";
@@ -9,6 +10,9 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
  const radius=options.radius ?? R, rockCount=options.rocks ?? 18;
  const obstacles=options.obstacles ?? [], baseObstacleCount=obstacles.length;
  const rockGeometry=new T.DodecahedronGeometry(1,0);
+ rockGeometry.computeBoundingBox();
+ const rockVertices=rockGeometry.attributes.position;
+ const rockOutline=convexRockOutline(Array.from({length:rockVertices.count},(_,i)=>({x:rockVertices.getX(i),z:rockVertices.getZ(i)})));
  const rockMaterial=new T.MeshStandardMaterial({color:0x80604a,roughness:.94,flatShading:true});
  const dummy=new T.Object3D(),tint=new T.Color(),paleRock=new T.Color(0xa58b70);
  const pool=Array.from({length:(radius*2+1)**2},()=>{
@@ -29,9 +33,9 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
   slot.contacts.length=0;
   for(let i=0;i<rockCount;i++){
    const r=streamedRock(slot.x,slot.z,i),height=heightAt(r.x,r.z);
-   dummy.position.set(r.x-slot.x*S,height+r.sy*.55,r.z-slot.z*S);dummy.rotation.set(.1,r.yaw,.08);dummy.scale.set(r.sx,r.sy,r.sz);dummy.updateMatrix();slot.rocks.setMatrixAt(i,dummy.matrix);
+   dummy.position.set(r.x-slot.x*S,height+r.sy*.55,r.z-slot.z*S);dummy.rotation.set(0,r.yaw,0);dummy.scale.set(r.sx,r.sy,r.sz);dummy.updateMatrix();slot.rocks.setMatrixAt(i,dummy.matrix);
    tint.setHex(0x78503a).lerp(paleRock,r.tint);slot.rocks.setColorAt(i,tint);
-   slot.contacts.push({x:r.x,z:r.z,radius:Math.max(r.sx,r.sz)*1.05,topY:height+r.sy*1.55,traversable:false});
+   slot.contacts.push(rockContact(r.x,r.z,rockOutline,r.sx,r.sz,r.yaw,height,r.sy*(.55+rockGeometry.boundingBox!.max.y)));
   }
   slot.rocks.position.set(slot.x*S,0,slot.z*S);slot.rocks.instanceMatrix.needsUpdate=true;if(slot.rocks.instanceColor)slot.rocks.instanceColor.needsUpdate=true;slot.rocks.computeBoundingSphere();slot.rocks.visible=true;
  }
@@ -60,6 +64,13 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
   for(const slot of pool)slot.mesh.material=ground.material;
  }
  function heightAt(x:number,z:number){return Math.abs(x)<=210&&Math.abs(z)<=210?baseHeight(x,z):streamedHeight(x,z,marsHeight);}
- return {update,heightAt,pending:()=>queue.length, count:()=>pool.reduce((n,s)=>n+Number(s.ready&&!!s.key),0),
+ function roverHeightAt(x:number,z:number){
+  let lift=0;const tileX=Math.floor(x/S),tileZ=Math.floor(z/S);
+  for(const slot of pool)if(slot.ready&&Math.abs(slot.x-tileX)<=1&&Math.abs(slot.z-tileZ)<=1){
+   for(const contact of slot.contacts)if(Math.abs(x-contact.x)<contact.radius+.2&&Math.abs(z-contact.z)<contact.radius+.2)lift=Math.max(lift,rockLiftAt(x,z,contact));
+  }
+  return heightAt(x,z)+lift;
+ }
+ return {update,heightAt,roverHeightAt,pending:()=>queue.length, count:()=>pool.reduce((n,s)=>n+Number(s.ready&&!!s.key),0),
   dispose:()=>{obstacles.length=baseObstacleCount;for(const s of pool){root.remove(s.mesh,s.rocks);s.mesh.geometry.dispose();s.rocks.dispose();}rockGeometry.dispose();rockMaterial.dispose();}};
 }

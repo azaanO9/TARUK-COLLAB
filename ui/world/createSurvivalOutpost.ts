@@ -1,3 +1,4 @@
+import type {CollisionObstacle} from "../../game/collision";
 import * as T from "three";
 import { STATIONS } from "../../content/survival";
 import { dressMarsOutpost } from "./marsDetails";
@@ -369,7 +370,7 @@ function createLegacySurvivalOutpost(scene:T.Scene, planet:"moon"|"mars") {
     root.traverse(o => { if (o instanceof T.Mesh && !animated.has(o)) o.updateMatrix(); });
   }
   const shelter = STATIONS.find((s) => s.id === "shelter")!;
-  const obstacles = STATIONS.filter(
+  const obstacles: CollisionObstacle[] = STATIONS.filter(
     (s) => s.id !== "shelter" && s.id !== "lookout",
   ).map((s) => ({
     x: s.x,

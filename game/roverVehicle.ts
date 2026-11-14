@@ -382,7 +382,10 @@ export function stepRoverVehicle(
     while (yaw < -Math.PI) yaw += Math.PI * 2;
   }
 
-  const solid = obstacles.filter(o=>o.id!=="rover"&&!o.traversable);
+  // Only nearby geometry needs precise outline tests; keep the swept travel margin.
+  const contactReach=ROVER_COLLISION_RADIUS+Math.abs(speed)*dt+.2;
+  const solid = obstacles.filter(o=>o.id!=="rover"&&!o.traversable
+    &&Math.abs(o.x-rover.x)<=o.radius+contactReach&&Math.abs(o.z-rover.z)<=o.radius+contactReach);
   // Reject rotation into nearby hardware instead of letting the rear swing through it.
   const turn=Math.atan2(Math.sin(yaw-rover.yaw),Math.cos(yaw-rover.yaw));
   let safeYaw=rover.yaw;

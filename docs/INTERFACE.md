@@ -1,3 +1,7 @@
+## Current free-exploration additions (2026-11-14)
+
+`View.mapRocks` is an optional, capped list of 48 nearby rock positions/radii, refreshed twice per second; the minimap follows the existing view reports. No mission state is involved. `CollisionObstacle.hull` optionally supplies a convex world-oriented horizontal outline relative to the obstacle centre for box-body sweeps; `rockSupport` supplies the small-rock wheel height approximation. Existing obstacles without these fields retain their prior collision behaviour. A complete free-roam daylight cycle now takes 120 active seconds with a continuous brightness curve and sun motion; pause/landing do not advance it.
+
 # Interface contracts
 
 ## Ares Field Camp (current)
