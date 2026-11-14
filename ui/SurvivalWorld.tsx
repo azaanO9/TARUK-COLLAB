@@ -97,6 +97,7 @@ export type View = {
   lidar?: LidarScan;
 };
 type Props = {
+  freeRoam?: boolean;
   enabled: boolean;
   showTouchControls: boolean;
   autoDetectTouch?: boolean;
@@ -132,7 +133,7 @@ export type SurvivalWorldHandle = {
   skipIntro?: () => void;
 };
 const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWorld(props, ref) {
-  const STATIONS = props.planet === "mars" ? marsStations : lunarStations;
+  const STATIONS = props.freeRoam ? [] : props.planet === "mars" ? marsStations : lunarStations;
   const host = useRef<HTMLDivElement>(null),
     current = useRef(props);
   const aim = useRef<HTMLDivElement>(null);
@@ -180,7 +181,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     }),
     [],
   );
-  const [loadingStage, setLoadingStage] = useState("Loading mission equipment…"),
+  const [loadingStage, setLoadingStage] = useState(props.freeRoam ? "Loading explorers and rovers…" : "Loading mission equipment…"),
     [loadingProgress, setLoadingProgress] = useState(10),
     [loaded, setLoaded] = useState(false),
     [locked, setLocked] = useState(false),
@@ -215,7 +216,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         import("./world/createSurvivalOutpost"),
       ]);
       if (cancelled || !host.current) return;
-      setLoadingStage("Building the outpost…");
+      setLoadingStage(props.freeRoam ? "Preparing Mars terrain…" : "Building the outpost…");
       setLoadingProgress(35);
       await new Promise<void>(resolve => setTimeout(resolve, 0));
       if (cancelled || !host.current) return;
@@ -252,7 +253,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const marsAstronaut = props.planet === "mars" ? createRiggedAstronaut(assetUrl("/models/astronaut.glb")) : null;
       const surfacePromise = props.planet === "mars" ? Promise.all([
         loadMarsSurfaceTextures(),
-        new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
+        props.freeRoam ? Promise.resolve(undefined) : new T.TextureLoader().loadAsync(assetUrl("/art/mars-ivory-panel-original.webp")).catch(() => undefined),
       ]) : Promise.resolve([undefined,undefined] as const);
       if (bigRover) scene.add(bigRover.root, bigRover.dust);
       if (curiosityRover) scene.add(curiosityRover.root);
@@ -292,14 +293,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       scene.add(ambient);
       const [regolithSurface,panelSurface] = await surfacePromise;
       if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
-      const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
+      const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
       // Mars systems: Subterranean Ice Cave biome, Weather Terminal podium, Drop-Pod Intro
       const caveBiome = props.planet === "mars" ? createCaveBiomeScene(model.heightAt) : null;
       if (caveBiome) {
         scene.add(caveBiome.surfacePortals, caveBiome.root);
       }
-      const dropPodIntro = props.planet === "mars" ? createDropPodIntro() : null;
+      const dropPodIntro = props.planet === "mars" && !props.freeRoam ? createDropPodIntro() : null;
       if (dropPodIntro) {
         scene.add(dropPodIntro.root);
         if (current.current.playDropPodIntro) {
@@ -318,7 +319,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       }
       // Outpost Alpha Habitat Weather Terminal console outside airlock stairs
       const WEATHER_TERM_POS = { x: -5.4, z: -18.5 };
-      if (props.planet === "mars") {
+      if (props.planet === "mars" && !props.freeRoam) {
         const wtGroup = new T.Group();
         const wy = model.heightAt(WEATHER_TERM_POS.x, WEATHER_TERM_POS.z);
         wtGroup.position.set(WEATHER_TERM_POS.x, wy, WEATHER_TERM_POS.z);
@@ -343,7 +344,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       setLoadingStage("Preparing explorers and equipment…");
       setLoadingProgress(70);
       await new Promise<void>(resolve => setTimeout(resolve, 0));
-      const beacon = props.planet === "mars" ? new T.Group() : null;
+      const beacon = props.planet === "mars" && !props.freeRoam ? new T.Group() : null;
       if (beacon) {
         const beam = new T.Mesh(new T.CylinderGeometry(.12, .4, 8, 16, 1, true), new T.MeshBasicMaterial({color:0x8ef7e1, transparent:true, opacity:.3, depthWrite:false, side:T.DoubleSide}));
         beam.position.y = 4; beacon.add(beam);
@@ -351,7 +352,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         scene.add(beacon);
       }
       const footprints = props.planet === "mars" ? createMarsFootprints(scene,model.heightAt) : null;
-      const sage = props.planet === "mars" ? createSageCompanion() : null;
+      const sage = props.planet === "mars" && !props.freeRoam ? createSageCompanion() : null;
       const sageShadow = sage ? createSoftContactShadow({ width: 1.05, depth: 1.05, y: 0.024, opacity: 0.44 }) : null;
       if (sage) {
         const dock = createSageDock(panelSurface); scene.add(dock);
@@ -560,7 +561,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
-      const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:-23, z:15} : spawnWalker();
+      const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:props.freeRoam ? 12 : -23, z:props.freeRoam ? 22 : 15} : spawnWalker();
       let walker = spawnAtArrival(),
         jump = { height: 0, velocity: 0 },
         rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
@@ -581,7 +582,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       let curiosity: CuriosityRoverState | null = curiosityRover
           ? spawnCuriosityRover(curiosityInitialObstacles, model.roverHeightAt, {
               seed: curiositySeed,
-              allowColonyTargets: true,
+              allowColonyTargets: !props.freeRoam,
               saved: savedCuriosity,
             })
           : null,
@@ -1605,7 +1606,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             const distance = Math.hypot(walker.x - station.x, walker.z - station.z);
             if (distance <= 5.5 && distance < range) { hover = station.id; range = distance; }
           }
-          if (props.planet === "mars" && !inCave) {
+          if (props.planet === "mars" && !props.freeRoam && !inCave) {
             const wtDist = Math.hypot(walker.x - WEATHER_TERM_POS.x, walker.z - WEATHER_TERM_POS.z);
             if (wtDist <= 4.5 && wtDist < range) { hover = "weather-terminal"; range = wtDist; }
           }
@@ -1682,7 +1683,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             if (curiosityRover) {
               curiosity = spawnCuriosityRover(model.obstacles, model.roverHeightAt, {
                 seed: (Date.now() ^ Math.floor(Math.random() * 0x100000000)) >>> 0,
-                allowColonyTargets: true,
+                allowColonyTargets: !props.freeRoam,
               });
             }
             setRoverDriving(false);
@@ -1860,7 +1861,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     }
     mount().catch(() => {
       setMessage(
-        "3D is unavailable. Open the field guide for the accessible station controls.",
+        props.freeRoam ? "3D is unavailable. Retry with Performance graphics." : "3D is unavailable. Open the field guide for the accessible station controls.",
       );
       current.current.onUnavailable();
     });
@@ -1894,7 +1895,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       className="sv-world"
       data-cursor-free={cursorFree ? "true" : "false"}
       role="application"
-      aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} outpost. ${touchControlsActive ? "Use the left thumbstick to move, drag the screen to look around, and tap the right buttons to jump or inspect." : "WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects."}`}
+      aria-label={`${props.planet === "mars" ? "Mars" : "Lunar"} ${props.freeRoam ? "open world" : "outpost"}. ${touchControlsActive ? "Use the left thumbstick to move, drag the screen to look around, and tap the right buttons to jump or inspect." : "WASD to walk. Drag to look or capture the mouse; Q and R also turn. Space jumps. V switches view. E inspects."}`}
       tabIndex={0}
     >
       {debug && props.planet === "mars" && <pre ref={debugPanel} className="mars-debug" aria-label="Graphics performance diagnostics">Collecting graphics measurements…</pre>}

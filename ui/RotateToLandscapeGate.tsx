@@ -54,7 +54,7 @@ export function RotateToLandscapeGate({
         <h2>Rotate your phone to landscape</h2>
         <p>
           Turn your device sideways to unlock the virtual joystick, rover pedals,
-          and full Mars/Lunar view.
+          and full landscape view.
         </p>
         <button
           type="button"

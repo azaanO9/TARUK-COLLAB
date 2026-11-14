@@ -80,7 +80,7 @@ export function colonySurfaceElevation(x: number, z: number): number {
 
 type TraversableRock = { x: number; z: number; r: number; bump: number };
 
-export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures) {
+export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures, freeRoam = false) {
   const obstacles: { x: number; z: number; radius: number; traversable?: boolean }[] = [];
   const surfaces = suppliedSurfaces ?? fallbackMarsSurfaceTextures();
 
@@ -709,11 +709,13 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     for (const rocks of [small,...large]) rocks.material = light ? lightRockMat : rockMat;
   }
 
-  const heightAt = (x: number, z: number) => sampleMeshHeight(x, z) + colonySurfaceElevation(x, z);
+  // Removed hardware must not leave invisible steps or elevated rover pads.
+  const supportHeight = freeRoam ? (_x: number, _z: number) => 0 : colonySurfaceElevation;
+  const heightAt = (x: number, z: number) => sampleMeshHeight(x, z) + supportHeight(x, z);
 
   // O(1) Wheel Surface Height: exact rendered mesh triangle + rover bay pad + traversable rock bumps
   const roverHeightAt = (x: number, z: number) => {
-    const base = sampleMeshHeight(x, z) + colonySurfaceElevation(x, z);
+    const base = heightAt(x, z);
     const cx = Math.floor(x / ROCK_CELL);
     const cz = Math.floor(z / ROCK_CELL);
     let maxRockBump = 0;

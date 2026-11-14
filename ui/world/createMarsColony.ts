@@ -11,9 +11,18 @@ import { createColonySurfaceShading } from "./colonySurfaceShading";
 import { flightPlan, stationNames } from "../../content/marsFlightPlan";
 
 /** Detailed original Mars colony. It shares station IDs and navigation with the existing game. */
-export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture) {
+export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture, freeRoam = false) {
   const root=new T.Group();scene.add(root);
-  const terrain=createMarsTerrain(root, surface), m=createColonyMaterials(panelSurface), b=colonyBuilder(m);
+  const terrain=createMarsTerrain(root, surface, freeRoam);
+  // Free exploration creates terrain only: no invisible building colliders or station targets.
+  if (freeRoam) {
+    const habitatWindow = new T.MeshStandardMaterial();
+    return { root, ...terrain, targets: [] as T.Group[], indicators: {} as Record<string,T.MeshStandardMaterial>,
+      panels: [] as T.Mesh[], tanks: [] as T.Mesh[], foods: [] as T.Mesh[], wheelMeshes: [] as T.Mesh[],
+      dish: null as T.Object3D | null, habitatWindow,
+      disposeTracks: () => { terrain.disposeTracks(); habitatWindow.dispose(); } };
+  }
+  const m=createColonyMaterials(panelSurface), b=colonyBuilder(m);
   // These material instances belong only to the buildings, not the astronaut/Sage.
   m.orange.color.setHex(0xc8793e);
   m.teal.color.setHex(0x24565a);

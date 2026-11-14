@@ -9,9 +9,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "TARUKH · Outpost Commander",
+  title: "TARUKH - Mars Open World",
   description:
-    "Explore a Martian outpost with Sage. Walk the crater fields, inspect mission equipment and discover a new world. Includes the earlier lunar missions.",
+    "Explore Mars freely on foot or in the crew rover, alongside an autonomous Curiosity rover.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

@@ -1,6 +1,6 @@
-# Current Junior Astronaut project status
+# Current project status - Mars Open World (2026-11-14)
 
-The default game now has a Junior Astronaut mission briefing and a playable, player-paced Mars prototype with six activities, quizzes, fictional resource points, ranks, sol events and a certificate. The existing lunar survival campaign remains separate. See `COLLABORATION.md` and `docs/INTERFACE.md` for current scope and collaboration. Earlier historical notes below describe prior stages; when they conflict with the current implementation or the latest user instructions, follow the current implementation and user instructions.
+The latest user request replaces the mission game with free exploration. `app/page.tsx` loads `ui/MarsFreeRoam.tsx` for every mode URL. Keep both rovers, terrain, astronaut, movement and graphics controls. Do not restore Sage, base buildings, mission progression, quizzes/rewards, certificates or lunar training. `SurvivalWorld` uses `freeRoam` to omit station geometry, collisions and interactions. Earlier source modules remain historical and unreachable; older instructions below are superseded where they conflict with this scope. See README.md for the current playable features.
 
 # Instructions for assistants and builders
 

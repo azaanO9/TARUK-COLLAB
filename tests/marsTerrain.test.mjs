@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { marsHeight, colonySurfaceElevation } from "../ui/world/marsTerrain.ts";
+import * as T from "three";
+import { marsHeight, colonySurfaceElevation, createMarsTerrain } from "../ui/world/marsTerrain.ts";
 import { STATIONS } from "../content/marsBase.ts";
 
 test("Mars equipment pads and spawn remain level on the explorable terrain", () => {
@@ -35,4 +36,24 @@ test("walkable hardware supports feet on the rover pad, shelter floor and habita
  assert.equal(colonySurfaceElevation(-21,-22.8),.12);
  for(let i=0;i<4;i++)assert.ok(Math.abs(colonySurfaceElevation(-2,-26+(5.9-i*.4)*1.27)-(.23+i*.14)*1.27)<1e-6);
  assert.equal(colonySurfaceElevation(30,30),0);
+});
+
+
+test("free exploration removes invisible hardware floors while keeping natural terrain collisions", () => {
+  const root = new T.Group();
+  const terrain = createMarsTerrain(root, undefined, true);
+  try {
+    for (const [x, z] of [[17, 10], [-21, -23], [-2, -19], [-48, 24]]) {
+      assert.ok(Math.abs(terrain.heightAt(x, z) - marsHeight(x, z)) < 1e-5, `visible terrain supports feet at ${x},${z}`);
+    }
+    assert.equal(terrain.roverHeightAt(17, 10), 0, "no floating service pad under the crew rover");
+    assert.ok(terrain.obstacles.length > 0, "natural rocks retain collision");
+    assert.ok(root.children.length > 0, "terrain still renders");
+  } finally {
+    terrain.disposeTracks();
+    root.traverse(object => {
+      object.geometry?.dispose();
+      for (const material of object.material ? [].concat(object.material) : []) material.dispose();
+    });
+  }
 });
