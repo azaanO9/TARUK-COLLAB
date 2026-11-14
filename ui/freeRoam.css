@@ -1,3 +1,5 @@
+/* Keep focus changes from scrolling the absolute HUD inside a short viewport. */
+.roam-root{overflow:clip}
 .roam-launch{min-height:100dvh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 25% 20%,#804831,#1c1b20 70%);color:#fff0dd;font:16px/1.6 system-ui}
 .roam-launch section{max-width:650px;padding:clamp(20px,5vw,48px);border:1px solid #d2a77955;border-radius:22px;background:#17191ce8}
 .roam-launch h1{font-size:clamp(30px,6vw,52px);margin:10px 0}.roam-launch fieldset{border:0;padding:0;margin:24px 0}
@@ -8,21 +10,39 @@
 
 .landing-caption{position:absolute;bottom:7%;left:50%;transform:translateX(-50%);z-index:35;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 24px;border-radius:14px;background:#172027dd;color:#fff4e4;font:16px/1.4 system-ui;white-space:nowrap}.landing-caption button{min-height:44px;padding:10px 20px;border:1px solid #a5ced0;border-radius:8px;background:#253d48;color:white;font:inherit;cursor:pointer}.landing-caption button:focus-visible{outline:3px solid #ffe0a0}
 
-.roam-minimap{position:absolute;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:21;width:184px;color:#fff2df;font:14px/1.3 system-ui;pointer-events:none;text-align:center;background:#172027e8;border:1px solid #d9bc8d80;border-radius:12px;overflow:hidden}
-.roam-minimap button{pointer-events:auto;width:100%;min-height:44px;border:0;border-bottom:1px solid #d9bc8d55;background:#24313b;color:inherit;font:inherit;cursor:pointer}.roam-minimap button:focus-visible{outline:3px solid #a6e4ff;outline-offset:-4px}.roam-minimap svg{display:block;width:160px;height:160px;margin:5px auto}.roam-minimap svg text{font:700 14px system-ui}.roam-minimap p{margin:4px 5px 8px;font-size:12px}
-@media(max-width:850px){.roam-minimap{width:146px;bottom:100px}.roam-minimap svg{width:126px;height:126px}.roam-minimap p{font-size:11px}.roam-root[data-controls="mobile"] .roam-minimap{right:50%;transform:translateX(50%);top:70px;bottom:auto;width:130px}.roam-root[data-controls="mobile"] .roam-minimap svg{width:104px;height:104px}.roam-root[data-controls="mobile"] .roam-minimap p{display:none}}
+.roam-minimap{position:absolute;left:max(16px,env(safe-area-inset-left));right:auto;bottom:max(16px,env(safe-area-inset-bottom));z-index:21;width:184px;color:#fff2df;font:14px/1.3 system-ui;pointer-events:none;text-align:center;background:#172027e8;border:1px solid #d9bc8d80;border-radius:12px;overflow:hidden}
+.roam-minimap button{pointer-events:auto;width:100%;min-height:44px;border:0;border-bottom:1px solid #d9bc8d55;background:#24313b;color:inherit;font:inherit;cursor:pointer}
+.roam-minimap button:focus-visible{outline:3px solid #a6e4ff;outline-offset:-4px}
+.roam-minimap svg{display:block;width:160px;height:160px;margin:4px auto}
+.roam-minimap svg text{font:700 14px system-ui}
+.roam-minimap p{margin:5px 6px;font-size:14px;line-height:1.3}
+.roam-map-mode{font-weight:700;color:#bdeaff}
+.roam-minimap .roam-lidar-status{font-variant-numeric:tabular-nums;min-height:18px;color:#bdeaff}
+.roam-minimap[data-blocked="true"] .roam-lidar-status{color:#ffce84;font-weight:700}
+.roam-minimap .roam-map-legend{padding-top:5px;margin-bottom:8px;border-top:1px solid #d9bc8d33}
+.roam-lidar-sweep{transform-origin:100px 100px;animation:roam-lidar-sweep 4s linear infinite}
+@keyframes roam-lidar-sweep{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.roam-lidar-sweep{animation:none;opacity:.4}}
 
-.roam-minimap[data-driving="true"]{bottom:100px}
-
+/* Keep the map at the lower left, above the existing thumb/steering controls. */
+.roam-root[data-controls="mobile"] .roam-minimap{width:146px;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 100px)}
+.roam-root[data-controls="mobile"] .roam-minimap[data-driving="true"]{bottom:calc(max(14px,env(safe-area-inset-bottom)) + 72px)}
+.roam-root[data-controls="mobile"] .roam-minimap svg{width:104px;height:104px}
+.roam-root[data-controls="mobile"] .roam-map-legend{display:none}
+.roam-root[data-controls="mobile"] .roam-info{left:174px;max-width:calc(100vw - 290px)}
+.roam-root[data-controls="mobile"]:has(.roam-minimap[data-driving="true"]) .roam-info{display:none}
+.roam-root[data-controls="mobile"] .roam-map-mode{padding-right:38px;min-height:36px;display:grid;place-content:center}
+.roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] button{position:absolute;right:0;top:0;width:44px;height:44px;font-size:0;border-radius:0 10px 0 10px;background:#24313bcc;border:1px solid #d9bc8d55}
+.roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] button::after{content:"−";font-size:24px}
 @media(max-width:850px){
- .roam-root[data-controls="mobile"] .roam-minimap{left:max(16px,env(safe-area-inset-left));right:auto;transform:none;top:128px;bottom:auto;width:108px}
- .roam-root[data-controls="mobile"] .roam-minimap svg{width:96px;height:96px;margin:4px auto}
- .roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] button{position:absolute;right:0;top:0;width:44px;height:44px;font-size:0;border-radius:50%;background:#24313bcc;border:1px solid #d9bc8d55}
- .roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] button::after{content:"−";font-size:24px}
+ .roam-minimap{width:146px}
+ .roam-minimap svg{width:126px;height:126px}
+ .roam-map-legend{display:none}
 }
-
-@media(max-width:850px) and (max-height:360px){
- .roam-minimap svg{width:96px;height:96px}.roam-minimap p{display:none}
- .roam-root[data-controls="mobile"] .roam-minimap{top:70px}
- .roam-root[data-controls="mobile"] .roam-info{left:140px;max-width:calc(100vw - 260px)}
+@media(max-height:360px){
+ .roam-minimap svg,.roam-root[data-controls="mobile"] .roam-minimap svg{width:88px;height:88px}
+ .roam-map-legend{display:none}
+}
+@media(max-height:340px){
+ .roam-root[data-controls="mobile"] .roam-minimap[data-driving="false"] .roam-map-mode{display:none}
 }
