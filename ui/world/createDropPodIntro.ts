@@ -10,7 +10,8 @@ export type DropPodIntroHandle = {
     dt: number,
     camera: T.PerspectiveCamera,
     targetSpawn: { x: number; y: number; z: number },
-  ) => { active: boolean; progress: number; altitudeMeters: number; speedMs: number };
+  ) => { active: boolean; progress: number; altitudeMeters: number; speedMs: number; phase?:string;
+    astronaut?:{visible:boolean;x:number;y:number;z:number;yaw:number;speed:number;hopHeight:number;verticalVelocity:number} };
   dispose: () => void;
 };
 

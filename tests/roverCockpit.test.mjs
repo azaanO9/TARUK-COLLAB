@@ -3,6 +3,24 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import { createRoverCockpit, createRoverWindowLining, positionRoverCockpitCamera, ROVER_DRIVER_EYE } from '../ui/world/roverCockpit.ts';
 import { ROVER_WINDOW_CONTOURS } from '../ui/world/roverWindowContours.ts';
+import {spawnRoverVehicle} from '../game/roverVehicle.ts';
+
+test('cockpit plots six landmark bearings and bounds map texture refresh to 8 Hz',t=>{
+ const previous=globalThis.document,texts=[];
+ const context=new Proxy({fillText:(text)=>texts.push(text)}, {get:(target,key)=>target[key]??(()=>{})});
+ globalThis.document={createElement:()=>({getContext:()=>context})};
+ let now=0;t.mock.method(performance,'now',()=>now);
+ const cockpit=createRoverCockpit(),rover=spawnRoverVehicle(17,10,0);
+ try{
+  cockpit.update(rover);const version=cockpit.texture.version;
+  for(let i=1;i<=6;i++)assert.ok(texts.includes(String(i)));
+  assert.ok(texts.includes('ELYSIUM REGION · MARS'));
+  assert.ok(!texts.some(v=>v.includes('JEZERO')||v==='2480'));
+  now=75;rover.x+=1;cockpit.update(rover);assert.equal(cockpit.texture.version,version);
+  now=126;cockpit.update(rover);assert.equal(cockpit.texture.version,version+1);
+  now=260;rover.x=10000;cockpit.update(rover);assert.ok(texts.includes('PROCEDURAL FRONTIER'));
+ }finally{globalThis.document=previous;cockpit.texture.dispose();cockpit.root.traverse(o=>{o.geometry?.dispose();o.material?.dispose?.();});}
+});
 
 test('all seven measured panes are open while the intervening pressure wall is opaque', () => {
   const lining = new T.Mesh(createRoverWindowLining(), new T.MeshBasicMaterial({side:T.DoubleSide}));

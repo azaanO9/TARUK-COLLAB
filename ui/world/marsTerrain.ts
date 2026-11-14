@@ -1,4 +1,5 @@
 import {convexRockOutline,rockContact,rockLiftAt} from "../../game/rockContact.ts";
+import {marsExpeditionHeight} from "../../game/marsExpeditionTerrain.ts";
 import type {CollisionObstacle} from "../../game/collision.ts";
 import * as T from "three";
 import { createMarsSkyMaterial } from "./marsAtmosphere.ts";
@@ -91,6 +92,7 @@ export function marsGroundTint(out:T.Color,x:number,z:number,slope:number){
 }
 
 export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures, freeRoam = false, lightTracks = false) {
+  const surfaceHeight = freeRoam ? marsExpeditionHeight : marsHeight;
   const obstacles: CollisionObstacle[] = [];
   const surfaces = suppliedSurfaces ?? fallbackMarsSurfaceTextures();
 
@@ -108,7 +110,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   for (let i = 0; i < pos.count; i++) {
     const vx = pos.getX(i);
     const vz = pos.getZ(i);
-    const vy = marsHeight(vx, vz);
+    const vy = surfaceHeight(vx, vz);
     pos.setY(i, vy);
     heightGrid[i] = vy;
   }
@@ -119,7 +121,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     const gx = (x + PLANE_HALF) / CELL_SIZE;
     const gz = (z + PLANE_HALF) / CELL_SIZE;
     if (gx < 0 || gx >= SEGMENTS || gz < 0 || gz >= SEGMENTS) {
-      return marsHeight(x, z);
+      return surfaceHeight(x, z);
     }
     const ix = Math.floor(gx);
     const iz = Math.floor(gz);
@@ -408,7 +410,8 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   for (const [count, big] of [[6500, false], [450, true]] as const) {
     for (let i = 0; i < count; i++) {
       const seed = i + (big ? 9000 : 0), x = (random(seed * 7) - .5) * (freeRoam ? 390 : 240), z = (random(seed * 7 + 1) - .5) * (freeRoam ? 390 : 240);
-      const near = STATIONS.some(s => Math.hypot(x - s.x, z - s.z) < 4.5) || Math.hypot(x, z - 12) < 5;
+      const near = freeRoam ? (Math.abs(x)<3 && z>8 && z<25) || Math.hypot(x-17,z-10)<5
+        : STATIONS.some(s => Math.hypot(x - s.x, z - s.z) < 4.5) || Math.hypot(x, z - 12) < 5;
       const gravelPatch=smooth(.28,.72,terrainNoise(x*.065,z*.065));
       const size = near && big ? .07 : big ? .35 + random(seed + 3) * 1.15 : .025 + random(seed + 4) ** 3 * .29 * gravelPatch;
       const sx = size * (1 + random(seed + 14) * .6);
@@ -447,7 +450,8 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   // Scanned fracture detail on all cliff faces; one dust/stone palette throughout.
   const cliffMat = new T.MeshStandardMaterial({ vertexColors: true, map: surfaces.rock.color, bumpMap: surfaces.rock.relief, bumpScale: .1, roughness: .98 });
   const close = new T.Color(0x89634d), lightStrata = new T.Color(0xc39a77), dustHaze = new T.Color(0xc09b80);
-  const landscape = new T.PlaneGeometry(freeRoam ? 1100 : 720, freeRoam ? 1100 : 720, 168, 168);
+  // Free exploration uses the measured regional LOD instead of this historical backdrop.
+  const landscape = new T.PlaneGeometry(720, 720, freeRoam ? 1 : 168, freeRoam ? 1 : 168);
   landscape.rotateX(-Math.PI / 2);
   const lp = landscape.attributes.position, landColors = new Float32Array(lp.count * 3);
   for (let i = 0; i < lp.count; i++) {
@@ -520,6 +524,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   cliffMat.customProgramCacheKey = () => "tarukh-canyon-mineral-relief-v4";
   const canyon = new T.Mesh(landscape, cliffMat);
   canyon.name="mars-backdrop";
+  canyon.visible=!freeRoam;
   root.add(canyon);
 
   // Performance-mode single-pass shaders preserve Mars palette, dust, tire tracks, and rock contrast at high iGPU frame rates.

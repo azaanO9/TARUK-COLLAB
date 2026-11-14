@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {mapPoint,mapHeading,mapLidarContacts,MAP_RANGE,MAP_LIDAR_CONTACT_LIMIT} from "../game/minimap.ts";
+import {mapPoint,mapRectPoint,mapHeading,mapLidarContacts,MAP_RANGE,MAP_LIDAR_CONTACT_LIMIT} from "../game/minimap.ts";
 test("minimap tracks world coordinates without an infinite-map origin limit",()=>{
  assert.deepEqual(mapPoint(10000,-9000,10000,-9000),{x:100,y:100,edge:false});
  assert.equal(mapPoint(10000+MAP_RANGE,-9000,10000,-9000).x,188);
@@ -26,4 +26,13 @@ test("bounded LiDAR markers keep hazards and closest returns without mutating th
  assert.equal(points[1].y,mapPoint(0,-.4,0,0,30).y);
  assert.deepEqual(contacts,before);
  assert.deepEqual(mapLidarContacts({range:30,threatDistance:null,contacts:[]},0,0),[]);
+});
+
+test('rectangular landmark bearings remain visible due north, south and in each corner',()=>{
+ for(const [x,z] of [[0,-500],[0,500],[-500,0],[500,0],[-500,-500],[500,500]]){
+  const p=mapRectPoint(x,z,0,0);
+  assert.equal(p.edge,true);assert.ok(p.x>=20&&p.x<=180);assert.ok(p.y>=48&&p.y<=152);
+  if(x!==0&&z!==0)assert.ok(Math.abs((p.x-100)/(p.y-100)-x/z)<1e-10);
+ }
+ assert.deepEqual(mapRectPoint(0,0,0,0),{x:100,y:100,edge:false});
 });

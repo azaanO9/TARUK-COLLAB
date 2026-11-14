@@ -1,3 +1,11 @@
+## Mars Trek regional exploration and shuttle egress (2026-11-14)
+
+- `marsRegion.ts`: pure world/geographic projection, bilinear MOLA elevation sampling, bounds/scale metadata. East is +X, north is −Z. `marsExpeditionHeight` supplies this surface plus artistic local roughness to both free-roam terrain and streaming. Legacy `marsHeight` remains unchanged.
+- `createStreamedMars` accepts optional `sampleHeight`; callers without it retain legacy sampling. `coverage()` returns a reused Vector4 for the currently guaranteed local-tile rectangle. The regional far LOD clips that rectangle and the permanent spawn mesh.
+- `ExplorationMinimap` receives `selected` landmark ID and `onOpenAtlas`; selection is in-memory presentation only. `mapRectPoint` keeps distant bearings inside the teammate's rectangular map. Atlas pauses exploration and restores keyboard focus on close.
+- `DropPodIntroHandle.update` may return `phase` and an astronaut presentation pose. Historical intros omit them. Free-roam spawn is `(0,21)`, ending camera yaw `−0.6`; `landingExitPose` controls only the arrival presentation, not walking/jump physics.
+- `?debug=1&landingPreview=16.95` freezes a repeatable exit checkpoint. It is ignored without `debug=1`. Skip landing returns to normal play; reduced-motion still takes priority. No saved preferences, accounts or telemetry are added.
+
 ## Rolling surface effects (2026-11-14)
 
 World builders expose `updateTracks(renderer,x,z,light)` and `trackTextureSize`. Call update once before vehicle stamps to position the fixed rolling atlas; only the player moves its window. `createMarsTerrain` accepts an optional startup `lightTracks` flag; existing callers retain the larger default. Streamed chunk options now include `pebbles`, a capped decorative instance count with no collision. Shared materials are borrowed and must not be disposed by the streaming pool.

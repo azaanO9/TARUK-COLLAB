@@ -6,7 +6,8 @@ import {CHUNK_SIZE as S, CHUNK_RADIUS as R, chunkKey, isBaseChunk, streamedHeigh
 import type {CollisionObstacle} from "../../game/collision.ts";
 
 /** A fixed pool, filled a few rows at a time. Shared materials/textures never recompile. */
-export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:number,z:number)=>number, options:{radius?:number;rocks?:number;pebbles?:number;obstacles?:CollisionObstacle[]}={}) {
+export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:number,z:number)=>number, options:{radius?:number;rocks?:number;pebbles?:number;obstacles?:CollisionObstacle[];sampleHeight?:(x:number,z:number)=>number}={}) {
+ const sampleHeight=options.sampleHeight??marsHeight;
  const radius=options.radius ?? R, rockCount=options.rocks ?? 18;
  const pebbleCount=options.pebbles??(radius<=2?12:32);
  const obstacles=options.obstacles ?? [], baseObstacleCount=obstacles.length;
@@ -64,16 +65,16 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
    const row=slot.row++;
    const colors=geometry.attributes.color;
    for(let col=0;col<=S;col++){
-    const wx=slot.x*S+col,wz=slot.z*S+row,h=marsHeight(wx,wz),i=row*(S+1)+col;
+    const wx=slot.x*S+col,wz=slot.z*S+row,h=sampleHeight(wx,wz),i=row*(S+1)+col;
     position.setXYZ(i,col,h,row);
-    const dx=h-(col?position.getY(i-1):marsHeight(wx-1,wz)),dz=h-(row?position.getY(i-S-1):marsHeight(wx,wz-1));
+    const dx=h-(col?position.getY(i-1):sampleHeight(wx-1,wz)),dz=h-(row?position.getY(i-S-1):sampleHeight(wx,wz-1));
     marsGroundTint(groundTint,wx,wz,1-1/Math.sqrt(1+dx*dx+dz*dz));colors.setXYZ(i,groundTint.r,groundTint.g,groundTint.b);
    }
    if(slot.row>S){position.needsUpdate=true;colors.needsUpdate=true;geometry.computeVertexNormals();geometry.computeBoundingSphere();slot.mesh.position.set(slot.x*S,0,slot.z*S);slot.ready=true;slot.mesh.visible=true;finishRocks(slot);syncContacts();queue.shift();}
   }
   for(const slot of pool){slot.mesh.material=ground.material;slot.rocks.material=rockTemplate?.material??rockMaterial;}
  }
- function heightAt(x:number,z:number){return Math.abs(x)<=210&&Math.abs(z)<=210?baseHeight(x,z):streamedHeight(x,z,marsHeight);}
+ function heightAt(x:number,z:number){return Math.abs(x)<=210&&Math.abs(z)<=210?baseHeight(x,z):streamedHeight(x,z,sampleHeight);}
  function roverHeightAt(x:number,z:number){
   let lift=0;const tileX=Math.floor(x/S),tileZ=Math.floor(z/S);
   for(const slot of pool)if(slot.ready&&Math.abs(slot.x-tileX)<=1&&Math.abs(slot.z-tileZ)<=1){
@@ -81,6 +82,8 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
   }
   return heightAt(x,z)+lift;
  }
+ const coverage=new T.Vector4();
  return {update,heightAt,roverHeightAt,pending:()=>queue.length, count:()=>pool.reduce((n,s)=>n+Number(s.ready&&!!s.key),0),
+  coverage:()=>{const r=queue.length?radius-1:radius;return coverage.set((cx-r)*S,(cz-r)*S,(cx+r+1)*S,(cz+r+1)*S);},
   dispose:()=>{obstacles.length=baseObstacleCount;for(const s of pool){root.remove(s.mesh,s.rocks);s.mesh.geometry.dispose();s.rocks.dispose();}rockGeometry.dispose();fallbackMaterial?.dispose();}};
 }

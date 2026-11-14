@@ -1,5 +1,8 @@
 "use client";
 import { createStreamedMars } from "./world/streamedMars";
+import {createMarsRegionalLandscape} from "./world/marsRegionalLandscape";
+import {marsExpeditionHeight} from "../game/marsExpeditionTerrain";
+import {ARRIVAL_SPAWN,ARRIVAL_YAW} from "../game/shuttleLanding";
 import { streamingBudget, STREAM_LIMIT } from "../game/terrainStreaming";
 import { nightAmount, daylightPhase, daylightAngle } from "../game/daylightCycle";
 import { safeLookDelta } from "../game/mouseLook";
@@ -179,7 +182,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
     [roverMud, setRoverMud] = useState(false),
     [roverHandbrake, setRoverHandbrake] = useState(false),
     [introActive, setIntroActive] = useState(Boolean(props.playDropPodIntro)),
-    [introTelemetry, setIntroTelemetry] = useState({ alt: 52, speed: 48 });
+    [introTelemetry, setIntroTelemetry] = useState({ alt: 52, speed: 48, phase:"Powered descent" });
   const TouchDeck = props.planet === "mars" ? (roverDriving ? RoverTouchDeck : MarsTouchDeck) : TouchControlsOverlay;
   useImperativeHandle(
     ref,
@@ -306,6 +309,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam, mobileMars || effectiveQuality()==="performance");
       let streaming: ReturnType<typeof createStreamedMars> | null = null;
+      const regionalLandscape=props.freeRoam ? createMarsRegionalLandscape(model.root) : null;
       const streamOptions = {worldLimit:STREAM_LIMIT};
       const baseHeight = model.heightAt;
       const baseRoverHeight = model.roverHeightAt;
@@ -318,8 +322,14 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if (caveBiome) {
         scene.add(caveBiome.surfacePortals, caveBiome.root);
       }
-      const dropPodIntro = props.planet === "mars" ? (props.freeRoam ? createShuttleLanding(model.heightAt,window.matchMedia("(prefers-reduced-motion: reduce)").matches) : createDropPodIntro()) : null;
-      if(props.freeRoam) model.obstacles.push(boxObstacle(0,12,4.5,3.5,"arrival-shuttle"));
+      // Deterministic visual checkpoints for the documented graphics QA URLs only.
+      const previewParams=new URLSearchParams(window.location.search),previewValue=Number(previewParams.get('landingPreview'));
+      const landingPreview=debug&&previewParams.has('landingPreview')&&Number.isFinite(previewValue)?Math.max(0,Math.min(23.9,previewValue)):undefined;
+      const dropPodIntro = props.planet === "mars" ? (props.freeRoam ? createShuttleLanding(model.heightAt,window.matchMedia("(prefers-reduced-motion: reduce)").matches,landingPreview) : createDropPodIntro()) : null;
+      if(props.freeRoam) {
+        model.obstacles.push(boxObstacle(0,12,4.5,3.5,"arrival-shuttle"));
+        model.obstacles.push(boxObstacle(0,15.7,.7,.5,"arrival-steps"));
+      }
       if (dropPodIntro) {
         scene.add(dropPodIntro.root);
         if (current.current.playDropPodIntro) {
@@ -575,7 +585,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
-      const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:props.freeRoam ? 12 : -23, z:props.freeRoam ? 22 : 15} : spawnWalker();
+      const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:props.freeRoam ? ARRIVAL_SPAWN.x : -23, z:props.freeRoam ? ARRIVAL_SPAWN.z : 15} : spawnWalker();
       let walker = spawnAtArrival(),
         jump = { height: 0, velocity: 0 },
         rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
@@ -673,6 +683,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       skipIntroAction.current = () => {
         if (dropPodIntro?.isActive()) {
           dropPodIntro.skip();
+          if(props.freeRoam){cameraYaw=characterYaw=ARRIVAL_YAW;pitch=-.04;orbitInitialized=false;keys.clear();}
           setIntroActive(false);
         }
       };
@@ -1152,6 +1163,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const p = current.current;
         if(streaming){
           streaming.update(walker.x,walker.z,lastQuality==="performance" ? .7 : terrainBudget.generationMs);
+          const coverage=streaming.coverage();regionalLandscape?.setCoverage(coverage.x,coverage.y,coverage.z,coverage.w);
           skyMesh?.position.set(walker.x,0,walker.z);
           starField.position.set(walker.x,0,walker.z);
         }
@@ -1420,12 +1432,19 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             y: groundHeight,
             z: walker.z,
           });
+          if(podState.astronaut){
+            const actor=podState.astronaut;
+            astronaut.visible=actor.visible;
+            astronaut.position.set(actor.x,actor.y,actor.z);astronaut.rotation.y=actor.yaw;
+            marsAstronaut?.update(p.enabled?dt:0,actor.speed,actor.hopHeight>0,actor.hopHeight,actor.verticalVelocity);
+            if(astronautShadow){astronautShadow.mesh.visible=actor.visible;astronautShadow.mesh.position.set(actor.x,model.heightAt(actor.x,actor.z)+.024,actor.z);}
+          }
           if (time - lastDropUiUpdate > 80) {
             lastDropUiUpdate = time;
-            setIntroTelemetry({ alt: podState.altitudeMeters, speed: podState.speedMs });
+            setIntroTelemetry({ alt: podState.altitudeMeters, speed: podState.speedMs, phase:podState.phase??"Touchdown" });
           }
           if (!podState.active) {
-            cameraYaw=0;pitch=-.04;cameraGround=groundHeight;keys.clear();
+            cameraYaw=characterYaw=props.freeRoam?ARRIVAL_YAW:0;pitch=-.04;cameraGround=groundHeight;keys.clear();
             setIntroActive(false);
           }
         } else if (rover.driving && !inCave) {
@@ -1624,7 +1643,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           sun.visible=true;sun.position.copy(sunDirection).multiplyScalar(185);sun.position.x+=walker.x;sun.position.z+=walker.z;sun.material.opacity=1-n;
           starField.visible=true;starField.material.opacity=n*n;earth.visible=true;earth.material.opacity=n*n;earth.position.set(walker.x-70,65,walker.z-179);
           (scene.background as import("three").Color).copy(daySky).lerp(nightSky,n);
-          const fog=scene.fog as import("three").FogExp2;fog.color.copy(dayFog).lerp(nightFog,n);fog.density=terrainBudget.fog;
+          const fog=scene.fog as import("three").FogExp2;fog.color.copy(dayFog).lerp(nightFog,n);fog.density=.0028;
           if(dust)(dust.material as import("three").ShaderMaterial).uniforms.opacity.value=reduced.matches?.025:T.MathUtils.lerp(.09,.045,n);
           if(helmetLamp)helmetLamp.intensity=rover.driving?0:2.6*n;
           if(astronautShadow)astronautShadow.material.opacity=Math.max(.12,(activeTier.shadows?.18:.44)-jump.height*.16)*T.MathUtils.lerp(1,.45,n);
@@ -1930,7 +1949,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if(props.freeRoam && props.planet==="mars") {
         setLoadingStage("Preparing the expanding Mars landscape…");
         const ground=model.root.getObjectByName("mars-ground") as import("three").Mesh;
-        streaming=createStreamedMars(model.root,ground,baseHeight,{...terrainBudget,obstacles:model.obstacles});
+        streaming=createStreamedMars(model.root,ground,baseHeight,{...terrainBudget,obstacles:model.obstacles,sampleHeight:marsExpeditionHeight});
         streaming.update(walker.x,walker.z,terrainBudget.generationMs);
         while(streaming.pending()){
           await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
@@ -1938,7 +1957,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           streaming.update(walker.x,walker.z,terrainBudget.generationMs);
         }
         const backdrop=model.root.getObjectByName("mars-backdrop");if(backdrop)backdrop.visible=false;
-        (scene.fog as import("three").FogExp2).density=terrainBudget.fog;
+        (scene.fog as import("three").FogExp2).density=.0028;
         await renderer.compileAsync(scene,camera);
         renderer.render(scene,camera);configureEffects(true);
       }
@@ -2102,7 +2121,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           )}
         </>
       )}
-      {loaded && introActive && props.enabled && <div className="landing-caption" role="status"><b>{introTelemetry.alt>0.1?"Powered descent":"Touchdown · settling on Mars"}</b><span>{introTelemetry.alt.toFixed(1)} m above landing surface</span><button onClick={()=>skipIntroAction.current()}>Skip landing</button></div>}
+      {loaded && introActive && props.enabled && <div className="landing-caption" role="status"><b>{introTelemetry.phase}</b><span>{introTelemetry.alt>0.1?`${introTelemetry.alt.toFixed(1)} m above landing surface`:"Elysium region · Mars"}</span><button onClick={()=>skipIntroAction.current()}>Skip landing</button></div>}
       {message && <p className="sv-world-message" role="status">{message}</p>}
     </div>
   );

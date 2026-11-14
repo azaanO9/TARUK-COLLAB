@@ -474,3 +474,33 @@
   flex-direction: row !important;
   align-items: center !important;
 }
+.roam-minimap .roam-atlas-open{padding:8px 5px;background:#32454b;min-height:48px}
+.roam-atlas-open span,.roam-atlas-open small{display:block;font-size:14px;line-height:1.3}
+.roam-atlas-open small{color:#eacda4}
+.roam-dialog:has(.roam-atlas-layout){max-width:850px;width:94vw;max-height:90dvh;overflow-y:auto}
+.roam-atlas-layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.roam-atlas-plot{position:relative;aspect-ratio:1;border:1px solid #d3b28b;border-radius:12px;overflow:hidden}
+.roam-atlas-plot canvas{display:block;width:100%;height:100%}
+.roam-atlas-plot button{position:absolute;transform:translate(-50%,-50%);margin:0;min-width:44px;min-height:44px;padding:4px;border-radius:50%;background:#24343ee8}
+.roam-atlas-plot button[aria-pressed=true],.roam-atlas-list button[aria-pressed=true]{border:2px solid #fff0b1;background:#394c51}
+.roam-atlas-north,.roam-atlas-scale,.roam-atlas-you{position:absolute;padding:3px 7px;border-radius:4px;background:#19242edc;color:#fff;font-size:14px;pointer-events:none}
+.roam-atlas-north{top:8px;left:8px}.roam-atlas-scale{bottom:6px;left:6px}.roam-atlas-you{transform:translate(-50%,-50%);background:#fff2cf;color:#18242c}
+.roam-atlas-list{list-style:none;padding:0;margin:0}.roam-atlas-list button{width:100%;margin:0 0 6px;text-align:left;padding:8px 12px}.roam-atlas-list span{display:block;color:#dec4a0;font-size:14px}.roam-atlas-list p{margin:6px 6px 14px}
+.roam-dialog a{color:#bcecff;text-underline-offset:3px}.roam-dialog a:focus-visible{outline:3px solid #fff0b1}
+.roam-root:has(.landing-caption) .roam-minimap,.roam-root:has(.landing-caption) .roam-info{display:none}
+@media(max-width:580px){.roam-atlas-layout{grid-template-columns:1fr}.roam-atlas-plot{max-width:360px;width:100%;margin:auto}}
+@media(max-height:460px){.roam-minimap .roam-map-legend,.roam-minimap .roam-map-mode{display:none}.roam-minimap svg{width:104px;height:104px}.roam-minimap .roam-atlas-open{padding:4px;font-size:14px}.roam-root[data-controls="mobile"] .roam-minimap[data-open="true"] .roam-map-toggle{top:0}.landing-caption{bottom:4%;padding:10px 16px}}
+
+/* Preserve the new rectangular map/HUD while keeping readable controls. */
+.roam-minimap .roam-map-toggle,.roam-root[data-controls="mobile"] .roam-minimap .roam-map-toggle{min-width:44px;min-height:44px}
+.roam-map-badge,.roam-gta-loc,.roam-gta-sub{font-size:14px;letter-spacing:0;white-space:normal}
+.roam-minimap .roam-atlas-open{pointer-events:auto;width:100%;border:0;border-top:1px solid #a6cfdf55;color:#fff3da;cursor:pointer;font:inherit}
+.roam-atlas-open:focus-visible{outline:3px solid #fff0b1;outline-offset:-4px}
+.roam-bar-clearance.is-hazard .roam-gta-bar-fill{animation:none;background:#ffce84}
+.roam-bar-clearance.is-clear .roam-gta-bar-fill{background:#7dd3fc}
+.roam-gta-sub.is-blocked{color:#ffce84;text-shadow:none}
+.roam-minimap .roam-map-legend{font-size:12px}
+@media(max-height:460px){.roam-minimap .roam-gta-loc,.roam-minimap .roam-map-legend{display:none}.roam-minimap .roam-radar-svg{width:114px;height:84px}.roam-root[data-controls="mobile"] .roam-minimap .roam-radar-svg{width:104px;height:76px}}
+@media(prefers-reduced-motion:reduce){.roam-minimap,.roam-map-toggle,.roam-gta-bar-fill{transition:none;animation:none}}
+.roam-root[data-controls="mobile"] .roam-minimap[data-driving="false"] .roam-gta-readout{display:none}
+.roam-root > .mars-dialog-backdrop{z-index:1000}

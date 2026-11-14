@@ -9,6 +9,13 @@ export function mapPoint(x:number,z:number,centerX:number,centerZ:number,range=M
 }
 export function mapHeading(yaw:number){return -yaw*180/Math.PI;}
 
+/** Bearing pins stay inside the rectangular frame, including due north/south. */
+export function mapRectPoint(x:number,z:number,centerX:number,centerZ:number,range=MAP_RANGE){
+ const dx=(x-centerX)*88/range,dz=(z-centerZ)*88/range;
+ const scale=Math.min(1,80/Math.max(1e-9,Math.abs(dx)),52/Math.max(1e-9,Math.abs(dz)));
+ return {x:100+dx*scale,y:100+dz*scale,edge:scale<1};
+}
+
 /** Share the rover's existing scan; bound SVG work and retain path hazards first. */
 export function mapLidarContacts(scan:LidarScan,centerX:number,centerZ:number){
  return scan.contacts.slice().sort((a,b)=>Number(b.inPath)-Number(a.inPath)

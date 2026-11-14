@@ -1,3 +1,9 @@
+## Current Mars terrain and landmark sources (checked 14 November 2026)
+
+- User-selected region: NASA [Mars Trek](https://trek.nasa.gov/mars/), centre 134.973236° E / 14.089500° N; extent 54.025972–215.920500° E, −46.994483–75.173483° N.
+- [NASA PDS MOLA 16-pixel/degree archive](https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/meg016/) and [MEGDR product documentation](https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/document/egdrsis.htm): height source, pixel convention, units, projection and interpolation limits. We use signed elevation samples, not hillshade brightness as height.
+- IAU/USGS feature centres: [Elysium Mons](https://planetarynames.wr.usgs.gov/Feature/1783), [Albor Tholus](https://planetarynames.wr.usgs.gov/Feature/166), [Hecates Tholus](https://planetarynames.wr.usgs.gov/Feature/2407), [Gale](https://planetarynames.wr.usgs.gov/Feature/2071), [Hebrus Valles](https://planetarynames.wr.usgs.gov/Feature/2404), [Elysium Planitia](https://planetarynames.wr.usgs.gov/Feature/1784). Planetocentric latitude, east-positive longitude; the MOLA-network records are used where multiple coordinate records are shown.
+
 # Source references — conceptual support only
 
 - [NASA VIPER lunar operations](https://science.nasa.gov/mission/viper/lunar-operations/): rover route planning considers slopes, slipping and terrain hazards. The game's crater layout, path and resource values are fictional educational assumptions.

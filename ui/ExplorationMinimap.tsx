@@ -1,17 +1,20 @@
 "use client";
 import { useState } from "react";
 import type { View } from "./SurvivalWorld";
-import { mapPoint, mapHeading, mapLidarContacts, MAP_RANGE } from "../game/minimap";
+import { mapRectPoint as mapPoint, mapHeading, mapLidarContacts, MAP_RANGE } from "../game/minimap";
 import { LIDAR_RANGE } from "../game/roverLidar";
+import {MARS_LANDMARKS} from "../content/marsLandmarks";
+import {REGION_WORLD_BOUNDS as B,isSurveyedRegion} from "../game/marsRegion";
+import {assetUrl} from "../lib/assetUrl";
 
 /**
- * Compact GTA V style rectangular exploration minimap with authentic topographic
- * elevation contour background (scrolling seamlessly with player movement),
+ * Compact GTA V style rectangular exploration minimap with NASA MOLA
+ * shaded-relief background (scrolling seamlessly with player movement),
  * oriented rover vector icons, landing shuttle mark, and signature GTA 5 tri-bars.
  */
-export default function ExplorationMinimap({ view }: { view: View }) {
-  if (view.cockpitView) return null;
+export default function ExplorationMinimap({view,selected,onOpenAtlas}:{view:View;selected:string;onOpenAtlas:()=>void}) {
   const [open, setOpen] = useState(true);
+  if(view.cockpitView)return null;
   const driving = Boolean(view.roverDriving);
   const x = driving ? view.roverX ?? view.x : view.x;
   const z = driving ? view.roverZ ?? view.z : view.z;
@@ -21,12 +24,9 @@ export default function ExplorationMinimap({ view }: { view: View }) {
   const crew = mapPoint(view.roverX ?? x, view.roverZ ?? z, x, z, range);
   const scout = view.curiosityX === undefined ? null : mapPoint(view.curiosityX, view.curiosityZ ?? 0, x, z, range);
 
-  // Seamless topographic contour scrolling locked 1:1 to world coordinates
+  const target=MARS_LANDMARKS.find(p=>p.id===selected)??MARS_LANDMARKS[0];
+  // Shipped MOLA elevation overview stays registered to world coordinates.
   const topoScale = 88 / range;
-  const patternSize = 120;
-  const topoX = (((x * topoScale) % patternSize) + patternSize) % patternSize;
-  const topoZ = (((z * topoScale) % patternSize) + patternSize) % patternSize;
-
   const threat = scan?.threatDistance;
   const blocked = threat !== null && threat !== undefined;
   const status = driving
@@ -52,7 +52,7 @@ export default function ExplorationMinimap({ view }: { view: View }) {
       <div className="roam-map-topbar">
         <span className="roam-map-badge">
           <span className="roam-badge-dot" />
-          {driving ? "GPS LIDAR" : "MARS GPS"} · {range}M
+          {driving ? "LIDAR" : "FIELD MAP"} · {range}M
         </span>
         <button
           type="button"
@@ -74,9 +74,9 @@ export default function ExplorationMinimap({ view }: { view: View }) {
               viewBox="5 30 190 140"
               className="roam-radar-svg roam-gta-rect-svg"
               role="img"
-              aria-label={`North-up ${range} metre topographic GPS map. Player arrow in center. Crew rover, Curiosity rover, and lander indicated by icons. ${
+              aria-label={`North-up ${range} metre MOLA terrain map with compressed distances and numbered landmarks. Player arrow in center. Crew rover, Curiosity rover, and lander indicated by icons. ${
                 driving
-                  ? "Contacts show detected rocks; red hazard diamonds indicate obstacles in travel path."
+                  ? "Contacts show detected rocks; marked hazard diamonds indicate obstacles in travel path."
                   : "Dots show nearby surface rocks."
               }`}
             >
@@ -92,106 +92,6 @@ export default function ExplorationMinimap({ view }: { view: View }) {
                   <stop offset="50%" stopColor="#0d1520" stopOpacity="0.94" />
                   <stop offset="100%" stopColor="#070c13" stopOpacity="0.98" />
                 </linearGradient>
-
-                {/* AUTHENTIC GTA 5 TOPOGRAPHIC CONTOUR PATTERN (Seamlessly scrolling with movement) */}
-                <pattern
-                  id="gta-topo-pattern"
-                  width={patternSize}
-                  height={patternSize}
-                  patternUnits="userSpaceOnUse"
-                  x={100 - topoX}
-                  y={100 - topoZ}
-                >
-                  {/* Subtle elevation contour shading */}
-                  <path
-                    d="M 28 35 C 16 18, 54 12, 72 28 C 84 40, 76 60, 48 55 C 30 50, 36 40, 28 35 Z"
-                    fill="rgba(56, 189, 248, 0.03)"
-                  />
-                  <path
-                    d="M 72 82 C 60 68, 96 62, 110 76 C 118 86, 112 104, 92 100 C 78 96, 82 86, 72 82 Z"
-                    fill="rgba(56, 189, 248, 0.025)"
-                  />
-
-                  {/* Sinuous flowing contour lines */}
-                  <path
-                    d="M 0 18 Q 30 5, 60 22 T 120 18"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.12)"
-                    strokeWidth="0.75"
-                  />
-                  <path
-                    d="M 0 38 Q 35 50, 70 30 T 120 38"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.22)"
-                    strokeWidth="1.1"
-                  />
-                  <path
-                    d="M 0 62 Q 25 80, 65 58 T 120 62"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.11)"
-                    strokeWidth="0.75"
-                  />
-                  <path
-                    d="M 0 92 Q 40 75, 80 105 T 120 92"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.2)"
-                    strokeWidth="1"
-                  />
-                  <path
-                    d="M 0 114 Q 30 100, 65 122 T 120 114"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.1)"
-                    strokeWidth="0.75"
-                  />
-
-                  {/* Topographic elevation loops (Ridge 1) */}
-                  <path
-                    d="M 28 35 C 16 18, 54 12, 72 28 C 84 40, 76 60, 48 55 C 30 50, 36 40, 28 35 Z"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.14)"
-                    strokeWidth="0.75"
-                  />
-                  <path
-                    d="M 36 34 C 28 22, 50 18, 64 30 C 72 38, 66 50, 48 46 C 36 43, 40 37, 36 34 Z"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.2)"
-                    strokeWidth="0.9"
-                  />
-                  <path
-                    d="M 45 34 C 40 28, 50 25, 56 31 C 60 36, 56 42, 48 40 Z"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.26)"
-                    strokeWidth="1.1"
-                  />
-
-                  {/* Topographic elevation loops (Depression / Ridge 2) */}
-                  <path
-                    d="M 72 82 C 60 68, 96 62, 110 76 C 118 86, 112 104, 92 100 C 78 96, 82 86, 72 82 Z"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.13)"
-                    strokeWidth="0.75"
-                  />
-                  <path
-                    d="M 80 84 C 72 74, 92 70, 102 80 C 108 86, 104 96, 90 94 Z"
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.18)"
-                    strokeWidth="0.85"
-                  />
-
-                  {/* GTA 5 elevation contour labels */}
-                  <text x="44" y="36.5" fill="rgba(255,255,255,0.28)" fontSize="4.5" fontFamily="monospace">
-                    2480
-                  </text>
-                  <text x="83" y="87.5" fill="rgba(255,255,255,0.28)" fontSize="4.5" fontFamily="monospace">
-                    2320
-                  </text>
-                  <text x="10" y="36" fill="rgba(255,255,255,0.26)" fontSize="4.5" fontFamily="monospace">
-                    2400
-                  </text>
-                  <text x="88" y="90" fill="rgba(255,255,255,0.26)" fontSize="4.5" fontFamily="monospace">
-                    2300
-                  </text>
-                </pattern>
 
                 {/* 1. CREW ROVER VECTOR ICON (NASA MMSEV Style 6-wheel rover) */}
                 <g id="icon-crew-rover">
@@ -281,8 +181,7 @@ export default function ExplorationMinimap({ view }: { view: View }) {
 
               {/* Clipped Map Contents */}
               <g clipPath="url(#gta-rect-clip)">
-                {/* Authentic Topographic Elevation Contours */}
-                <rect width="200" height="200" fill="url(#gta-topo-pattern)" />
+                <image href={assetUrl("art/mars-mola-overview.webp")} x={100+(B.west-x)*topoScale} y={100+(B.north-z)*topoScale} width={(B.east-B.west)*topoScale} height={(B.south-B.north)*topoScale} opacity=".52" preserveAspectRatio="none"/>
 
                 {/* Subtle GPS Crosshairs */}
                 <line x1="100" y1="31" x2="100" y2="169" stroke="rgba(255, 255, 255, 0.12)" strokeWidth="0.75" />
@@ -346,7 +245,7 @@ export default function ExplorationMinimap({ view }: { view: View }) {
                 <g
                   transform={`translate(${home.x} ${home.y})`}
                   className="roam-blip-landmark"
-                  aria-label="Landing Habitat"
+                  aria-label="Landing shuttle"
                 >
                   <use href="#icon-landing-shuttle" />
                 </g>
@@ -372,6 +271,8 @@ export default function ExplorationMinimap({ view }: { view: View }) {
                     <use href="#icon-curiosity-rover" />
                   </g>
                 )}
+
+                {MARS_LANDMARKS.filter(p=>p.id!==target.id).concat(target).map(place=>{const pin=mapPoint(place.x,place.z,x,z,range);return <g key={place.id} opacity={place.id===target.id?1:.7} transform={`translate(${pin.x} ${pin.y})`}><title>{place.name} · {Math.round(Math.hypot(place.x-x,place.z-z))} game metres</title><path d="M0 -10L9 0L0 10L-9 0Z" fill={place.id===target.id?'#fff1b9':'#b9d9df'} stroke="#18242d"/><text y="5" textAnchor="middle" fontSize="14" fontWeight="700" fill="#18242d">{place.number}</text></g>;})}
 
                 {/* CENTER PLAYER ARROW (GTA V style crisp white arrow rotated to player or rover heading) */}
                 <g
@@ -415,21 +316,21 @@ export default function ExplorationMinimap({ view }: { view: View }) {
             {/* Bar 2 (Armor / Sensor Telemetry): Blue */}
             <div
               className="roam-gta-bar roam-bar-telemetry"
-              title="LiDAR & Sensor Link telemetry"
+              title="LiDAR active when driving"
             >
               <div
                 className="roam-gta-bar-fill"
-                style={{ width: driving ? "100%" : "80%" }}
+                style={{ width: driving ? "100%" : "0%" }}
               />
             </div>
             {/* Bar 3 (Special Ability / Rover Power): Yellow */}
             <div
               className="roam-gta-bar roam-bar-special"
-              title="Rover & Suit Battery Power"
+              title="Inside the surveyed MOLA region"
             >
               <div
                 className="roam-gta-bar-fill"
-                style={{ width: "95%" }}
+                style={{ width: isSurveyedRegion(x,z)?"100%":"0%" }}
               />
             </div>
           </div>
@@ -437,7 +338,7 @@ export default function ExplorationMinimap({ view }: { view: View }) {
           {/* GTA 5 LOCATION & TELEMETRY TEXT (Street Name Style) */}
           <div className="roam-gta-readout">
             <div className="roam-gta-loc">
-              {driving && blocked ? "HAZARD DETECTED" : "JEZERO CRATER"}
+              {driving && blocked ? "HAZARD DETECTED" : (isSurveyedRegion(x,z)?"ELYSIUM REGION":"PROCEDURAL FRONTIER")}
             </div>
             <div className={`roam-gta-sub ${blocked ? "is-blocked" : ""}`}>
               {status}
@@ -456,6 +357,7 @@ export default function ExplorationMinimap({ view }: { view: View }) {
               <span className="roam-legend-dot dot-scout" /> Curiosity
             </span>
           </div>
+          <button className="roam-atlas-open" onClick={onOpenAtlas} aria-label={`Open landmark atlas. Selected ${target.name}`}><span>{target.number}. {target.name}</span><small>{Math.round(Math.hypot(target.x-x,target.z-z))} game m · Atlas</small></button>
         </div>
       )}
     </aside>

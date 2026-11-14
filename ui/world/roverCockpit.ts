@@ -1,4 +1,7 @@
 import * as T from "three";
+import {assetUrl} from '../../lib/assetUrl.ts';
+import {MARS_LANDMARKS} from '../../content/marsLandmarks.ts';
+import {REGION_WORLD_BOUNDS as B,isSurveyedRegion} from '../../game/marsRegion.ts';
 import type { LidarScan } from "../../game/roverLidar";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
@@ -147,10 +150,14 @@ export function createRoverCockpit() {
   }
   // Keep the light outside the visibility-switched root to prevent shader stalls.
   const cabinLight = new T.PointLight(0xd9efff, 0, 4, 2); cabinLight.position.set(0, 2.30, -1.10);
-  let lastReadout = "";
+  let lastReadout = "",lastPaint=-Infinity;
+  const regionMap=typeof Image==='undefined'?null:new Image();
+  if(regionMap)regionMap.src=assetUrl('art/mars-mola-overview.webp');
   let lastScan: LidarScan | undefined;
   function update(rover: RoverVehicle, scan?: LidarScan, curiosity?: { x: number; z: number; yaw?: number } | null) {
     stick.rotation.z = -rover.steerAngle * .65;
+    // Bound the existing 1024 × 512 canvas upload to the LiDAR cadence.
+    const now=performance.now();if(now-lastPaint<125)return;lastPaint=now;
     const speed = Math.round(Math.abs(rover.speed) * 3.6);
     const heading = T.MathUtils.euclideanModulo(Math.round(-rover.yaw * 180 / Math.PI), 360);
     const gear = getRoverGear(rover.speed);
@@ -178,9 +185,9 @@ export function createRoverCockpit() {
     context.fillStyle = "#38bdf8";
     context.beginPath(); context.arc(28, 156, 4.5, 0, Math.PI * 2); context.fill();
     context.font = "bold 16px monospace";
-    context.fillText("GPS LIDAR · 30M", 38, 162);
+    context.fillText("LIDAR · 30M", 38, 162);
     context.fillStyle = "#f8fafc";
-    context.fillText("JEZERO CRATER", 340, 162);
+    context.fillText("ELYSIUM REGION", 340, 162);
 
     // Divider
     context.strokeStyle = "rgba(255, 255, 255, 0.12)";
@@ -207,39 +214,12 @@ export function createRoverCockpit() {
     context.stroke();
     context.clip();
 
-    // Authentic GTA 5 Topographic Elevation Contours (scrolling with rover movement)
-    const topoStep = 55;
-    const offX = (((rover.x * mapScale) % topoStep) + topoStep) % topoStep;
-    const offZ = (((rover.z * mapScale) % topoStep) + topoStep) % topoStep;
-
-    // Sinuous flowing elevation isolines
-    context.strokeStyle = "rgba(255, 255, 255, 0.12)";
-    context.lineWidth = 0.9;
-    for (let yOffset = -topoStep; yOffset <= mapH + topoStep; yOffset += 26) {
-      const cy = mapT + yOffset - offZ;
-      context.beginPath();
-      context.moveTo(mapL, cy + Math.sin((cy + offX) * 0.03) * 10);
-      for (let px = mapL; px <= mapL + mapW; px += 24) {
-        const py = cy + Math.sin((px + offX) * 0.035) * 12 + Math.cos((px - offZ) * 0.02) * 6;
-        context.lineTo(px, py);
-      }
-      context.stroke();
+    // Geographic registration matches the external field map; no decorative fake elevations.
+    if(regionMap?.complete&&regionMap.naturalWidth){
+      context.save();context.globalAlpha=.52;
+      context.drawImage(regionMap,mapCenterX+(B.west-rover.x)*mapScale,mapCenterY+(B.north-rover.z)*mapScale,(B.east-B.west)*mapScale,(B.south-B.north)*mapScale);
+      context.restore();
     }
-
-    // Topographic elevation ridge loops
-    const ridge1X = mapCenterX + ((((12 - rover.x) * mapScale) % 320) + 320) % 320 - 160;
-    const ridge1Y = mapCenterY + ((((-8 - rover.z) * mapScale) % 240) + 240) % 240 - 120;
-    context.strokeStyle = "rgba(255, 255, 255, 0.2)";
-    context.lineWidth = 1.1;
-    context.beginPath();
-    context.ellipse(ridge1X, ridge1Y, 48, 28, 0.25, 0, Math.PI * 2);
-    context.stroke();
-    context.beginPath();
-    context.ellipse(ridge1X, ridge1Y, 26, 15, 0.25, 0, Math.PI * 2);
-    context.stroke();
-    context.fillStyle = "rgba(255, 255, 255, 0.28)";
-    context.font = "10px monospace";
-    context.fillText("2480", ridge1X - 12, ridge1Y + 3);
 
     // Distance range rings (10m, 20m, 30m)
     context.strokeStyle = "rgba(56, 189, 248, 0.2)";
@@ -350,6 +330,16 @@ export function createRoverCockpit() {
     context.stroke();
     context.restore();
 
+    // Six named-feature bearings, clamped into the physical cockpit display.
+    context.font='bold 17px monospace';context.textAlign='center';
+    for(const place of MARS_LANDMARKS){
+      const dx=(place.x-rover.x)*mapScale,dz=(place.z-rover.z)*mapScale;
+      const scale=Math.min(1,(mapW/2-18)/Math.max(1e-9,Math.abs(dx)),(mapH/2-18)/Math.max(1e-9,Math.abs(dz)));
+      const px=mapCenterX+dx*scale,py=mapCenterY+dz*scale;
+      context.fillStyle='#ffedb1';context.beginPath();context.moveTo(px,py-12);context.lineTo(px+12,py);context.lineTo(px,py+12);context.lineTo(px-12,py);context.closePath();context.fill();
+      context.fillStyle='#10212b';context.fillText(String(place.number),px,py+6);
+    }
+    context.textAlign='left';
     context.restore(); // End map clipping
 
     // 3. GTA 5 Tri-Bars directly underneath the map
@@ -362,7 +352,7 @@ export function createRoverCockpit() {
     const clearancePct = isHazard ? Math.min(1, Math.max(0.15, threatDist / 20)) : 1;
     context.fillStyle = "rgba(0, 0, 0, 0.65)";
     context.fillRect(mapL, barY, barW, barH);
-    context.fillStyle = isHazard ? "#ef4444" : "#22c55e";
+    context.fillStyle = isHazard ? "#ffce84" : "#7dd3fc";
     context.fillRect(mapL, barY, barW * clearancePct, barH);
 
     // Bar 2: Sensor / LiDAR Link (Blue)
@@ -371,16 +361,16 @@ export function createRoverCockpit() {
     context.fillStyle = "#38bdf8";
     context.fillRect(mapL + barW + barGap, barY, barW, barH);
 
-    // Bar 3: Rover Power (Yellow)
+    // Bar 3: inside the surveyed region (Yellow)
     context.fillStyle = "rgba(0, 0, 0, 0.65)";
     context.fillRect(mapL + (barW + barGap) * 2, barY, barW, barH);
     context.fillStyle = "#eab308";
-    context.fillRect(mapL + (barW + barGap) * 2, barY, barW * 0.95, barH);
+    context.fillRect(mapL + (barW + barGap) * 2, barY, barW * (isSurveyedRegion(rover.x,rover.z)?1:0), barH);
 
     // 4. GTA 5 Street & Distance Telemetry
     context.fillStyle = isHazard ? "#ef4444" : "#f8fafc";
     context.font = "bold 15px monospace";
-    context.fillText(isHazard ? "HAZARD DETECTED" : "JEZERO CRATER · MARS", mapL, 458);
+    context.fillText(isHazard ? "HAZARD DETECTED" : (isSurveyedRegion(rover.x,rover.z)?"ELYSIUM REGION · MARS":"PROCEDURAL FRONTIER"), mapL, 458);
 
     context.fillStyle = isHazard ? "#f87171" : "#7dd3fc";
     context.font = "14px monospace";
