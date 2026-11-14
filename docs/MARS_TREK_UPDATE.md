@@ -40,7 +40,7 @@ Active desktop preview observations at 1280 × 720 (not phone benchmarks or an i
 
 The background preview throttles to about 1 fps and intentionally paused menus to about 10 fps. Those samples were excluded. These snapshots are evidence that the tested desktop renders the update; they do not establish mid-range phone performance. Auto adapted to Performance in the throttled preview. Ultra has not been separately benchmarked for this update.
 
-Validation: full tests, `tsc --noEmit`, Sites build and GitHub Pages build. Browser checks covered the visible exit/hop checkpoint, Skip, reduced motion, 844 × 390 Mobile selection, touch controls, map selection/Escape, walking, rover entry/driving and cockpit switching. Screenshots are in `docs/screenshots/mola-*.png`.
+Validation: 158 tests, `tsc --noEmit`, Sites build and GitHub Pages build. Browser checks covered the visible exit/hop checkpoint, Skip, reduced motion, 844 × 390 Mobile selection, touch controls, map selection/Escape, walking, rover entry/driving and cockpit switching. Screenshots are in `docs/screenshots/`: `mola-shuttle-hop.jpg`, `mola-mobile.jpg` and the published `mola-atlas.png`.
 
 Developer visual checkpoint: `?debug=1&landingPreview=16.95` freezes the hop after loading. The preview parameter is ignored without `debug=1`; Skip returns to normal play. It is not used in the shareable URL.
 
