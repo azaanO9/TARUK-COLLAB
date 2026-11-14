@@ -17,6 +17,6 @@ test('full atlas uses the entire user-supplied NASA extent with correctly regist
 test('nearby map follows the explorer in the infinite continuation without inventing surveyed pins',()=>{
  const b=atlasBounds('nearby',10000,-5000);
  assert.deepEqual(atlasPoint(10000,-5000,b),{left:50,top:50,visible:true});
- assert.equal(atlasPoint(10000,-5700,b).top,0);
+ assert.equal(atlasPoint(10000,-5350,b).top,0);
  for(const p of MARS_LANDMARKS)assert.equal(atlasPoint(p.x,p.z,b).visible,false);
 });

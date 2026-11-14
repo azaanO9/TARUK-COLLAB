@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ExplorationMinimap from "./ExplorationMinimap";
 import MarsAtlas from "./MarsAtlas";
+import {PERSEVERANCE_LANDING} from '../content/marsLandingSites';
 import ShuttleArrival from "./ShuttleArrival";
 import SurvivalWorld, { type View } from "./SurvivalWorld";
 import { isCoarsePointerDevice, tryEnterLandscape } from "./mobileDevice";
@@ -26,13 +27,13 @@ export default function MarsFreeRoam() {
   const [attempt, setAttempt] = useState(0);
   const [lowGraphics, setLowGraphics] = useState(false);
   const [view, setView] = useState<View | null>(null);
-  const [inspect, setInspect] = useState(false);
+  const [inspect, setInspect] = useState<'curiosity'|'perseverance'|null>(null);
   const [atlas,setAtlas]=useState(false);
   const openAtlas=useCallback(()=>setAtlas(true),[]);
   const [landmark,setLandmark]=useState('elysium');
   const dialog = useRef<HTMLElement>(null);
   const unavailable = useCallback(() => setFailed(true), []);
-  const inspectRover = useCallback((id: string) => { if (id === "curiosity") setInspect(true); }, []);
+  const inspectRover = useCallback((id: string) => { if (id === "curiosity" || id === "perseverance") setInspect(id); }, []);
   const modal = menu || failed || inspect || atlas;
 
   useEffect(() => { if (isCoarsePointerDevice()) setMode("mobile"); }, []);
@@ -46,7 +47,7 @@ export default function MarsFreeRoam() {
         // Do not let the same key bubble to the newly resumed world's opener.
         event.preventDefault(); event.stopPropagation(); setAtlas(false); return;
       }
-      if (event.key === "Escape" && !failed) { setMenu(false); setInspect(false); setAtlas(false); }
+      if (event.key === "Escape" && !failed) { setMenu(false); setInspect(null); setAtlas(false); }
       if (event.key !== "Tab") return;
       const buttons = Array.from(dialog.current?.querySelectorAll<HTMLElement>("button, a[href]") ?? []);
       const first = buttons[0], last = buttons[buttons.length - 1];
@@ -67,7 +68,7 @@ export default function MarsFreeRoam() {
         <button aria-pressed={mode === "pc"} onClick={() => setMode("pc")}>PC · Keyboard & mouse</button>
         <button aria-pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile · Touch controls</button>
       </fieldset>
-      <p>{mode === "pc" ? "WASD move · Space jump · V camera · F enter/exit rover · E inspect Curiosity · Caps Lock map" : "Use the movement stick, swipe to look and use the rover buttons when nearby. Tap Atlas below the minimap for the full region."}</p>
+      <p>{mode === "pc" ? "WASD move · Space jump · V camera · F enter/exit rover · E inspect science rovers · Caps Lock map" : "Use the movement stick, swipe to look and use the rover buttons when nearby. Tap Atlas below the minimap for the full region."}</p>
       <button className="roam-primary" onClick={() => { if (mode === "mobile") void tryEnterLandscape(); setView(null); setSceneReady(false); setArrived(false); setStarted(true); }}>Explore Mars</button>
     </section>
   </main>;
@@ -88,7 +89,8 @@ export default function MarsFreeRoam() {
         <button onClick={() => { setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry</button>
         <button onClick={() => { setLowGraphics(true); setSceneReady(false); setArrived(false); setFailed(false); setAttempt(value => value + 1); }}>Retry with Performance graphics</button></>
       : atlas && view ? <MarsAtlas x={view.x} z={view.z} selected={landmark} onSelect={setLandmark} onClose={()=>setAtlas(false)}/>
-      : inspect ? <><h2 id="roam-dialog-title">Curiosity rover</h2><p>This autonomous rover explores the terrain and pauses to scan rocks. Its movements and measurements are simulated.</p><p>Status: {view?.curiosityPhase ?? "exploring"}</p><button onClick={() => setInspect(false)}>Continue exploring</button></>
+      : inspect === 'perseverance' ? <><h2 id="roam-dialog-title">Perseverance · Jezero crater</h2><p>You found {PERSEVERANCE_LANDING.site}, where Perseverance landed on {PERSEVERANCE_LANDING.date}.</p><p>Landing coordinates: {PERSEVERANCE_LANDING.latitude}° N, {PERSEVERANCE_LANDING.longitude}° E. This original model marks its historical landing position, not its current location. Distances are compressed for exploration.</p><p><a href={PERSEVERANCE_LANDING.source} target="_blank" rel="noreferrer">NASA landing-coordinate source ↗</a></p><button onClick={() => setInspect(null)}>Continue exploring</button></>
+      : inspect ? <><h2 id="roam-dialog-title">Curiosity rover</h2><p>This autonomous rover explores the terrain and pauses to scan rocks. Its movements and measurements are simulated.</p><p>Status: {view?.curiosityPhase ?? "exploring"}</p><button onClick={() => setInspect(null)}>Continue exploring</button></>
       : <><h2 id="roam-dialog-title">Exploration paused</h2><button onClick={() => setMenu(false)}>Resume exploring</button><p>WASD move · Space jump · V camera · F enter/exit rover · Caps Lock map. Drag to look if mouse capture is unavailable.</p><button onClick={() => { setMenu(false); setStarted(false); }}>Back to controls setup</button></>}
     </section></div>}
   </main>;

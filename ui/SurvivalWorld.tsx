@@ -3,7 +3,9 @@ import { createStreamedMars } from "./world/streamedMars";
 import {createMarsRegionalLandscape} from "./world/marsRegionalLandscape";
 import {marsExpeditionHeight} from "../game/marsExpeditionTerrain";
 import {ARRIVAL_SPAWN,ARRIVAL_YAW} from "../game/shuttleLanding";
-import { streamingBudget, STREAM_LIMIT } from "../game/terrainStreaming";
+import { streamingBudget, STREAM_LIMIT, streamedHeight } from "../game/terrainStreaming";
+import {PERSEVERANCE_LANDING} from '../content/marsLandingSites';
+import {createPerseveranceRover,perseveranceFootprint,PERSEVERANCE_CLEARING} from './world/createPerseveranceRover';
 import { nightAmount, daylightPhase, daylightAngle } from "../game/daylightCycle";
 import { safeLookDelta } from "../game/mouseLook";
 import { performanceReadout, type PerformanceMeterMode } from "../game/performanceMeter";
@@ -267,6 +269,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       // Start model and texture downloads together, before terrain construction.
       const bigRover = props.planet === "mars" ? createBigRover() : null;
       const curiosityRover = props.planet === "mars" ? createCuriosityRover() : null;
+      const perseverance = props.freeRoam && props.planet === "mars" ? createPerseveranceRover((x,z)=>streamedHeight(x,z,marsExpeditionHeight)) : null;
       const marsAstronaut = props.planet === "mars" ? createRiggedAstronaut(assetUrl("/models/astronaut.glb")) : null;
       const surfacePromise = props.planet === "mars" ? Promise.all([
         loadMarsSurfaceTextures(),
@@ -274,9 +277,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       ]) : Promise.resolve([undefined,undefined] as const);
       if (bigRover) scene.add(bigRover.root, bigRover.dust);
       if (curiosityRover) scene.add(curiosityRover.root);
+      if (perseverance) scene.add(perseverance.root);
       // Covers leaving the mission while imports/downloads are still pending.
       dispose = () => {
-        bigRover?.dispose(); curiosityRover?.dispose(); marsAstronaut?.dispose();
+        bigRover?.dispose(); curiosityRover?.dispose(); perseverance?.dispose(); marsAstronaut?.dispose();
         void surfacePromise.then(([surface,panel]) => { disposeMarsSurfaceTextures(surface); panel?.dispose(); });
         renderer.dispose(); renderer.domElement.remove(); environment?.dispose();
       };
@@ -309,8 +313,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const ambient = new T.HemisphereLight(0xbccfe1, 0x55504c, 1.65);
       scene.add(ambient);
       const [regolithSurface,panelSurface] = await surfacePromise;
-      if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
+      if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();perseverance?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam, mobileMars || effectiveQuality()==="performance");
+      if(perseverance){model.targets.push(perseverance.root);model.obstacles.push(perseveranceFootprint());}
       let streaming: ReturnType<typeof createStreamedMars> | null = null;
       const regionalLandscape=props.freeRoam ? createMarsRegionalLandscape(model.root) : null;
       const streamOptions = {worldLimit:STREAM_LIMIT};
@@ -328,6 +333,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       // Deterministic visual checkpoints for the documented graphics QA URLs only.
       const previewParams=new URLSearchParams(window.location.search),previewValue=Number(previewParams.get('landingPreview'));
       const landingPreview=debug&&previewParams.has('landingPreview')&&Number.isFinite(previewValue)?Math.max(0,Math.min(23.9,previewValue)):undefined;
+      const previewPerseverance=debug&&props.freeRoam&&previewParams.get('sitePreview')==='perseverance';
       const dropPodIntro = props.planet === "mars" ? (props.freeRoam ? createShuttleLanding(model.heightAt,window.matchMedia("(prefers-reduced-motion: reduce)").matches,landingPreview) : createDropPodIntro()) : null;
       if(props.freeRoam) {
         model.obstacles.push(boxObstacle(0,12,4.5,3.5,"arrival-shuttle"));
@@ -338,6 +344,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (current.current.playDropPodIntro) {
           dropPodIntro.start();
         }
+        if(previewPerseverance){dropPodIntro.skip();setIntroActive(false);}
       }
       // Helmet SpotLight for subterranean Ice Caves and extreme night shadows
       const helmetLamp = props.planet === "mars" ? new T.SpotLight(0xdbeafe, 0, 32, 0.58, 0.55, 1.3) : null;
@@ -588,7 +595,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       const keys = controls.current,
         mouse = new T.Vector2(0, 0),
         ray = new T.Raycaster();
-      const spawnAtArrival = () => props.planet === "mars" ? {...spawnWalker(), x:props.freeRoam ? ARRIVAL_SPAWN.x : -23, z:props.freeRoam ? ARRIVAL_SPAWN.z : 15} : spawnWalker();
+      const spawnAtArrival = () => previewPerseverance ? {...spawnWalker(),x:PERSEVERANCE_LANDING.x+2,z:PERSEVERANCE_LANDING.z+4} : props.planet === "mars" ? {...spawnWalker(), x:props.freeRoam ? ARRIVAL_SPAWN.x : -23, z:props.freeRoam ? ARRIVAL_SPAWN.z : 15} : spawnWalker();
       let walker = spawnAtArrival(),
         jump = { height: 0, velocity: 0 },
         rover = spawnRoverVehicle(17, 10, 0, model.roverHeightAt);
@@ -1172,6 +1179,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         const dt = last ? Math.min((time - last) / 1000, 0.1) : 1 / 60;
         last = time;
         const p = current.current;
+        perseverance?.updateVisibility(walker.x,walker.z,lastQuality==='performance');
         if(streaming){
           streaming.update(walker.x,walker.z,lastQuality==="performance" ? .7 : terrainBudget.generationMs);
           const coverage=streaming.coverage();regionalLandscape?.setCoverage(coverage.x,coverage.y,coverage.z,coverage.w);
@@ -1674,6 +1682,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             hover = o.userData.station;
             if (hover === "curiosity" && curiosity) {
               range = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
+            } else if (hover === "perseverance") {
+              range = Math.hypot(walker.x-PERSEVERANCE_LANDING.x,walker.z-PERSEVERANCE_LANDING.z);
             } else if (hover === "weather-terminal") {
               range = Math.hypot(walker.x - WEATHER_TERM_POS.x, walker.z - WEATHER_TERM_POS.z);
             } else {
@@ -1696,6 +1706,10 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if (curiosity && !inCave) {
             const cDist = Math.hypot(walker.x - curiosity.x, walker.z - curiosity.z);
             if (cDist <= 5.5 && cDist < range) { hover = "curiosity"; range = cDist; }
+          }
+          if(perseverance){
+            const distance=Math.hypot(walker.x-PERSEVERANCE_LANDING.x,walker.z-PERSEVERANCE_LANDING.z);
+            if(distance<=5.5&&distance<range){hover='perseverance';range=distance;}
           }
         }
         const inspectReady = Boolean(p.enabled && !rover.driving && hover && range <= 5.5);
@@ -1902,6 +1916,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         environment?.dispose();
         bigRover?.dispose();
         curiosityRover?.dispose();
+        perseverance?.dispose();
         marsAstronaut?.dispose();
         if(props.freeRoam && dropPodIntro) {
           dropPodIntro.root.traverse(o=>{if(o instanceof T.Sprite){o.material.map?.dispose();o.material.dispose();}});
@@ -1946,6 +1961,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           if(regolithSurface)for(const surface of Object.values(regolithSurface)){textures.add(surface.color);textures.add(surface.relief);}
           for (const texture of textures) renderer.initTexture(texture);
           await renderer.compileAsync(scene,camera); if(cancelled)return;
+          // Upload the small historical-site model before it is approached during play.
+          if(perseverance){camera.position.copy(perseverance.root.position).add(new T.Vector3(4,3,5));camera.lookAt(perseverance.root.position);renderer.render(scene,camera);}
           // Upload both camera views while the loading screen is still covering them.
           if(lastQuality!=="performance"){
           bigRover?.setCockpitView(true);bigRover?.update(rover,rover.chassisY,0,false,model.roverHeightAt);
@@ -1965,7 +1982,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if(props.freeRoam && props.planet==="mars") {
         setLoadingStage("Preparing the expanding Mars landscape…");
         const ground=model.root.getObjectByName("mars-ground") as import("three").Mesh;
-        streaming=createStreamedMars(model.root,ground,baseHeight,{...terrainBudget,obstacles:model.obstacles,sampleHeight:marsExpeditionHeight});
+        streaming=createStreamedMars(model.root,ground,baseHeight,{...terrainBudget,obstacles:model.obstacles,sampleHeight:marsExpeditionHeight,clearings:[PERSEVERANCE_CLEARING]});
         streaming.update(walker.x,walker.z,terrainBudget.generationMs);
         while(streaming.pending()){
           await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));

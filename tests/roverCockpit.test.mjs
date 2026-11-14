@@ -4,8 +4,9 @@ import * as T from 'three';
 import { createRoverCockpit, createRoverWindowLining, positionRoverCockpitCamera, ROVER_DRIVER_EYE } from '../ui/world/roverCockpit.ts';
 import { ROVER_WINDOW_CONTOURS } from '../ui/world/roverWindowContours.ts';
 import {spawnRoverVehicle} from '../game/roverVehicle.ts';
+import {PERSEVERANCE_LANDING} from '../content/marsLandingSites.ts';
 
-test('cockpit plots six landmark bearings and bounds map texture refresh to 8 Hz',t=>{
+test('cockpit plots seven landmark bearings and bounds map texture refresh to 8 Hz',t=>{
  const previous=globalThis.document,texts=[];
  const context=new Proxy({fillText:(text)=>texts.push(text)}, {get:(target,key)=>target[key]??(()=>{})});
  globalThis.document={createElement:()=>({getContext:()=>context})};
@@ -13,12 +14,13 @@ test('cockpit plots six landmark bearings and bounds map texture refresh to 8 Hz
  const cockpit=createRoverCockpit(),rover=spawnRoverVehicle(17,10,0);
  try{
   cockpit.update(rover);const version=cockpit.texture.version;
-  for(let i=1;i<=6;i++)assert.ok(texts.includes(String(i)));
-  assert.ok(texts.includes('ELYSIUM REGION · MARS'));
+  for(let i=1;i<=7;i++)assert.ok(texts.includes(String(i)));
+  assert.ok(texts.includes('NASA MOLA REGION'));
   assert.ok(!texts.some(v=>v.includes('JEZERO')||v==='2480'));
   now=75;rover.x+=1;cockpit.update(rover);assert.equal(cockpit.texture.version,version);
   now=126;cockpit.update(rover);assert.equal(cockpit.texture.version,version+1);
   now=260;rover.x=10000;cockpit.update(rover);assert.ok(texts.includes('PROCEDURAL FRONTIER'));
+  now=400;rover.x=PERSEVERANCE_LANDING.x;rover.z=PERSEVERANCE_LANDING.z;cockpit.update(rover);assert.ok(texts.includes('JEZERO · PERSEVERANCE'));
  }finally{globalThis.document=previous;cockpit.texture.dispose();cockpit.root.traverse(o=>{o.geometry?.dispose();o.material?.dispose?.();});}
 });
 

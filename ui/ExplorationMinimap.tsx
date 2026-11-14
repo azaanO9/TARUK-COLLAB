@@ -4,6 +4,7 @@ import type { View } from "./SurvivalWorld";
 import { mapRectPoint as mapPoint, mapHeading, mapLidarContacts, MAP_RANGE } from "../game/minimap";
 import { LIDAR_RANGE } from "../game/roverLidar";
 import {MARS_LANDMARKS} from "../content/marsLandmarks";
+import {surveyRegionLabel} from '../content/marsLandingSites';
 import {REGION_WORLD_BOUNDS as B,isSurveyedRegion} from "../game/marsRegion";
 import {assetUrl} from "../lib/assetUrl";
 
@@ -338,7 +339,7 @@ export default function ExplorationMinimap({view,selected,onOpenAtlas}:{view:Vie
           {/* GTA 5 LOCATION & TELEMETRY TEXT (Street Name Style) */}
           <div className="roam-gta-readout">
             <div className="roam-gta-loc">
-              {driving && blocked ? "HAZARD DETECTED" : (isSurveyedRegion(x,z)?"ELYSIUM REGION":"PROCEDURAL FRONTIER")}
+              {driving && blocked ? "HAZARD DETECTED" : surveyRegionLabel(x,z)}
             </div>
             <div className={`roam-gta-sub ${blocked ? "is-blocked" : ""}`}>
               {status}

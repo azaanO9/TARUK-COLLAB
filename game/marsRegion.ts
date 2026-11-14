@@ -2,8 +2,9 @@ import {MOLA_REGION as R, MOLA_DELTA_BASE64} from '../content/marsMolaData.ts';
 
 export const MARS_REGION = {
  ...R, centerLongitude:134.97323611266458, centerLatitude:14.089500110766512,
- gameMetresPerDegree:24, elevationDivisor:240,
- scaleLabel:'Distances ≈1:2,470 · relief ×10',
+ gameMetresPerDegree:12, elevationDivisor:480,
+ realKmPerGameMetre:4.94,
+ scaleLabel:'Distances ≈1:4,940 · relief ×10',
 } as const;
 const eastScale=MARS_REGION.gameMetresPerDegree*Math.cos(MARS_REGION.centerLatitude*Math.PI/180);
 const bytes=atob(MOLA_DELTA_BASE64),heights=new Int16Array(R.width*R.height);
@@ -32,10 +33,10 @@ export function sampleMarsElevation(longitude:number,latitude:number){
 const datum=sampleMarsElevation(MARS_REGION.centerLongitude,MARS_REGION.centerLatitude);
 /** No allocations: shared by streamed vertices, physics and the far landscape. */
 export function marsRegionalHeight(x:number,z:number){
- return (sampleMarsElevation(MARS_REGION.centerLongitude+x/eastScale,MARS_REGION.centerLatitude-z/24)-datum)/MARS_REGION.elevationDivisor;
+ return (sampleMarsElevation(MARS_REGION.centerLongitude+x/eastScale,MARS_REGION.centerLatitude-z/MARS_REGION.gameMetresPerDegree)-datum)/MARS_REGION.elevationDivisor;
 }
 export function isSurveyedRegion(x:number,z:number){
- const lon=MARS_REGION.centerLongitude+x/eastScale,lat=MARS_REGION.centerLatitude-z/24;
+ const lon=MARS_REGION.centerLongitude+x/eastScale,lat=MARS_REGION.centerLatitude-z/MARS_REGION.gameMetresPerDegree;
  return lon>=R.west&&lon<=R.east&&lat>=R.south&&lat<=R.north;
 }
 export const REGION_WORLD_BOUNDS={

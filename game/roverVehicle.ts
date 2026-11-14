@@ -2,7 +2,7 @@
 import { boxObstacle, moveAndSlide, overlapBody, overlapDisc, type CollisionObstacle } from "./collision.ts";
 export const ROVER_LIMIT = 173;
 export const ROVER_ENTER_RADIUS = 4.8;
-export const ROVER_MAX_FORWARD = 30 / 3.6; // Authored exploration rover top speed: 30 km/h (~8.33 m/s)
+export const ROVER_MAX_FORWARD = 50 / 3.6; // Authored crew rover top speed: 50 km/h (~13.89 m/s), not a NASA rover specification.
 export const ROVER_MAX_REVERSE = 10 / 3.6; // Authored exploration rover reverse limit: 10 km/h (~2.78 m/s)
 export const ROVER_ACCELERATION = 1.6; // Authored gradual acceleration in m/s^2
 export const ROVER_BRAKE = 4.5;        // m/s^2 active service brake

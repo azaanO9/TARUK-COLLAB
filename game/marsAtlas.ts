@@ -5,7 +5,7 @@ export type AtlasBounds = {west:number;east:number;north:number;south:number};
 
 /** Both views use the same projection as the terrain and the shipped MOLA image. */
 export function atlasBounds(view:AtlasView,x:number,z:number):AtlasBounds {
-  return view==='region' ? REGION_WORLD_BOUNDS : {west:x-700,east:x+700,north:z-700,south:z+700};
+  return view==='region' ? REGION_WORLD_BOUNDS : {west:x-350,east:x+350,north:z-350,south:z+350};
 }
 
 export function atlasPoint(x:number,z:number,bounds:AtlasBounds) {

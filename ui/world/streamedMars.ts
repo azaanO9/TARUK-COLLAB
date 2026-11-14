@@ -6,8 +6,9 @@ import {CHUNK_SIZE as S, CHUNK_RADIUS as R, chunkKey, isBaseChunk, streamedHeigh
 import type {CollisionObstacle} from "../../game/collision.ts";
 
 /** A fixed pool, filled a few rows at a time. Shared materials/textures never recompile. */
-export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:number,z:number)=>number, options:{radius?:number;rocks?:number;pebbles?:number;obstacles?:CollisionObstacle[];sampleHeight?:(x:number,z:number)=>number}={}) {
+export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:number,z:number)=>number, options:{radius?:number;rocks?:number;pebbles?:number;obstacles?:CollisionObstacle[];sampleHeight?:(x:number,z:number)=>number;clearings?:readonly {x:number;z:number;radius:number}[]}={}) {
  const sampleHeight=options.sampleHeight??marsHeight;
+ const clearings=options.clearings??[];
  const radius=options.radius ?? R, rockCount=options.rocks ?? 18;
  const pebbleCount=options.pebbles??(radius<=2?12:32);
  const obstacles=options.obstacles ?? [], baseObstacleCount=obstacles.length;
@@ -38,9 +39,12 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
   for(let i=0;i<rockCount+pebbleCount;i++){
    const r=streamedRock(slot.x,slot.z,i),height=heightAt(r.x,r.z);
    if(i>=rockCount){r.sx*=.1;r.sy*=.1;r.sz*=.1;}
+   let clear=false;
+   for(const area of clearings)if(Math.hypot(r.x-area.x,r.z-area.z)<area.radius+Math.max(r.sx,r.sz)){clear=true;break;}
    dummy.position.set(r.x-slot.x*S,height+r.sy*.55,r.z-slot.z*S);dummy.rotation.set(0,r.yaw,0);dummy.scale.set(r.sx,r.sy,r.sz);dummy.updateMatrix();slot.rocks.setMatrixAt(i,dummy.matrix);
+   if(clear){dummy.scale.setScalar(0);dummy.updateMatrix();slot.rocks.setMatrixAt(i,dummy.matrix);}
    tint.setRGB(.72+r.tint*.25,.75+r.tint*.18,.77+r.tint*.15).lerp(paleRock,r.tint*.35);slot.rocks.setColorAt(i,tint);
-   if(i<rockCount)slot.contacts.push(rockContact(r.x,r.z,rockOutline,r.sx,r.sz,r.yaw,height,r.sy*(.55+rockGeometry.boundingBox!.max.y)));
+   if(i<rockCount&&!clear)slot.contacts.push(rockContact(r.x,r.z,rockOutline,r.sx,r.sz,r.yaw,height,r.sy*(.55+rockGeometry.boundingBox!.max.y)));
   }
   slot.rocks.position.set(slot.x*S,0,slot.z*S);slot.rocks.instanceMatrix.needsUpdate=true;if(slot.rocks.instanceColor)slot.rocks.instanceColor.needsUpdate=true;slot.rocks.computeBoundingSphere();slot.rocks.visible=true;
  }

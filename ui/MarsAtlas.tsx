@@ -33,13 +33,13 @@ export default function MarsAtlas({x,z,selected,onSelect,onClose}:{x:number;z:nu
       </span>;
      })}
      {you.visible&&<span className="roam-atlas-you" style={{left:`${you.left}%`,top:`${you.top}%`}} aria-hidden="true">You</span>}
-     <span className="roam-atlas-scale"><i style={{width:`${scaleMetres/width*100}%`}}/>{scaleMetres} game m ≈ {(scaleMetres*2.47).toLocaleString('en-US')} km on Mars</span>
+     <span className="roam-atlas-scale"><i style={{width:`${scaleMetres/width*100}%`}}/>{scaleMetres} game m ≈ {(scaleMetres*MARS_REGION.realKmPerGameMetre).toLocaleString('en-US')} km on Mars</span>
     </div>
     <p className="roam-atlas-extent">{mapView==='region'?`${MARS_REGION.west.toFixed(2)}°–${MARS_REGION.east.toFixed(2)}° E · ${MARS_REGION.south.toFixed(2)}° to ${MARS_REGION.north.toFixed(2)}° latitude`:'Nearby view follows your position. Beyond the coloured survey, terrain continues procedurally.'}</p>
    </div>
    <ol className="roam-atlas-list">{MARS_LANDMARKS.map(p=><li key={p.id}>
     <button aria-pressed={selected===p.id} onClick={()=>onSelect(p.id)}>{p.number}. {p.name}<span>{Math.round(Math.hypot(p.x-x,p.z-z))} game m · {p.kind}</span></button>
-    {selected===p.id&&<p>{p.description} <a href={p.source} target="_blank" rel="noreferrer">USGS source ↗</a></p>}
+    {selected===p.id&&<p>{p.description} <a href={p.source} target="_blank" rel="noreferrer">{p.sourceLabel} ↗</a></p>}
    </li>)}</ol>
   </div>
   <p>{isSurveyedRegion(x,z)?`${Math.abs(coordinates.latitude).toFixed(2)}° ${coordinates.latitude<0?'S':'N'} · ${coordinates.longitude.toFixed(2)}° E`:'Beyond the surveyed crop · procedural continuation'}. Select a landmark to highlight its bearing on your minimap.</p>

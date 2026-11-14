@@ -1,6 +1,7 @@
 import * as T from "three";
 import {assetUrl} from '../../lib/assetUrl.ts';
 import {MARS_LANDMARKS} from '../../content/marsLandmarks.ts';
+import {surveyRegionLabel} from '../../content/marsLandingSites.ts';
 import {REGION_WORLD_BOUNDS as B,isSurveyedRegion} from '../../game/marsRegion.ts';
 import type { LidarScan } from "../../game/roverLidar";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -187,7 +188,7 @@ export function createRoverCockpit() {
     context.font = "bold 16px monospace";
     context.fillText("LIDAR · 30M", 38, 162);
     context.fillStyle = "#f8fafc";
-    context.fillText("ELYSIUM REGION", 340, 162);
+    context.fillText("MARS FIELD MAP", 340, 162);
 
     // Divider
     context.strokeStyle = "rgba(255, 255, 255, 0.12)";
@@ -370,7 +371,7 @@ export function createRoverCockpit() {
     // 4. GTA 5 Street & Distance Telemetry
     context.fillStyle = isHazard ? "#ef4444" : "#f8fafc";
     context.font = "bold 15px monospace";
-    context.fillText(isHazard ? "HAZARD DETECTED" : (isSurveyedRegion(rover.x,rover.z)?"ELYSIUM REGION · MARS":"PROCEDURAL FRONTIER"), mapL, 458);
+    context.fillText(isHazard ? "HAZARD DETECTED" : surveyRegionLabel(rover.x,rover.z), mapL, 458);
 
     context.fillStyle = isHazard ? "#f87171" : "#7dd3fc";
     context.font = "14px monospace";

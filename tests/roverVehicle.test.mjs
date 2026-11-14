@@ -42,11 +42,11 @@ test("enterRover and exitRover toggle driving state and calculate exit position"
 
 test("accelerating with forward key increases speed up to max limit", () => {
   let rover = enterRover(spawnRoverVehicle(0, 0, 0));
-  for (let i = 0; i < 130; i++) {
+  for (let i = 0; i < 240; i++) {
     rover = stepRoverVehicle(rover, new Set(["w"]), 0.05);
   }
   assert.equal(rover.speed, ROVER_MAX_FORWARD);
-  assert.equal(Math.round(rover.speed * 3.6), 30);
+  assert.equal(Math.round(rover.speed * 3.6), 50);
   // Forward motion in coordinate system moves along -Z when yaw is 0
   assert.ok(rover.z < 0);
 });
@@ -75,11 +75,11 @@ test("handbrake decelerates vehicle quickly", () => {
   let rover = enterRover(spawnRoverVehicle(0, 0, 0));
   rover.speed = ROVER_MAX_FORWARD;
   const initialZ = rover.z;
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < 40; i++) {
     rover = stepRoverVehicle(rover, new Set([" "]), 0.05);
   }
   assert.equal(rover.speed, 0);
-  assert.ok(initialZ - rover.z < 5, "stops within 5 m on flat ground from 30 km/h");
+  assert.ok(initialZ - rover.z < 14, "stops within 14 m on flat ground from 50 km/h");
 });
 
 test("collision with obstacles stops or deflects rover", () => {
@@ -143,14 +143,21 @@ test("traversable rocks and rover pad do not block driving while suspension arti
 });
 
 
-test("forward and reverse speed caps are 30 and 10 km/h, including legacy overspeed", () => {
-  assert.equal(Math.round(ROVER_MAX_FORWARD * 3.6), 30);
+test("forward and reverse speed caps are 50 and 10 km/h, including legacy overspeed", () => {
+  assert.equal(Math.round(ROVER_MAX_FORWARD * 3.6), 50);
   assert.equal(ROVER_MAX_REVERSE * 3.6, 10);
-  for (const [key, limit, initial] of [["w", ROVER_MAX_FORWARD, 13.6], ["s", -ROVER_MAX_REVERSE, -8]]) {
+  for (const [key, limit, initial] of [["w", ROVER_MAX_FORWARD, 20], ["s", -ROVER_MAX_REVERSE, -8]]) {
     let rover = {...enterRover(spawnRoverVehicle(0,0)), speed: initial};
     rover = stepRoverVehicle(rover, new Set([key]), .05);
     assert.equal(rover.speed, limit);
   }
+});
+
+test('50 km/h cannot tunnel through a thin obstacle at the longest physics step',()=>{
+ let rover={...enterRover(spawnRoverVehicle(0,15)),speed:ROVER_MAX_FORWARD};
+ const wall={id:'test-wall',x:0,z:0,radius:10.01,halfX:10,halfZ:.05};
+ for(let i=0;i<60;i++)rover=stepRoverVehicle(rover,new Set(['w']),.05,[wall]);
+ assert.ok(rover.z>=2.5);assert.ok(rover.speed<.1);
 });
 
 test("analog rover steering, throttle, reverse and handbrake respond proportionally", () => {

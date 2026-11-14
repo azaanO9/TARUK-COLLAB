@@ -1,3 +1,7 @@
+## Original Perseverance landing-site model — 14 November 2026
+
+`ui/world/createPerseveranceRover.ts` is original procedural geometry: six metallic wheels and tread ribs, rocker/bogie links, layered thermal deck, camera mast, stowed sample arm, antenna, rear generator fins and generated lettering. No model, image or NASA logo is downloaded for it. Three.js RoundedBoxGeometry and static batching use the existing Three.js MIT-licensed utilities. It is a simplified visual recreation, not engineering geometry. The historical landing coordinate source is listed in `docs/SOURCES.md`; no source-paper artwork or text is distributed.
+
 ## NASA MOLA regional terrain and original shuttle exit — 14 November 2026
 
 - `content/marsMolaData.ts`: numerical elevation crop from NASA Mars Global Surveyor / Mars Orbiter Laser Altimeter, NASA GSFC MOLA team, distributed by NASA PDS Geosciences. Dataset **MGS-M-MOLA-5-MEGDR-L3-V1.0**, product **MEGT90N000EB.IMG**, version 2.0, 16 pixels/degree. [PDS product label](https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/meg016/megt90n000eb.lbl). Public NASA scientific data; no third-party art asset was obtained for this change.

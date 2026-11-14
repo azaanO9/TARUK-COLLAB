@@ -1,5 +1,9 @@
 ## Mars Trek regional exploration and shuttle egress (2026-11-14)
 
+- Regional travel is now 12 game metres/degree with elevation divisor 480. `PERSEVERANCE_LANDING` contains the sourced historical touchdown coordinates and their projected world position. Its seventh landmark pin, model and collision footprint share that record. `surveyRegionLabel` identifies the Jezero area near the rover.
+- `createPerseveranceRover` is a stationary, batched original model with distance culling, shared warmup and idempotent disposal. `createStreamedMars.clearings` optionally excludes rocks around protected positions; fixed obstacles survive chunk recycling. E-inspect reuses the free-roam dialog without adding mission state.
+- Developer visual check: `?debug=1&sitePreview=perseverance` starts near the historical-site model and skips the arrival cinematic. The parameter has no effect without `debug=1`; ordinary URLs keep the shuttle start.
+
 - `atlasBounds` and `atlasPoint` register both full-region and player-centred nearby views to the same MOLA WebP used by the minimap/cockpit. No runtime raster generation is needed when opening the atlas. Landmark selection remains in-memory only.
 - `SurvivalWorld.onOpenMap?` handles Caps Lock after landing, ignoring repeats/modifier chords and editable fields. The free-roam dialog handles Caps Lock again to close; Escape and the touch Atlas button remain available. Opening pauses exploration and releases mouse capture; closing restores focus.
 - `PerformanceMeterMode` is `off | fps | detailed`, selected under Camera & graphics. `performanceReadout` formats the world's existing one-second measurement window; no new render loop, React frame updates, persistence or network telemetry. Hidden-tab time and initial loading are excluded from measurement windows. `debug=1` initially selects Detailed, which can still be turned off in settings.
@@ -16,7 +20,7 @@ World builders expose `updateTracks(renderer,x,z,light)` and `trackTextureSize`.
 
 ## Current free-exploration additions (2026-11-14)
 
-`View.mapRocks` is an optional, capped list of 48 nearby rock positions/radii, refreshed twice per second; the minimap follows the existing view reports. No mission state is involved. `CollisionObstacle.hull` optionally supplies a convex world-oriented horizontal outline relative to the obstacle centre for box-body sweeps; `rockSupport` supplies the small-rock wheel height approximation. Existing obstacles without these fields retain their prior collision behaviour. A complete free-roam daylight cycle now takes 120 active seconds with a continuous brightness curve and sun motion; pause/landing do not advance it.
+`View.mapRocks` is an optional, capped list of 48 nearby rock positions/radii, refreshed twice per second; the minimap follows the existing view reports. No mission state is involved. `CollisionObstacle.hull` optionally supplies a convex world-oriented horizontal outline relative to the obstacle centre for box-body sweeps; `rockSupport` supplies the small-rock wheel height approximation. Existing obstacles without these fields retain their prior collision behaviour. A complete free-roam daylight cycle now takes 600 active seconds with a continuous brightness curve and sun motion; pause/landing do not advance it.
 
 # Interface contracts
 
@@ -38,7 +42,7 @@ The centre crosshair is the sole aim point for station raycasts in both views. S
 A full-scale, six-wheeled heavy exploration rover (`ui/world/createBigRover.ts`, `game/roverVehicle.ts`) is stationed at the Mars outpost base (`ROVER BAY · R-01`).
 - **Enter/Exit (`F` key or on-screen button)**: When on foot within 4.8m of the rover, pressing `F` places the astronaut into the driver's bucket seat inside the transparent cockpit cabin (open-world / GTA 5 style). Pressing `F` again safely dismounts the astronaut to the driver's side of the vehicle and parks the rover.
 - **Driving Controls**:
-  - `W` / `ArrowUp`: Accelerate forward up to authored top speed 30 km/h (~8.33 m/s).
+  - `W` / `ArrowUp`: Accelerate forward up to authored top speed 50 km/h (~13.89 m/s); reverse remains 10 km/h.
   - `S` / `ArrowDown`: Service brake when moving forward; reverses up to 10 km/h (~2.78 m/s) when stopped.
   - `A` / `D` (`ArrowLeft` / `ArrowRight`): Steer front wheels up to ±30° using Ackermann vehicle kinematics.
   - `Space`: Emergency handbrake with rapid stopping deceleration.
