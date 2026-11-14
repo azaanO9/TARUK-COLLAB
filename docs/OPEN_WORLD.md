@@ -20,6 +20,10 @@ The app now opens a PC/Mobile controls selector and then free Mars exploration. 
 
 130 automated tests pass. TypeScript, Sites build and GitHub Pages build pass. Browser checks: PC launch, walking, crew-rover entry and driving, autonomous Curiosity updates, absent Sage, pause keyboard focus/Escape resume, explicit Mobile joystick/buttons, landscape layout without horizontal overflow, and old lunar URL opening free-roam setup. No browser console errors were observed during these checks.
 
+## Publication reliability
+
+The Pages workflow names artifacts per attempt and waits for API visibility before deploying. This addresses the observed upload-visibility failure and duplicate-artifact failure on retries.
+
 ## Practical limits
 
 The existing map bounds remain. Returning to controls setup starts a fresh player/crew-rover position; pausing preserves it. Curiosity retains its pre-existing local navigation save. No physical phone was used for this verification; test touch steering and camera drag on your devices. Historical mission code remains for reference but has no playable route.
