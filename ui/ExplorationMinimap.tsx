@@ -10,6 +10,7 @@ import { LIDAR_RANGE } from "../game/roverLidar";
  * oriented rover vector icons, landing shuttle mark, and signature GTA 5 tri-bars.
  */
 export default function ExplorationMinimap({ view }: { view: View }) {
+  if (view.cockpitView) return null;
   const [open, setOpen] = useState(true);
   const driving = Boolean(view.roverDriving);
   const x = driving ? view.roverX ?? view.x : view.x;

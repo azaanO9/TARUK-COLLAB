@@ -27,6 +27,7 @@ export type BigRoverHandle = {
     heightAt?: (x: number, z: number) => number,
     lidar?: LidarScan,
     shadowsEnabled?: boolean,
+    curiosity?: { x: number; z: number; yaw?: number } | null,
   ) => void;
   dispose: () => void;
 };
@@ -281,12 +282,13 @@ export function createBigRover(
     heightAt?: (x: number, z: number) => number,
     lidar?: LidarScan,
     shadowsEnabled = true,
+    curiosity?: { x: number; z: number; yaw?: number } | null,
   ) {
     // 1. Position & orientation of chassis in world coordinates
     root.position.set(rover.x, groundY, rover.z);
     root.rotation.set(rover.pitch, rover.yaw, rover.roll, "YXZ");
 
-    if (cockpitView) cockpit.update(rover, lidar);
+    if (cockpitView) cockpit.update(rover, lidar, curiosity);
 
     // 2. Rotate tires with vehicle roll, steer front wheels, and calculate independent suspension travel
     const sinYaw = Math.sin(rover.yaw);

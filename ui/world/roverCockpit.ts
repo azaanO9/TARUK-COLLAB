@@ -149,45 +149,264 @@ export function createRoverCockpit() {
   const cabinLight = new T.PointLight(0xd9efff, 0, 4, 2); cabinLight.position.set(0, 2.30, -1.10);
   let lastReadout = "";
   let lastScan: LidarScan | undefined;
-  function update(rover: RoverVehicle, scan?: LidarScan) {
+  function update(rover: RoverVehicle, scan?: LidarScan, curiosity?: { x: number; z: number; yaw?: number } | null) {
     stick.rotation.z = -rover.steerAngle * .65;
     const speed = Math.round(Math.abs(rover.speed) * 3.6);
     const heading = T.MathUtils.euclideanModulo(Math.round(-rover.yaw * 180 / Math.PI), 360);
-    const gear = getRoverGear(rover.speed), readout = `${speed}/${heading}/${gear}/${rover.handbrake}`;
+    const gear = getRoverGear(rover.speed);
+    const posKey = `${Math.round(rover.x * 4)}/${Math.round(rover.z * 4)}`;
+    const readout = `${speed}/${heading}/${gear}/${rover.handbrake}/${posKey}`;
     if (lastReadout === readout && lastScan === scan) return;
     lastReadout = readout; lastScan = scan;
+
     context.fillStyle = "#07131d"; context.fillRect(0, 0, 1024, 512);
+
+    // TOP HORIZONTAL INSTRUMENT STRIP (driving-instruments UV region [0, 0.75, 1, 0.25])
     context.fillStyle = "#a8f0f3"; context.font = "bold 45px monospace";
     context.fillText(`${String(speed).padStart(2, "0")} KM/H`, 24, 70);
     context.fillText(gear, 380, 70); context.fillText(`HDG ${String(heading).padStart(3, "0")}`, 545, 70);
     context.fillStyle = rover.handbrake ? "#ffb86c" : "#8de3c2"; context.font = "21px monospace";
     context.fillText(rover.handbrake ? "PARK BRAKE" : scan?.threatDistance != null ? `OBSTACLE / ${scan.threatDistance.toFixed(1)} m` : "SURFACE MOBILITY / READY", 24, 111);
-    context.fillStyle = "#83b8c9"; context.font = "22px monospace";
-    context.fillText("LIDAR / 30 m", 24, 167); context.fillText("VEHICLE / STATUS", 540, 167);
-    context.save(); context.beginPath(); context.rect(12,188,488,270); context.clip();
-    const mapScale = 3.6, mapX = 256, mapY = 330;
-    context.strokeStyle = "#214453"; context.lineWidth = 2;
-    for (const radius of [10,20,30]) {
-      context.beginPath(); context.arc(mapX,mapY,radius*mapScale,0,Math.PI*2); context.stroke();
+
+    // =========================================================================
+    // LEFT MULTIFUNCTION DISPLAY: GTA V STYLE TOPOGRAPHIC RECTANGULAR MINIMAP
+    // (Region: x: 12..500, y: 136..500)
+    // =========================================================================
+    context.fillStyle = "#08101a"; context.fillRect(12, 136, 488, 368);
+
+    // 1. Top GPS Header
+    context.fillStyle = "#38bdf8";
+    context.beginPath(); context.arc(28, 156, 4.5, 0, Math.PI * 2); context.fill();
+    context.font = "bold 16px monospace";
+    context.fillText("GPS LIDAR · 30M", 38, 162);
+    context.fillStyle = "#f8fafc";
+    context.fillText("JEZERO CRATER", 340, 162);
+
+    // Divider
+    context.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    context.lineWidth = 1;
+    context.beginPath(); context.moveTo(16, 170); context.lineTo(496, 170); context.stroke();
+
+    // 2. Rectangular Map Frame (clipped)
+    const mapL = 16, mapT = 175, mapW = 480, mapH = 248;
+    const mapCenterX = mapL + mapW / 2; // 256
+    const mapCenterY = mapT + mapH / 2; // 299
+    const mapScale = 4.0; // 30m * 4 = 120px radius
+
+    context.save();
+    context.beginPath();
+    if (typeof (context as any).roundRect === "function") {
+      (context as any).roundRect(mapL, mapT, mapW, mapH, 6);
+    } else {
+      context.rect(mapL, mapT, mapW, mapH);
     }
-    const c = Math.cos(rover.yaw), s = Math.sin(rover.yaw);
+    context.fillStyle = "#0d1723";
+    context.fill();
+    context.strokeStyle = "rgba(255, 255, 255, 0.22)";
+    context.lineWidth = 1.6;
+    context.stroke();
+    context.clip();
+
+    // Authentic GTA 5 Topographic Elevation Contours (scrolling with rover movement)
+    const topoStep = 55;
+    const offX = (((rover.x * mapScale) % topoStep) + topoStep) % topoStep;
+    const offZ = (((rover.z * mapScale) % topoStep) + topoStep) % topoStep;
+
+    // Sinuous flowing elevation isolines
+    context.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    context.lineWidth = 0.9;
+    for (let yOffset = -topoStep; yOffset <= mapH + topoStep; yOffset += 26) {
+      const cy = mapT + yOffset - offZ;
+      context.beginPath();
+      context.moveTo(mapL, cy + Math.sin((cy + offX) * 0.03) * 10);
+      for (let px = mapL; px <= mapL + mapW; px += 24) {
+        const py = cy + Math.sin((px + offX) * 0.035) * 12 + Math.cos((px - offZ) * 0.02) * 6;
+        context.lineTo(px, py);
+      }
+      context.stroke();
+    }
+
+    // Topographic elevation ridge loops
+    const ridge1X = mapCenterX + ((((12 - rover.x) * mapScale) % 320) + 320) % 320 - 160;
+    const ridge1Y = mapCenterY + ((((-8 - rover.z) * mapScale) % 240) + 240) % 240 - 120;
+    context.strokeStyle = "rgba(255, 255, 255, 0.2)";
+    context.lineWidth = 1.1;
+    context.beginPath();
+    context.ellipse(ridge1X, ridge1Y, 48, 28, 0.25, 0, Math.PI * 2);
+    context.stroke();
+    context.beginPath();
+    context.ellipse(ridge1X, ridge1Y, 26, 15, 0.25, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = "rgba(255, 255, 255, 0.28)";
+    context.font = "10px monospace";
+    context.fillText("2480", ridge1X - 12, ridge1Y + 3);
+
+    // Distance range rings (10m, 20m, 30m)
+    context.strokeStyle = "rgba(56, 189, 248, 0.2)";
+    context.lineWidth = 1;
+    if (typeof context.setLineDash === "function") context.setLineDash([4, 4]);
+    for (const radius of [10, 20]) {
+      context.beginPath();
+      context.arc(mapCenterX, mapCenterY, radius * mapScale, 0, Math.PI * 2);
+      context.stroke();
+    }
+    if (typeof context.setLineDash === "function") context.setLineDash([]);
+    context.beginPath();
+    context.arc(mapCenterX, mapCenterY, 30 * mapScale, 0, Math.PI * 2);
+    context.stroke();
+
+    // Subtle GPS Crosshairs
+    context.strokeStyle = "rgba(56, 189, 248, 0.15)";
+    context.lineWidth = 0.8;
+    context.beginPath();
+    context.moveTo(mapCenterX, mapT); context.lineTo(mapCenterX, mapT + mapH);
+    context.moveTo(mapL, mapCenterY); context.lineTo(mapL + mapW, mapCenterY);
+    context.stroke();
+
+    // North Indicator (GTA 5 Red 'N' at top of map)
+    context.fillStyle = "#ef4444";
+    context.beginPath();
+    context.moveTo(mapCenterX, mapT + 4);
+    context.lineTo(mapCenterX - 5, mapT + 12);
+    context.lineTo(mapCenterX + 5, mapT + 12);
+    context.closePath();
+    context.fill();
+    context.font = "bold 11px monospace";
+    context.textAlign = "center";
+    context.fillText("N", mapCenterX, mapT + 24);
+    context.textAlign = "left";
+
+    // LANDING SHUTTLE ICON (Home at x=0, z=12)
+    const hx = mapCenterX + (0 - rover.x) * mapScale;
+    const hy = mapCenterY + (12 - rover.z) * mapScale;
+    if (hx >= mapL - 10 && hx <= mapL + mapW + 10 && hy >= mapT - 10 && hy <= mapT + mapH + 10) {
+      context.fillStyle = "#f59e0b";
+      context.beginPath(); context.arc(hx, hy, 7, 0, Math.PI * 2); context.fill();
+      context.strokeStyle = "#fbbf24"; context.lineWidth = 1.2; context.stroke();
+      context.fillStyle = "#ffffff";
+      context.beginPath(); context.arc(hx, hy, 2.5, 0, Math.PI * 2); context.fill();
+      context.font = "10px monospace"; context.fillStyle = "#fbbf24";
+      context.fillText("LANDER", hx - 18, hy + 16);
+    }
+
+    // CURIOSITY ROVER ICON (If present)
+    if (curiosity) {
+      const cx = mapCenterX + (curiosity.x - rover.x) * mapScale;
+      const cy = mapCenterY + (curiosity.z - rover.z) * mapScale;
+      if (cx >= mapL - 10 && cx <= mapL + mapW + 10 && cy >= mapT - 10 && cy <= mapT + mapH + 10) {
+        context.fillStyle = "#c084fc";
+        context.beginPath(); context.arc(cx, cy, 6, 0, Math.PI * 2); context.fill();
+        context.strokeStyle = "#e9d5ff"; context.lineWidth = 1; context.stroke();
+        context.font = "10px monospace"; context.fillStyle = "#e9d5ff";
+        context.fillText("CURIOSITY", cx - 26, cy + 15);
+      }
+    }
+
+    // LiDAR Contacts & Hazards
     for (const contact of scan?.contacts ?? []) {
-      const dx = contact.x-rover.x, dz = contact.z-rover.z;
-      const x = mapX+(dx*c-dz*s)*mapScale, y = mapY+(dx*s+dz*c)*mapScale;
-      context.fillStyle = contact.inPath ? "#ff6363" : "#efbb65";
-      context.beginPath(); context.arc(x,y,Math.max(3,Math.min(9,contact.radius*mapScale)),0,Math.PI*2); context.fill();
+      const dx = contact.x - rover.x;
+      const dz = contact.z - rover.z;
+      const x = mapCenterX + dx * mapScale;
+      const y = mapCenterY + dz * mapScale;
+
+      if (contact.inPath) {
+        // Red hazard diamond with '!'
+        context.fillStyle = "#ef4444";
+        context.beginPath();
+        context.moveTo(x, y - 8); context.lineTo(x + 8, y); context.lineTo(x, y + 8); context.lineTo(x - 8, y);
+        context.closePath();
+        context.fill();
+        context.strokeStyle = "#ffffff"; context.lineWidth = 1.2; context.stroke();
+        context.fillStyle = "#ffffff"; context.font = "bold 9px monospace"; context.textAlign = "center";
+        context.fillText("!", x, y + 3);
+        context.textAlign = "left";
+      } else {
+        // Cyan sonar blip
+        context.fillStyle = "#38bdf8";
+        context.beginPath();
+        context.arc(x, y, Math.max(3, Math.min(8, contact.radius * mapScale)), 0, Math.PI * 2);
+        context.fill();
+      }
     }
-    context.fillStyle = "#a8f0f3";
-    context.beginPath(); context.moveTo(mapX,mapY-10); context.lineTo(mapX-7,mapY+7); context.lineTo(mapX+7,mapY+7); context.closePath(); context.fill();
-    context.font = "22px monospace";
-    context.fillStyle = scan?.threatDistance != null ? "#ff6363" : "#8de3c2";
+
+    // Center Player Arrow (GTA V White Arrow rotated to vehicle yaw)
+    context.save();
+    context.translate(mapCenterX, mapCenterY);
+    context.rotate(-rover.yaw);
+    // Cyan center beacon ring
+    context.strokeStyle = "#38bdf8"; context.lineWidth = 1;
+    context.beginPath(); context.arc(0, 0, 5, 0, Math.PI * 2); context.stroke();
+    // Crisp GTA V white arrow with black outline
+    context.beginPath();
+    context.moveTo(0, -13);
+    context.lineTo(7.5, 9);
+    context.lineTo(0, 4.5);
+    context.lineTo(-7.5, 9);
+    context.closePath();
+    context.fillStyle = "#ffffff";
+    context.fill();
+    context.strokeStyle = "#050a14";
+    context.lineWidth = 2.2;
+    context.stroke();
     context.restore();
-    context.fillStyle = scan?.threatDistance != null ? "#ff8585" : "#a5ded0";
-    context.fillText(scan?.threatDistance != null ? `BLOCKED IN ${scan.threatDistance.toFixed(1)} m` : scan ? "PATH CLEAR / 12 m" : "SCANNING…",24,477);
-    for (let i = 0; i < 6; i++) { context.fillStyle = "#83d6d2"; context.fillRect(562 + i % 2 * 48, 223 + Math.floor(i / 2) * 66, 29, 44); }
+
+    context.restore(); // End map clipping
+
+    // 3. GTA 5 Tri-Bars directly underneath the map
+    const barY = 431, barH = 6, barGap = 6;
+    const barW = Math.floor((mapW - barGap * 2) / 3); // ~156px each
+
+    // Bar 1: Clearance (Green -> Red when blocked)
+    const isHazard = scan?.threatDistance != null;
+    const threatDist = scan?.threatDistance ?? 20;
+    const clearancePct = isHazard ? Math.min(1, Math.max(0.15, threatDist / 20)) : 1;
+    context.fillStyle = "rgba(0, 0, 0, 0.65)";
+    context.fillRect(mapL, barY, barW, barH);
+    context.fillStyle = isHazard ? "#ef4444" : "#22c55e";
+    context.fillRect(mapL, barY, barW * clearancePct, barH);
+
+    // Bar 2: Sensor / LiDAR Link (Blue)
+    context.fillStyle = "rgba(0, 0, 0, 0.65)";
+    context.fillRect(mapL + barW + barGap, barY, barW, barH);
+    context.fillStyle = "#38bdf8";
+    context.fillRect(mapL + barW + barGap, barY, barW, barH);
+
+    // Bar 3: Rover Power (Yellow)
+    context.fillStyle = "rgba(0, 0, 0, 0.65)";
+    context.fillRect(mapL + (barW + barGap) * 2, barY, barW, barH);
+    context.fillStyle = "#eab308";
+    context.fillRect(mapL + (barW + barGap) * 2, barY, barW * 0.95, barH);
+
+    // 4. GTA 5 Street & Distance Telemetry
+    context.fillStyle = isHazard ? "#ef4444" : "#f8fafc";
+    context.font = "bold 15px monospace";
+    context.fillText(isHazard ? "HAZARD DETECTED" : "JEZERO CRATER · MARS", mapL, 458);
+
+    context.fillStyle = isHazard ? "#f87171" : "#7dd3fc";
+    context.font = "14px monospace";
+    const statusText = isHazard
+      ? `OBSTACLE · ${threatDist.toFixed(1)} M`
+      : scan
+      ? "PATH CLEAR · 12 M"
+      : "SCANNING…";
+    context.fillText(statusText, mapL, 478);
+
+    // =========================================================================
+    // RIGHT MULTIFUNCTION DISPLAY: VEHICLE DIAGNOSTICS & SYSTEM STATUS
+    // =========================================================================
+    context.fillStyle = "#83b8c9"; context.font = "22px monospace";
+    context.fillText("VEHICLE / STATUS", 540, 167);
+    for (let i = 0; i < 6; i++) {
+      context.fillStyle = "#83d6d2";
+      context.fillRect(562 + (i % 2) * 48, 223 + Math.floor(i / 2) * 66, 29, 44);
+    }
     context.fillStyle = "#b0d4da"; context.font = "22px monospace";
-    context.fillText("6 WHEEL DRIVE", 708, 249); context.fillText("INDEPENDENT", 708, 301); context.fillText("SUSPENSION", 708, 334);
-    context.fillStyle = rover.handbrake ? "#ffb86c" : "#8de3c2"; context.fillText(rover.handbrake ? "BRAKE / SET" : "DRIVE / ACTIVE", 550, 451);
+    context.fillText("6 WHEEL DRIVE", 708, 249);
+    context.fillText("INDEPENDENT", 708, 301);
+    context.fillText("SUSPENSION", 708, 334);
+    context.fillStyle = rover.handbrake ? "#ffb86c" : "#8de3c2";
+    context.fillText(rover.handbrake ? "BRAKE / SET" : "DRIVE / ACTIVE", 550, 451);
+
     texture.needsUpdate = true;
   }
   return { root, update, texture, cabinLight };

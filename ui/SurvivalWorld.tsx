@@ -91,6 +91,7 @@ export type View = {
   roverZ?: number;
   roverYaw?: number;
   roverDriving?: boolean;
+  cockpitView?: boolean;
   roverSpeed?: number;
   roverGear?: RoverGear;
   mudDepth?: number;
@@ -1330,6 +1331,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             model.heightAt,
             lidar,
             activeTier.shadows,
+            curiosity,
           );
           if (rover.driving || Math.abs(rover.speed) > 0.1) {
             model.stampRoverTracks?.(renderer, rover);
@@ -1769,6 +1771,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             roverZ: rover.z,
             roverYaw: rover.yaw,
             roverDriving: rover.driving,
+            cockpitView: rover.driving && !cameraSettings.current.thirdPerson,
             roverSpeed: Math.round(Math.abs(rover.speed) * 3.6),
             roverGear: getRoverGear(rover.speed),
             mudDepth: rover.mudDepth,
