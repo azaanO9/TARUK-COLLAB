@@ -14,13 +14,6 @@ import {
   nearestCaveEntrance,
 } from "../game/marsCaveData.ts";
 import {
-  DEFENSE_RECIPES,
-  canCraftDefense,
-  createDefenseUnit,
-  isPointProtectedByDefense,
-} from "../game/baseDefenses.ts";
-import { spawnInitialStalkers, stepStalkers } from "../game/marsStalkers.ts";
-import {
   ROVER_CHASSIS_CLEARANCE,
   getRoverGear,
 } from "../game/roverVehicle.ts";
@@ -57,45 +50,6 @@ test("marsCaveData defines finite floor elevation, portals, and mineable Ice/Tit
   const near = nearestCaveEntrance(CAVE_ENTRANCES[1].surfaceX + 1, CAVE_ENTRANCES[1].surfaceZ - 1);
   assert.equal(near.entrance.id, CAVE_ENTRANCES[1].id);
   assert.ok(near.distance < 2);
-});
-
-test("baseDefenses validates crafting recipes and protects nearby perimeter points", () => {
-  const emptyCheck = canCraftDefense("emp_emitter", { titanium: 0, iceCores: 0, powerCells: 50 }, 60);
-  assert.equal(emptyCheck.ok, false);
-
-  const readyCheck = canCraftDefense(
-    "emp_emitter",
-    {
-      titanium: DEFENSE_RECIPES.emp_emitter.titaniumCost,
-      iceCores: DEFENSE_RECIPES.emp_emitter.iceCoreCost,
-      powerCells: 60,
-    },
-    60,
-  );
-  assert.equal(readyCheck.ok, true);
-
-  const unit = createDefenseUnit("def-1", "laser_grid", 12, -10, "Nova", 70);
-  assert.equal(unit.active, true);
-  assert.ok(isPointProtectedByDefense(15, -10, [unit], 70) !== null);
-  assert.equal(isPointProtectedByDefense(45, -10, [unit], 70), null);
-});
-
-test("marsStalkers stay dormant during clear daytime and are repelled by perimeter defenses", () => {
-  const initial = spawnInitialStalkers();
-  assert.ok(initial.some((s) => s.biome === "surface"));
-  assert.ok(initial.some((s) => s.biome === "cave"));
-
-  const playerOutside = [{ id: "p1", x: 54, z: -46, biome: "surface" }];
-  const clearDay = stepStalkers(initial, playerOutside, [], "CLEAR", -25, 80, 0.1, 10);
-  const surfaceClear = clearDay.stalkers.filter((s) => s.biome === "surface");
-  assert.ok(surfaceClear.every((s) => s.state === "dormant"));
-
-  // During DUST_STORM near an active EMP emitter, approaching Stalker enters repelled state
-  const emp = createDefenseUnit("emp-1", "emp_emitter", 55, -47, "Nova", 80);
-  const stormDefense = stepStalkers(initial, playerOutside, [emp], "DUST_STORM", -82, 80, 0.1, 12);
-  const repelled = stormDefense.stalkers.find((s) => s.id === "stalker-surface-ne");
-  assert.equal(repelled?.state, "repelled");
-  assert.ok(stormDefense.triggeredDefenses.includes("emp-1"));
 });
 
 test("roverVehicle clearance stays above terrain Z-fighting threshold and gear reports D/N/R", () => {

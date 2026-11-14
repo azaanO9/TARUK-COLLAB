@@ -129,10 +129,8 @@ export function createBigRover(
   headlightL.target = targetL;
   headlightR.target = targetR;
 
-  headlightL.castShadow = true;
-  headlightL.shadow.bias = -0.001;
-  headlightL.shadow.mapSize.width = 512;
-  headlightL.shadow.mapSize.height = 512;
+  headlightL.castShadow = false;
+  headlightR.castShadow = false;
 
   root.add(headlightL);
   root.add(headlightR);

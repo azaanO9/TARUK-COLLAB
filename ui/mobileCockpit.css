@@ -60,29 +60,59 @@
   box-shadow:0 10px 28px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.32);
 }
 .junior-root[data-controls="mobile"] .sv-rover-exit-btn,.junior-root[data-controls="mobile"] .sv-gear-rail {display:none}
-.junior-root[data-controls="mobile"] .mars-target {
-  top:auto; bottom:max(12px,env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
-  width:max-content; max-width:min(380px,calc(100vw - 260px)); padding:8px 14px; border-radius:18px; z-index:7;
-  display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:3px 8px; font-size:12px; text-align:center;
-  color:#f4faff;
-  background:linear-gradient(155deg,rgba(24,46,62,.40),rgba(10,22,32,.26));
-  backdrop-filter:blur(20px) saturate(165%); -webkit-backdrop-filter:blur(20px) saturate(165%);
-  border:1px solid rgba(255,255,255,.28);
-  box-shadow:0 12px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.34), inset 0 -1px 0 rgba(255,255,255,.08);
+.junior-root[data-controls="mobile"] .mars-target,
+.junior-root .mars-target {
+  top: auto !important;
+  bottom: max(16px, env(safe-area-inset-bottom)) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 230px));
+  padding: 8px 18px;
+  border-radius: 20px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  text-align: center;
+  color: #f4faff;
+  background: rgba(13, 26, 40, 0.42) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35);
 }
-.junior-root[data-controls="mobile"] .mars-target strong,.junior-root[data-controls="mobile"] .mars-target span {width:100%}
-.junior-root[data-controls="mobile"] .mars-target strong {font-size:12px; line-height:1.25; text-shadow:0 1px 6px rgba(0,0,0,.45)}
-.junior-root[data-controls="mobile"] .mars-target span {font-size:11px; color:rgba(236,246,252,.9)}
-.junior-root[data-controls="mobile"] .mars-target button {
-  min-height:34px; padding:5px 14px; border-radius:10px; font-size:12px;
-  background:rgba(235,178,128,.92); color:#15202a; border:1px solid rgba(255,232,204,.55);
-  box-shadow:0 4px 12px rgba(0,0,0,.22);
+.junior-root[data-controls="mobile"] .mars-target strong,
+.junior-root[data-controls="mobile"] .mars-target span,
+.junior-root .mars-target strong,
+.junior-root .mars-target span {
+  width: 100%;
+  text-align: center;
 }
-@media (max-width:540px) {
-  .junior-root[data-controls="mobile"] .mars-target {
-    bottom:calc(max(12px,env(safe-area-inset-bottom)) + 102px);
-    max-width:min(340px,calc(100vw - 28px));
-  }
+.junior-root[data-controls="mobile"] .mars-target strong,
+.junior-root .mars-target strong {
+  font-size: 12px;
+  line-height: 1.25;
+  text-shadow: 0 1px 6px rgba(0,0,0,.45);
+}
+.junior-root[data-controls="mobile"] .mars-target span,
+.junior-root .mars-target span {
+  font-size: 11px;
+  color: rgba(236,246,252,.9);
+}
+.junior-root[data-controls="mobile"] .mars-target button,
+.junior-root .mars-target button {
+  min-height: 34px;
+  padding: 6px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: rgba(235,178,128,.92);
+  color: #15202a;
+  border: 1px solid rgba(255,232,204,.55);
+  box-shadow: 0 4px 12px rgba(0,0,0,.22);
 }
 .flight-sheet dl,.flight-menu-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .flight-sheet dl div {border-bottom:1px solid #7896a55e;padding:4px}

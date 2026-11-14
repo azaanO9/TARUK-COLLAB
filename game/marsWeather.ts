@@ -70,7 +70,7 @@ export function buildWeatherTicker(sol: number, solPhase: number): WeatherTicker
       expectedMinTempC: seed > 45 ? -44 : -24,
       advisory:
         seed > 45
-          ? "Proximity comms static above 18 m. Stalkers prowl low-visibility perimeter."
+          ? "High atmospheric opacity (tau 2.8). Stow external instruments and secure rover hatches."
           : "Solar grid surges unstable; shield habitats and avoid open ridges.",
     },
     {

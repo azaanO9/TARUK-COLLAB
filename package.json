@@ -8,7 +8,6 @@
   "scripts": {
     "install:ci": "pnpm install --no-frozen-lockfile",
     "dev": "node scripts/run-framework.mjs dev",
-    "multiplayer:server": "node server.js",
     "build": "node scripts/run-framework.mjs build",
     "build:pages": "vite build --config vite.pages.config.ts",
     "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
@@ -37,8 +36,6 @@
     "react-hook-form": "^7.85.0",
     "react-resizable-panels": "^4.12.2",
     "recharts": "^3.8.0",
-    "socket.io": "^4.8.4",
-    "socket.io-client": "^4.8.4",
     "sonner": "^2.0.8",
     "tailwind-merge": "3.6.0",
     "three": "0.180.0",

@@ -5,11 +5,8 @@ import { STATIONS } from "../content/marsBase";
 import { MARS_HABITAT } from "../game/marsColonyCollision";
 import { rank, type Mission } from "../game/juniorMission";
 import type { View } from "./SurvivalWorld";
-import { CAVE_ENTRANCES, CAVE_EXIT_PORTAL, CAVE_PILLARS } from "../game/marsCaveData";
-import type { BaseDefenseUnit } from "../game/baseDefenses";
-import type { StalkerEntity } from "../game/marsStalkers";
-import type { BiomeId, NetworkPlayerState } from "../game/multiplayerTypes";
 import type { WeatherEventType } from "../game/marsWeather";
+import { CAVE_PILLARS, CAVE_EXIT_PORTAL, CAVE_ENTRANCES } from "../game/marsCaveData";
 
 const RADAR_CRATERS: readonly [number, number, number][] = [
   [24, -29, 7],
@@ -24,18 +21,10 @@ export function MarsRadarMinimap({
   view,
   target,
   found,
-  defenses,
-  stalkers,
-  remotePlayers,
-  selfPlayerId,
 }: {
   view?: View;
   target?: string;
   found: readonly string[];
-  defenses?: readonly BaseDefenseUnit[];
-  stalkers?: readonly StalkerEntity[];
-  remotePlayers?: readonly NetworkPlayerState[];
-  selfPlayerId?: string | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inCave = view?.biome === "cave";
@@ -181,20 +170,6 @@ export function MarsRadarMinimap({
         ctx.restore();
       }
 
-      // Active Base Perimeter Defenses
-      for (const def of defenses ?? []) {
-        const [dx, dy] = toRadar(def.x, def.z);
-        ctx.strokeStyle = def.kind === "emp_emitter" ? "rgba(163, 230, 53, 0.5)" : "rgba(34, 211, 238, 0.5)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(dx, dy, def.radius * scale, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = def.kind === "emp_emitter" ? "#bef264" : "#22d3ee";
-        ctx.beginPath();
-        ctx.arc(dx, dy, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
       // GPS Route line to active next target
       const targetStation = target ? STATIONS.find((s) => s.id === target) : undefined;
       if (targetStation) {
@@ -269,30 +244,6 @@ export function MarsRadarMinimap({
       }
     }
 
-    // Remote Co-op Teammate Blips
-    const activeBiome: BiomeId = inCave ? "cave" : "surface";
-    for (const p of remotePlayers ?? []) {
-      if (p.id === selfPlayerId || p.biome !== activeBiome) continue;
-      const [pxR, pyR] = toRadar(p.x, p.z);
-      ctx.fillStyle = p.suitColor || "#38bdf8";
-      ctx.strokeStyle = "#09131d";
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(pxR, pyR, 3.6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // Martian Stalker crimson threat blips
-    for (const st of stalkers ?? []) {
-      if (st.biome !== activeBiome || st.state === "dormant") continue;
-      const [sx, sy] = toRadar(st.x, st.z);
-      ctx.fillStyle = st.state === "repelled" ? "#38bdf8" : "#ff2e43";
-      ctx.beginPath();
-      ctx.arc(sx, sy, st.state === "approaching" ? 4.2 : 3.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
     // Subtle range vignette & player arrow in center
     ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
     ctx.lineWidth = 1;
@@ -335,7 +286,7 @@ export function MarsRadarMinimap({
     ctx.fillText("N", clampedNx, clampedNy + 0.5);
 
     ctx.restore();
-  }, [view, target, found, inCave, defenses, stalkers, remotePlayers, selfPlayerId]);
+  }, [view, target, found, inCave]);
 
   return (
     <div className="gta-radar-frame" aria-label="Tactical Mars surface radar">
@@ -361,12 +312,6 @@ export function MarsHud({
   onLog,
   tempC,
   weather,
-  defenses,
-  stalkers,
-  remotePlayers,
-  selfPlayerId,
-  morale = 95,
-  inventory,
 }: {
   mission: Mission;
   view?: View;
@@ -375,20 +320,12 @@ export function MarsHud({
   onLog: () => void;
   tempC?: number;
   weather?: WeatherEventType;
-  defenses?: readonly BaseDefenseUnit[];
-  stalkers?: readonly StalkerEntity[];
-  remotePlayers?: readonly NetworkPlayerState[];
-  selfPlayerId?: string | null;
-  morale?: number;
-  inventory?: { iceCores: number; titanium: number };
 }) {
-  const selfNet = remotePlayers?.find((p) => p.id === selfPlayerId);
-  const oxygenPct = Math.round(Math.max(0, Math.min(100, selfNet?.supplies.oxygen ?? mission.resources.oxygen)));
+  const oxygenPct = Math.round(Math.max(0, Math.min(100, mission.resources.oxygen)));
   const suitIntegrityPct = Math.round(
-    Math.max(0, Math.min(100, selfNet?.supplies.suitIntegrity ?? 100 - mission.resources.risk)),
+    Math.max(0, Math.min(100, 100 - mission.resources.risk)),
   );
-  const powerPct = Math.round(Math.max(0, Math.min(100, selfNet?.supplies.powerCells ?? mission.resources.power)));
-  const moralePct = Math.round(Math.max(0, Math.min(100, selfNet?.supplies.morale ?? morale)));
+  const powerPct = Math.round(Math.max(0, Math.min(100, mission.resources.power)));
   const [radarCollapsed, setRadarCollapsed] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse) and (max-height: 560px)").matches
   );
@@ -435,10 +372,6 @@ export function MarsHud({
           view={view}
           target={target}
           found={mission.found}
-          defenses={defenses}
-          stalkers={stalkers}
-          remotePlayers={remotePlayers}
-          selfPlayerId={selfPlayerId}
         />
       )}
 
@@ -462,15 +395,6 @@ export function MarsHud({
           </span>
         </div>
 
-        <div className="gta-bar-col" title={`Morale / Stamina: ${moralePct}%`}>
-          <div className="gta-bar-track">
-            <div className="gta-bar-fill bar-morale" style={{ width: `${moralePct}%` }} />
-          </div>
-          <span className="gta-bar-label">
-            <i>MRL</i> <strong>{moralePct}</strong>
-          </span>
-        </div>
-
         <div className="gta-bar-col" title={`Power: ${powerPct}%`}>
           <div className="gta-bar-track">
             <div className="gta-bar-fill bar-power" style={{ width: `${powerPct}%` }} />
@@ -482,9 +406,8 @@ export function MarsHud({
       </section>
 
       <div className="gta-secondary-res">
-        <span>Water <b>{Math.round(selfNet?.supplies.water ?? mission.resources.water)}</b></span>
-        <span>Ti <b>{selfNet?.supplies.titanium ?? inventory?.titanium ?? 0}</b></span>
-        <span>Ice <b>{selfNet?.supplies.iceCores ?? inventory?.iceCores ?? 0}</b></span>
+        <span>Water <b>{Math.round(mission.resources.water)}</b></span>
+        <span>Food <b>{Math.round(mission.resources.food)}</b></span>
         <span>Temp <b style={{ color: (tempC ?? -24) <= -72 ? "#7dd3fc" : undefined }}>{tempC !== undefined ? `${tempC.toFixed(0)}°C` : "-24°C"}</b></span>
       </div>
       {weather && (

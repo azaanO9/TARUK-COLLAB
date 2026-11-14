@@ -54,38 +54,11 @@ import {
   type CaveEntrance,
   type MineableNode,
 } from "../game/marsCaveData";
-import type { BaseDefenseUnit } from "../game/baseDefenses";
-import type { StalkerEntity } from "../game/marsStalkers";
 import type { WeatherEventType } from "../game/marsWeather";
-import type {
-  BiomeId,
-  NetworkPlayerState,
-  NetworkRoverState,
-  PlayerMovePayload,
-  RoverSyncPayload,
-} from "../game/multiplayerTypes";
 import { createCaveBiomeScene } from "./world/marsCaveBiome";
-import { createStalkerRenderer } from "./world/createStalkerEntity";
-import { createBaseDefensesRenderer } from "./world/createBaseDefenses";
 import { createDropPodIntro } from "./world/createDropPodIntro";
-import { createRemoteAstronautsManager } from "./world/remoteAstronauts";
-import { createBaseModulesRenderer, type BaseModulesRenderer } from "./world/createBaseModules";
-import { createGarageZone, type GarageZoneRenderer } from "./world/createGarageZone";
-import { createMaxGraphicsPipeline, type MaxGraphicsPipeline } from "./world/maxGraphicsPipeline";
-import {
-  snapToBuildingGrid,
-  validateModulePlacement,
-  GRID_SNAP_SIZE,
-  type BaseModuleKind,
-  type PlacedModule,
-} from "../game/baseBuilding";
-import {
-  isInsideGarageZone,
-  findNearestWinchAnchor,
-  calculateWinchForce,
-  type RoverUpgradeId,
-} from "../game/roverUpgrades";
-import { getActivePerks, type SkillNodeId } from "../game/crewSkills";
+
+export type BiomeId = "surface" | "cave";
 
 function shortestAngleDiff(from: number, to: number): number {
   let diff = (to - from) % (Math.PI * 2);
@@ -122,11 +95,6 @@ export type View = {
   curiosityScans?: number;
   curiositySample?: string;
   lidar?: LidarScan;
-  nearGarage?: boolean;
-  winchActive?: boolean;
-  winchAnchor?: { x: number; y: number; z: number } | null;
-  canArmMine?: boolean;
-  hologramValid?: boolean;
 };
 type Props = {
   enabled: boolean;
@@ -153,36 +121,15 @@ type Props = {
   onBiomeChange?: (biome: BiomeId) => void;
   weather?: WeatherEventType;
   tempC?: number;
-  stalkers?: readonly StalkerEntity[];
-  defenses?: readonly BaseDefenseUnit[];
   minerals?: readonly MineableNode[];
-  remotePlayers?: readonly NetworkPlayerState[];
-  selfPlayerId?: string | null;
-  sharedRover?: NetworkRoverState | null;
-  onRoverClaim?: (driving: boolean) => void;
-  onPlayerSync?: (payload: PlayerMovePayload) => void;
-  onRoverSync?: (payload: RoverSyncPayload) => void;
   onMineNode?: (nodeId: string) => void;
   onOpenWeatherTerminal?: () => void;
-  onOpenDefenseCraft?: () => void;
-  onOpenTrade?: () => void;
-  modules?: readonly PlacedModule[];
-  placingModuleKind?: BaseModuleKind | null;
-  onPlaceModule?: (kind: BaseModuleKind, x: number, z: number, rotationY: number) => void;
-  roverUpgrades?: readonly RoverUpgradeId[];
-  crewSkills?: readonly SkillNodeId[];
-  onOpenGarage?: () => void;
-  onOpenBuildMenu?: () => void;
-  onOpenSkillTree?: () => void;
-  onToggleWinch?: () => void;
 };
 export type SurvivalWorldHandle = {
   captureMouse: () => void;
   toggleRover?: () => void;
   toggleBiome?: () => void;
   skipIntro?: () => void;
-  toggleWinch?: () => void;
-  rotateBuildingHologram?: () => void;
 };
 const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWorld(props, ref) {
   const STATIONS = props.planet === "mars" ? marsStations : lunarStations;
@@ -197,8 +144,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
   const toggleRoverAction = useRef<() => void>(() => {});
   const toggleBiomeAction = useRef<() => void>(() => {});
   const skipIntroAction = useRef<() => void>(() => {});
-  const toggleWinchAction = useRef<() => void>(() => {});
-  const rotateHologramAction = useRef<() => void>(() => {});
   const inspectAction = useRef<() => void>(() => {});
   const analogWalk = useRef<MoveAxes>({});
   const analogDrive = useRef<RoverAnalogInput>({});
@@ -232,8 +177,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       toggleRover: () => toggleRoverAction.current(),
       toggleBiome: () => toggleBiomeAction.current(),
       skipIntro: () => skipIntroAction.current(),
-      toggleWinch: () => toggleWinchAction.current(),
-      rotateBuildingHologram: () => rotateHologramAction.current(),
     }),
     [],
   );
@@ -324,8 +267,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         environment = createMarsEnvironment(renderer);
         scene.environment = environment.texture; scene.environmentIntensity = .85;
       }
-      scene.background = new T.Color(0x090e18);
-      scene.fog = new T.FogExp2(0x333b48, 0.0024);
+      scene.background = new T.Color(props.planet === "mars" ? 0xe3b6a1 : 0x090e18);
+      scene.fog = new T.FogExp2(props.planet === "mars" ? 0xb3866b : 0x333b48, props.planet === "mars" ? 0.0022 : 0.0024);
       const camera = new T.PerspectiveCamera(props.planet === "mars" ? 58 : 72, 1, 0.08, props.planet === "mars" ? 1100 : 500);
       camera.rotation.order = "YXZ";
       const light = new T.DirectionalLight(0xffe5c7, 3.5);
@@ -351,15 +294,11 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
       const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface);
       const smallRocks = props.planet === "mars" ? model.root.getObjectByName("mars-small-rocks") as import("three").InstancedMesh | undefined : undefined;
-      // Expanded Mars systems: Ice Cave biome, Weather Terminal podium, Stalkers, Base Defenses, Drop-Pod Intro & Co-op astronauts
+      // Mars systems: Subterranean Ice Cave biome, Weather Terminal podium, Drop-Pod Intro
       const caveBiome = props.planet === "mars" ? createCaveBiomeScene(model.heightAt) : null;
       if (caveBiome) {
         scene.add(caveBiome.surfacePortals, caveBiome.root);
       }
-      const stalkerRenderer = props.planet === "mars" ? createStalkerRenderer() : null;
-      if (stalkerRenderer) scene.add(stalkerRenderer.root);
-      const defenseRenderer = props.planet === "mars" ? createBaseDefensesRenderer() : null;
-      if (defenseRenderer) scene.add(defenseRenderer.root);
       const dropPodIntro = props.planet === "mars" ? createDropPodIntro() : null;
       if (dropPodIntro) {
         scene.add(dropPodIntro.root);
@@ -367,10 +306,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           dropPodIntro.start();
         }
       }
-      const remoteAstronauts = props.planet === "mars" ? createRemoteAstronautsManager() : null;
-      if (remoteAstronauts) scene.add(remoteAstronauts.root);
-      const baseModulesRenderer = props.planet === "mars" ? createBaseModulesRenderer(scene) : null;
-      const garageZone = props.planet === "mars" ? createGarageZone(scene, model.heightAt) : null;
       // Helmet SpotLight for subterranean Ice Caves and extreme night shadows
       const helmetLamp = props.planet === "mars" ? new T.SpotLight(0xdbeafe, 0, 32, 0.58, 0.55, 1.3) : null;
       const helmetTarget = helmetLamp ? new T.Object3D() : null;
@@ -606,7 +541,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (occlusion) occlusion.enabled = preset.ssao && (cameraSettings.current.quality !== "auto" || autoOcclusion);
         if (bloom) bloom.enabled = preset.bloom && !reduced.matches;
         if (dofPass) {
-          const focusMode = (rover.driving && !cameraSettings.current.thirdPerson) || Boolean(current.current.placingModuleKind);
+          const focusMode = rover.driving && !cameraSettings.current.thirdPerson;
           dofPass.enabled = isMax && focusMode && !reduced.matches;
           if (dofPass.enabled && dofPass.uniforms) (dofPass.uniforms as Record<string, { value: unknown }>)["focus"].value = rover.driving ? 4.5 : 8.5;
         }
@@ -684,38 +619,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         lastDropUiUpdate = 0,
         nearCaveEntrance: CaveEntrance | null = null,
         nearCaveExit = false,
-        nearMineral: MineableNode | null = null,
-        nearGarageZone = false,
-        winchActive = false,
-        winchAnchor: { x: number; y: number; z: number } | null = null,
-        previewRotationY = 0,
-        lastHologramValid = false,
-        lastHologramPos = { x: 0, z: 0 };
-      rotateHologramAction.current = () => {
-        previewRotationY = (previewRotationY + Math.PI / 2) % (Math.PI * 2);
-      };
-      toggleWinchAction.current = () => {
-        if (!current.current.roverUpgrades?.includes("heavy_winch")) {
-          showTransientNotice("Requires Heavy Winch upgrade (install in Garage).", "Requires Heavy Winch");
-          return;
-        }
-        if (winchActive) {
-          winchActive = false;
-          winchAnchor = null;
-          showTransientNotice("Winch cable disengaged.", "Winch cable");
-          current.current.onToggleWinch?.();
-          return;
-        }
-        const anchor = findNearestWinchAnchor(rover.x, rover.chassisY, rover.z, rover.yaw, model.obstacles);
-        if (anchor) {
-          winchActive = true;
-          winchAnchor = anchor;
-          showTransientNotice("Winch cable locked to anchor rock! Pulling vehicle.", "Winch cable locked");
-          current.current.onToggleWinch?.();
-        } else {
-          showTransientNotice("No solid rock anchor within 32m forward cone.", "No solid rock anchor");
-        }
-      };
+        nearMineral: MineableNode | null = null;
       const enterBiome = (targetBiome: BiomeId) => {
         if (props.planet !== "mars" || targetBiome === activeBiome) return;
         activeBiome = targetBiome;
@@ -758,15 +662,9 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       };
       toggleRoverAction.current = () => {
         if (!current.current.enabled || current.current.planet !== "mars" || activeBiome !== "surface") return;
-        const sr = current.current.sharedRover;
         if (!rover.driving) {
-          if (sr?.driverId && sr.driverId !== current.current.selfPlayerId) {
-            setMessage("Rover pilot seat occupied by crewmate.");
-            return;
-          }
           if (canEnterRover(walker, rover)) {
             rover = enterRover(rover);
-            current.current.onRoverClaim?.(true);
             keys.clear();
             setRoverDriving(true);
             setRoverNear(false);
@@ -781,7 +679,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           const { rover: nextRover, exitPosition } = exitRover(rover, exitObstacles);
           if (!exitPosition) { setMessage("There isn't room to exit here. Move the rover to an open area."); return; }
           rover = nextRover;
-          current.current.onRoverClaim?.(false);
           walker.x = exitPosition.x;
           walker.z = exitPosition.z;
           walker.yaw = cameraYaw;
@@ -811,28 +708,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       resize();
       const inspect = () => {
         if (!current.current.enabled) return;
-        if (current.current.placingModuleKind) {
-          if (lastHologramValid) {
-            current.current.onPlaceModule?.(current.current.placingModuleKind, lastHologramPos.x, lastHologramPos.z, previewRotationY);
-          }
-          return;
-        }
-        if (rover.driving) {
-          if (nearGarageZone) {
-            current.current.onOpenGarage?.();
-            return;
-          }
-          if (current.current.roverUpgrades?.includes("robotic_arm") && nearMineral && !nearMineral.collected) {
-            current.current.onMineNode?.(nearMineral.id);
-            return;
-          }
-          return;
-        }
+        if (rover.driving) return;
         if (props.planet === "mars") {
-          if (nearGarageZone) {
-            current.current.onOpenGarage?.();
-            return;
-          }
           if (activeBiome === "surface" && nearCaveEntrance) {
             enterBiome("cave");
             return;
@@ -996,12 +873,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (e.detail === 0) return;
         const targetEl = e.target as HTMLElement | null;
         if (!isSceneTarget(targetEl)) return;
-        if (current.current.placingModuleKind) {
-          if (lastHologramValid) {
-            current.current.onPlaceModule?.(current.current.placingModuleKind, lastHologramPos.x, lastHologramPos.z, previewRotationY);
-          }
-          return;
-        }
         const resuming = cursorReleased.current;
         setCursorMode(false);
         if (document.pointerLockElement !== element) {
@@ -1135,58 +1006,23 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         if (k === "q") keys.add("look-left");
         if (k === "shift") keys.add("shift");
-        if (k === "r") {
-          if (current.current.placingModuleKind) {
-            e.preventDefault();
-            rotateHologramAction.current();
-            return;
-          }
-          keys.add("look-right");
-        }
+        if (k === "r") keys.add("look-right");
         if (k === "v" && !e.repeat) {
           e.preventDefault();
           setThirdPerson((v) => !v);
         }
-        if (k === "b" && !e.repeat && current.current.planet === "mars") {
-          e.preventDefault();
-          if (current.current.onOpenBuildMenu) {
-            current.current.onOpenBuildMenu();
-          } else {
-            current.current.onToggleSage?.();
-          }
-        }
-        if (k === "g" && !e.repeat && current.current.planet === "mars") {
+        if ((k === "b" || k === "g") && !e.repeat && current.current.planet === "mars") {
           e.preventDefault();
           current.current.onToggleSage?.();
-        }
-        if (k === "tab" && !e.repeat && current.current.planet === "mars") {
-          e.preventDefault();
-          current.current.onOpenSkillTree?.();
-        }
-        if (k === "h" && !e.repeat && current.current.planet === "mars") {
-          e.preventDefault();
-          toggleWinchAction.current();
         }
         if (k === "f" && !e.repeat && current.current.planet === "mars") {
           e.preventDefault();
           toggleRoverAction.current();
         }
-        if (k === "c" && !e.repeat && current.current.planet === "mars") {
-          e.preventDefault();
-          current.current.onOpenDefenseCraft?.();
-        }
-        if (k === "t" && !e.repeat && current.current.planet === "mars") {
-          e.preventDefault();
-          current.current.onOpenTrade?.();
-        }
         if (e.code === "Space" && !e.repeat && !onInteractive) {
           e.preventDefault();
           if (dropPodIntro?.isActive()) {
             skipIntroAction.current();
-            return;
-          }
-          if (current.current.placingModuleKind && lastHologramValid) {
-            current.current.onPlaceModule?.(current.current.placingModuleKind, lastHologramPos.x, lastHologramPos.z, previewRotationY);
             return;
           }
           keys.add("jump");
@@ -1337,40 +1173,8 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             const sevObstacles = curiosity
               ? [...model.obstacles, curiosityFootprint(curiosity.x, curiosity.z, curiosity.yaw)]
               : model.obstacles;
-            const sharedR = p.sharedRover;
-            const remoteControlled = Boolean(
-              sharedR?.driverId && sharedR.driverId !== p.selfPlayerId,
-            );
-            if (remoteControlled && sharedR) {
-              const rBlend = 1 - Math.exp(-14 * dt);
-              rover = {
-                ...rover,
-                x: rover.x + (sharedR.x - rover.x) * rBlend,
-                z: rover.z + (sharedR.z - rover.z) * rBlend,
-                yaw: sharedR.yaw,
-                speed: sharedR.speed,
-                steerAngle: sharedR.steerAngle,
-                pitch: sharedR.pitch,
-                roll: sharedR.roll,
-                chassisY: sharedR.chassisY,
-              };
-            }
-            if (rover.driving && !remoteControlled) {
+            if (rover.driving) {
               const prevRoverYaw = rover.yaw;
-              rover.upgrades = p.roverUpgrades;
-              const perks = getActivePerks(p.crewSkills ?? []);
-              const speedMultiplier = perks.roverSpeedMultiplier;
-              if (winchActive && winchAnchor) {
-                const wForce = calculateWinchForce(rover.x, rover.chassisY ?? model.heightAt(rover.x, rover.z), rover.z, rover.yaw, winchAnchor);
-                rover.speed += wForce.forwardForce * dt * 0.45;
-                rover.yaw += wForce.yawTorque * dt * 0.35;
-                if (wForce.distance < 3.2) {
-                  winchActive = false;
-                  winchAnchor = null;
-                  showTransientNotice("Winch reached anchor target. Disengaged.", "Winch reached");
-                  current.current.onToggleWinch?.();
-                }
-              }
               for (let i = 0; i < steps; i++) {
                 rover = stepRoverVehicle(
                   rover,
@@ -1380,7 +1184,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                   model.roverHeightAt,
                   model.mudAt,
                   analogDrive.current,
-                  { speedMultiplier },
                 );
               }
               walker.x = rover.x;
@@ -1399,7 +1202,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
                 cameraYaw += diff * (1 - Math.exp(-2.2 * dt));
               }
             } else {
-              if (!remoteControlled && bigRover && Math.abs(rover.speed) > 0.01) {
+              if (bigRover && Math.abs(rover.speed) > 0.01) {
                 rover = stepRoverVehicle(
                   rover,
                   keys,
@@ -1516,40 +1319,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         if (props.planet === "mars") {
           const timeSec = time * 0.001;
           caveBiome?.update(timeSec, p.minerals ?? [], inCave);
-          defenseRenderer?.update(p.defenses ?? [], model.heightAt, timeSec, !inCave);
-          stalkerRenderer?.update(p.stalkers ?? [], activeBiome, activeHeightAt, timeSec);
-          remoteAstronauts?.update(p.remotePlayers ?? [], p.selfPlayerId ?? null, activeBiome, activeHeightAt, dt);
-
-          baseModulesRenderer?.update(p.modules ?? [], model.heightAt, timeSec);
-          garageZone?.update(timeSec);
-          garageZone?.updateWinch(
-            rover.driving
-              ? { x: rover.x, y: rover.chassisY ?? model.heightAt(rover.x, rover.z), z: rover.z, yaw: rover.yaw }
-              : null,
-            winchAnchor,
-            winchActive,
-          );
-          nearGarageZone = isInsideGarageZone(rover.driving ? rover.x : walker.x, rover.driving ? rover.z : walker.z);
-
-          if (p.placingModuleKind && !inCave) {
-            ray.setFromCamera(center, camera);
-            const groundHits = ray.intersectObject(model.root, true);
-            if (groundHits.length > 0 && groundHits[0].distance < 60) {
-              const rawHit = groundHits[0].point;
-              const snapped = snapToBuildingGrid(rawHit.x, rawHit.z);
-              const existing = p.modules ?? [];
-              const validation = validateModulePlacement(p.placingModuleKind, snapped.x, snapped.z, existing);
-              lastHologramValid = validation.valid;
-              lastHologramPos = snapped;
-              baseModulesRenderer?.setPreview(p.placingModuleKind, snapped.x, snapped.z, validation.valid, previewRotationY, model.heightAt);
-            } else {
-              lastHologramValid = false;
-              baseModulesRenderer?.setPreview(null, 0, 0, false);
-            }
-          } else {
-            lastHologramValid = false;
-            baseModulesRenderer?.setPreview(null, 0, 0, false);
-          }
 
           // Proximity to cave portals or mineable ore veins
           if (!inCave) {
@@ -1557,17 +1326,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             nearCaveEntrance = cNear.distance <= 4.4 ? cNear.entrance : null;
             nearCaveExit = false;
             nearMineral = null;
-            if (rover.driving && p.roverUpgrades?.includes("robotic_arm")) {
-              let armMinDist = 7.5;
-              for (const m of p.minerals ?? []) {
-                if (m.collected) continue;
-                const md = Math.hypot(rover.x - m.x, rover.z - m.z);
-                if (md < armMinDist) {
-                  armMinDist = md;
-                  nearMineral = m;
-                }
-              }
-            }
           } else {
             nearCaveEntrance = null;
             nearCaveExit = Math.hypot(walker.x - CAVE_EXIT_PORTAL.x, walker.z - CAVE_EXIT_PORTAL.z) <= 4.2;
@@ -1777,21 +1535,35 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           earth.visible = !inCave && eclipse;
         }
         if (props.planet === "mars" && (lastMarsNight !== eclipse || lastEnvWeather !== p.weather || lastEnvBiome !== activeBiome)) {
+          let targetBg = eclipse ? 0x111824 : 0xe3b6a1;
+          let targetFog = eclipse ? 0x232638 : 0xb3866b;
+          let targetDensity = eclipse ? 0.0038 : 0.0022;
+
           if (inCave) {
-            scene.background = new T.Color(0x03070d);
-            scene.fog = new T.FogExp2(0x040b14, 0.052);
+            targetBg = 0x03070d;
+            targetFog = 0x040b14;
+            targetDensity = 0.052;
           } else if (storm) {
-            scene.background = new T.Color(eclipse ? 0x261a18 : 0x9c5a3c);
-            scene.fog = new T.FogExp2(eclipse ? 0x2c1d18 : 0x9e5938, 0.024);
-          } else {
-            scene.background = new T.Color(eclipse ? 0x111824 : 0xe3b6a1);
-            scene.fog = new T.FogExp2(eclipse ? 0x232638 : 0xb3866b, eclipse ? 0.0038 : 0.0022);
+            targetBg = eclipse ? 0x261a18 : 0x9c5a3c;
+            targetFog = eclipse ? 0x2c1d18 : 0x9e5938;
+            targetDensity = 0.024;
           }
+
+          if (scene.background && "setHex" in (scene.background as object)) {
+            (scene.background as import("three").Color).setHex(targetBg);
+          }
+          if (scene.fog && "color" in scene.fog) {
+            const f = scene.fog as import("three").FogExp2;
+            f.color.setHex(targetFog);
+            f.density = targetDensity;
+          }
+
           if (marsSky) marsSky.uniforms.night.value = eclipse ? 1 : 0;
           if (dust) (dust.material as import("three").ShaderMaterial).uniforms.opacity.value = reduced.matches ? .025 : storm ? .26 : eclipse ? .045 : .09;
           if (bigRover) {
-            bigRover.headlightL.castShadow = activeTier.shadows && (eclipse || storm);
-            bigRover.headlightR.castShadow = false;
+            const lightLevel = (eclipse || storm) ? 3.5 : 0;
+            bigRover.headlightL.intensity = lightLevel;
+            bigRover.headlightR.intensity = lightLevel;
           }
           lastMarsNight = eclipse;
           lastEnvWeather = p.weather;
@@ -1948,12 +1720,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
             curiosityScans: curiosity?.scanCount,
             curiositySample: curiosity?.lastScanSample,
             lidar: rover.driving ? lidar : undefined,
-            nearGarage: nearGarageZone,
-            winchActive,
-            winchAnchor,
-            canArmMine: Boolean(rover.driving && p.roverUpgrades?.includes("robotic_arm") && nearMineral),
             nearbyMineral: nearMineral,
-            hologramValid: lastHologramValid,
           });
         }
         renderer.info.reset();
@@ -2027,8 +1794,6 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         renderer.dispose();
         disposeEffects();
         environment?.dispose();
-        baseModulesRenderer?.dispose();
-        garageZone?.dispose();
         bigRover?.dispose();
         curiosityRover?.dispose();
         marsAstronaut?.dispose();
