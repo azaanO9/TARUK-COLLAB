@@ -7,8 +7,8 @@ import { createMarsTerrain } from "./marsTerrain";
 import { createMarsColony } from "./createMarsColony";
 import type { MarsSurfaceTextures } from "./marsSurfaceTextures";
 /** All dimensions are illustrative. This module only builds presentation assets. */
-export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon", surface?:MarsSurfaceTextures, panelSurface?:T.Texture, freeRoam = false) {
-  return planet === "mars" ? createMarsColony(scene, surface, panelSurface, freeRoam) : createLegacySurvivalOutpost(scene, planet);
+export function createSurvivalOutpost(scene: T.Scene, planet: "moon" | "mars" = "moon", surface?:MarsSurfaceTextures, panelSurface?:T.Texture, freeRoam = false, lightTracks = false) {
+  return planet === "mars" ? createMarsColony(scene, surface, panelSurface, freeRoam, lightTracks) : createLegacySurvivalOutpost(scene, planet);
 }
 
 function createLegacySurvivalOutpost(scene:T.Scene, planet:"moon"|"mars") {
@@ -397,6 +397,8 @@ function createLegacySurvivalOutpost(scene:T.Scene, planet:"moon"|"mars") {
     heightAt,
     roverHeightAt: terrain?.roverHeightAt ?? heightAt,
     mudAt: terrain?.mudAt ?? (() => 0),
+    updateTracks:terrain?.updateTracks,
+    trackTextureSize:terrain?.trackTextureSize,
     stampRoverTracks: terrain?.stampRoverTracks,
     stampCuriosityTracks: terrain?.stampCuriosityTracks,
     setLightSurfaces: terrain?.setLightSurfaces,

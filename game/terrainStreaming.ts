@@ -10,7 +10,7 @@ function hasStreamingHeadroom(gpu:string, cores:number, memory:number|undefined,
 /** Every device streams; capability only chooses a bounded workload. */
 export function streamingBudget(gpu:string,cores:number,memory:number|undefined,mobile:boolean,quality:string){
  const light=!hasStreamingHeadroom(gpu,cores,memory,mobile,quality);
- return {radius:light?2:3,rocks:light?8:18,generationMs:light?.75:2,fog:light?.016:.01};
+ return {radius:light?2:3,rocks:light?8:18,pebbles:light?12:32,generationMs:light?.75:2,fog:light?.016:.01};
 }
 const hash=(n:number)=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
 export function streamedRock(cx:number,cz:number,index:number){

@@ -303,7 +303,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
       scene.add(ambient);
       const [regolithSurface,panelSurface] = await surfacePromise;
       if (cancelled) {bigRover?.dispose();curiosityRover?.dispose();marsAstronaut?.dispose();disposeMarsSurfaceTextures(regolithSurface);panelSurface?.dispose();renderer.dispose();renderer.domElement.remove();environment?.dispose();return;}
-      const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam);
+      const model = createSurvivalOutpost(scene, props.planet, regolithSurface, panelSurface, props.freeRoam, mobileMars || effectiveQuality()==="performance");
       let streaming: ReturnType<typeof createStreamedMars> | null = null;
       const streamOptions = {worldLimit:STREAM_LIMIT};
       const baseHeight = model.heightAt;
@@ -1190,6 +1190,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
         }
         const activeHeightAt = activeBiome === "cave" ? caveHeightAt : model.heightAt;
         const activeTier = graphicsTier(lastQuality);
+        if(props.freeRoam)model.updateTracks?.(renderer,walker.x,walker.z,mobileMars||lastQuality==="performance");
         const dropRunning = Boolean(dropPodIntro?.isActive() && activeBiome === "surface" && p.enabled);
 
         if (p.enabled && !dropRunning) {
@@ -1467,7 +1468,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           }
           astronaut.rotation.y = characterYaw;
 
-          if (p.enabled && !inCave) footprints?.(walker.x, walker.z, characterYaw, jump.height < .04);
+          if (p.enabled && !inCave && !rover.driving) footprints?.(walker.x, walker.z, characterYaw, jump.height < .04);
 
           gaitPhase += speed * dt * 2.4;
           gaitBlend += ((speed > .3 && jump.height < .1 ? 1 : 0) - gaitBlend) * (1 - Math.exp(-12 * dt));
@@ -1795,6 +1796,7 @@ const SurvivalWorld = forwardRef<SurvivalWorldHandle, Props>(function SurvivalWo
           element.dataset.nightBlend=nightBlend.toFixed(4);
           element.dataset.worldX = walker.x.toFixed(2);
           element.dataset.worldZ = walker.z.toFixed(2);
+          element.dataset.trackTextureSize=String(model.trackTextureSize??0);
           element.dataset.terrainChunks = String(streaming?.count() ?? 0);
           element.dataset.fps = (metricFrames * 1000 / (time - metricStart)).toFixed(1);
           element.dataset.renderCalls = String(renderer.info.render.calls);

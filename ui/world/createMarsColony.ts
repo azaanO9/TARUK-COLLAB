@@ -11,9 +11,9 @@ import { createColonySurfaceShading } from "./colonySurfaceShading";
 import { flightPlan, stationNames } from "../../content/marsFlightPlan";
 
 /** Detailed original Mars colony. It shares station IDs and navigation with the existing game. */
-export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture, freeRoam = false) {
+export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, panelSurface?:T.Texture, freeRoam = false, lightTracks = false) {
   const root=new T.Group();scene.add(root);
-  const terrain=createMarsTerrain(root, surface, freeRoam);
+  const terrain=createMarsTerrain(root, surface, freeRoam, lightTracks);
   // Free exploration creates terrain only: no invisible building colliders or station targets.
   if (freeRoam) {
     const habitatWindow = new T.MeshStandardMaterial();
@@ -253,6 +253,8 @@ export function createMarsColony(scene:T.Scene, surface?:MarsSurfaceTextures, pa
     heightAt:terrain.heightAt,
     roverHeightAt:terrain.roverHeightAt,
     mudAt:terrain.mudAt,
+    updateTracks:terrain.updateTracks,
+    trackTextureSize:terrain.trackTextureSize,
     stampRoverTracks:terrain.stampRoverTracks,
     stampCuriosityTracks:terrain.stampCuriosityTracks,
     setLightSurfaces: terrain?.setLightSurfaces,

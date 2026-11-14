@@ -4,7 +4,7 @@ import * as T from "three";
 import { createMarsSkyMaterial } from "./marsAtmosphere.ts";
 import { STATIONS } from "../../content/marsBase.ts";
 import { terrainFbm, terrainNoise } from "./terrainNoise.ts";
-import { createMarsTrackSystem, TRACK_WORLD_HALF } from "./marsTrackDeformation.ts";
+import { createMarsTrackSystem } from "./marsTrackDeformation.ts";
 import type { RoverVehicle } from "../../game/roverVehicle.ts";
 import type { CuriosityRoverState } from "../../game/curiosityRover.ts";
 import { SAGE_DOCK } from "../../game/sageCompanion.ts";
@@ -81,7 +81,16 @@ export function colonySurfaceElevation(x: number, z: number): number {
 }
 
 
-export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures, freeRoam = false) {
+const groundRust=new T.Color(0xffe2cc),groundOchre=new T.Color(0xfff1dd),groundBasalt=new T.Color(0xc2b4a4),groundMud=new T.Color(0xa99582);
+export function marsGroundTint(out:T.Color,x:number,z:number,slope:number){
+ const patch=terrainFbm(x*.037,z*.037),mud=mudDepthAt(x,z);
+ out.copy(groundRust).lerp(groundOchre,Math.max(0,patch-.4)*1.25);
+ out.lerp(groundBasalt,Math.min(.65,slope*2+Math.max(0,terrainNoise(x*.08,z*.08)-.73)));
+ if(mud>.05)out.lerp(groundMud,mud*.42);
+ return out;
+}
+
+export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures, freeRoam = false, lightTracks = false) {
   const obstacles: CollisionObstacle[] = [];
   const surfaces = suppliedSurfaces ?? fallbackMarsSurfaceTextures();
 
@@ -129,24 +138,13 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
 
   const colors = new Float32Array(pos.count * 3);
   const color = new T.Color();
-  const rust = new T.Color(0xffe2cc);
-  const ochre = new T.Color(0xfff1dd);
-  const basalt = new T.Color(0xc2b4a4);
-  const darkMud = new T.Color(0xa99582);
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), z = pos.getZ(i), slope = 1 - geometry.attributes.normal.getY(i);
-    const patch = terrainFbm(x * .037, z * .037);
-    const mud = mudDepthAt(x, z);
-    color.copy(rust).lerp(ochre, Math.max(0, patch - .4) * 1.25);
-    color.lerp(basalt, Math.min(.65, slope * 2 + Math.max(0, terrainNoise(x * .08, z * .08) - .73)));
-    if (mud > 0.05) {
-      color.lerp(darkMud, mud * 0.42);
-    }
-    color.toArray(colors, i * 3);
+    marsGroundTint(color,pos.getX(i),pos.getZ(i),1-geometry.attributes.normal.getY(i));
+    color.toArray(colors,i*3);
   }
   geometry.setAttribute("color", new T.BufferAttribute(colors, 3));
 
-  const trackSystem = createMarsTrackSystem();
+  const trackSystem = createMarsTrackSystem(lightTracks);
 
   const groundMat = new T.MeshStandardMaterial({
     map: surfaces.sand.color,
@@ -162,13 +160,21 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   // SnowRunner-style dynamic tire rut depression, displaced berms, normal perturbation & chevron lugs
   groundMat.onBeforeCompile = shader => {
     shader.uniforms.uTrackMap = { value: trackSystem.texture };
-    shader.uniforms.uTrackBounds = { value: TRACK_WORLD_HALF };
+    shader.uniforms.uTrackBounds = { value: trackSystem.worldHalf };
+    shader.uniforms.uTrackOrigin = {value:trackSystem.origin};
+    shader.uniforms.uTrackScroll = {value:trackSystem.scroll};
+    shader.uniforms.uTrackMask = {value:trackSystem.maskTexture};
+    shader.uniforms.uTrackTexel = {value:trackSystem.texel};
     shader.uniforms.uGravelColor = { value: surfaces.gravel.color };
     shader.uniforms.uGravelRelief = { value: surfaces.gravel.relief };
 
     shader.vertexShader = `
       uniform sampler2D uTrackMap;
       uniform float uTrackBounds;
+      uniform vec2 uTrackOrigin;
+      uniform vec2 uTrackScroll;
+      uniform sampler2D uTrackMask;
+      uniform float uTrackTexel;
       varying vec3 vTrackWorldPos;
       varying float vSoilUp;
     \n` + shader.vertexShader;
@@ -178,9 +184,9 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       `#include <begin_vertex>
       vec3 worldInit = (modelMatrix * vec4(transformed, 1.0)).xyz;
       vSoilUp = normalize(mat3(modelMatrix) * normal).y;
-      vec2 tUv = (worldInit.xz + uTrackBounds) / (uTrackBounds * 2.0);
-      if (tUv.x > 0.002 && tUv.x < 0.998 && tUv.y > 0.002 && tUv.y < 0.998) {
-        vec4 trk = texture2D(uTrackMap, tUv);
+      vec2 tUv = (worldInit.xz - uTrackOrigin + uTrackBounds) / (uTrackBounds * 2.0);
+      if (tUv.x > 0.002 && tUv.x < 0.998 && tUv.y > 0.002 && tUv.y < 0.998 && texture2D(uTrackMask,fract(tUv+uTrackScroll)).r>.5) {
+        vec4 trk = texture2D(uTrackMap, fract(tUv+uTrackScroll));
         transformed.y += trk.g * 0.045 - trk.r * 0.105;
       }
       vTrackWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
@@ -189,6 +195,10 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     shader.fragmentShader = `
       uniform sampler2D uTrackMap;
       uniform float uTrackBounds;
+      uniform vec2 uTrackOrigin;
+      uniform vec2 uTrackScroll;
+      uniform sampler2D uTrackMask;
+      uniform float uTrackTexel;
       uniform sampler2D uGravelColor;
       uniform sampler2D uGravelRelief;
       varying vec3 vTrackWorldPos;
@@ -229,10 +239,11 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       float soilRelief=mix(dustScan.relief.r*.022,gravelScan.relief.r*.085,exposedGravel)
         +(grain-.5)*.002*grainVisibility+ripple*.004*(1.0-exposedGravel)*rippleVisibility;
       soilRelief*=1.0-smoothstep(.12,.45,soilPixel);
-      vec2 fTrackUv = (vTrackWorldPos.xz + uTrackBounds) / (uTrackBounds * 2.0);
+      vec2 fTrackLocal = (vTrackWorldPos.xz - uTrackOrigin + uTrackBounds) / (uTrackBounds * 2.0);
+      vec2 fTrackUv=fract(fTrackLocal+uTrackScroll);
       vec4 fTrack = vec4(0.0);
       float fChevron = 0.0;
-      if (fTrackUv.x > 0.002 && fTrackUv.x < 0.998 && fTrackUv.y > 0.002 && fTrackUv.y < 0.998) {
+      if (fTrackLocal.x > 0.002 && fTrackLocal.x < 0.998 && fTrackLocal.y > 0.002 && fTrackLocal.y < 0.998 && texture2D(uTrackMask,fTrackUv).r>.5) {
         fTrack = texture2D(uTrackMap, fTrackUv);
         if (fTrack.r > 0.03) {
           vec2 tDir = normalize(vec2(fTrack.b, fTrack.a) * 2.0 - 1.0 + vec2(0.0001));
@@ -265,7 +276,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       float soilGrazing=smoothstep(.08,.38,abs(dot(normal,normalize(vViewPosition))));
       normal=normalize(mix(normal,soilBumpNormal,.65*soilGrazing));
       if (fTrack.r > 0.02 || fTrack.g > 0.02) {
-        float eps = 1.0 / 1024.0;
+        float eps = uTrackTexel;
         vec4 sL = texture2D(uTrackMap, fTrackUv - vec2(eps, 0.0));
         vec4 sR = texture2D(uTrackMap, fTrackUv + vec2(eps, 0.0));
         vec4 sU = texture2D(uTrackMap, fTrackUv - vec2(0.0, eps));
@@ -285,7 +296,7 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       reflectedLight.indirectDiffuse*=soilCavity;
       reflectedLight.indirectSpecular*=mix(soilCavity,1.0,.5);`);
   };
-  groundMat.customProgramCacheKey = () => "tarukh-height-blended-soil-v4";
+  groundMat.customProgramCacheKey = () => "tarukh-height-blended-soil-rolling-tracks-v5";
   const ground = new T.Mesh(geometry, groundMat);
   ground.name="mars-ground";
   ground.receiveShadow = true;
@@ -521,12 +532,20 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
   });
   lightGroundMat.onBeforeCompile = shader => {
     shader.uniforms.uTrackMap = { value: trackSystem.texture };
-    shader.uniforms.uTrackBounds = { value: TRACK_WORLD_HALF };
+    shader.uniforms.uTrackBounds = { value: trackSystem.worldHalf };
+    shader.uniforms.uTrackOrigin = {value:trackSystem.origin};
+    shader.uniforms.uTrackScroll = {value:trackSystem.scroll};
+    shader.uniforms.uTrackMask = {value:trackSystem.maskTexture};
+    shader.uniforms.uTrackTexel = {value:trackSystem.texel};
     shader.uniforms.uGravelColor = { value: surfaces.gravel.color };
 
     shader.vertexShader = `
       uniform sampler2D uTrackMap;
       uniform float uTrackBounds;
+      uniform vec2 uTrackOrigin;
+      uniform vec2 uTrackScroll;
+      uniform sampler2D uTrackMask;
+      uniform float uTrackTexel;
       varying vec3 vTrackWorldPos;
       varying float vSoilUp;
     \n` + shader.vertexShader;
@@ -536,9 +555,9 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       `#include <begin_vertex>
       vec3 worldInit = (modelMatrix * vec4(transformed, 1.0)).xyz;
       vSoilUp = normalize(mat3(modelMatrix) * normal).y;
-      vec2 tUv = (worldInit.xz + uTrackBounds) / (uTrackBounds * 2.0);
-      if (tUv.x > 0.002 && tUv.x < 0.998 && tUv.y > 0.002 && tUv.y < 0.998) {
-        vec4 trk = texture2D(uTrackMap, tUv);
+      vec2 tUv = (worldInit.xz - uTrackOrigin + uTrackBounds) / (uTrackBounds * 2.0);
+      if (tUv.x > 0.002 && tUv.x < 0.998 && tUv.y > 0.002 && tUv.y < 0.998 && texture2D(uTrackMask,fract(tUv+uTrackScroll)).r>.5) {
+        vec4 trk = texture2D(uTrackMap, fract(tUv+uTrackScroll));
         transformed.y += trk.g * 0.045 - trk.r * 0.105;
       }
       vTrackWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
@@ -547,6 +566,10 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     shader.fragmentShader = `
       uniform sampler2D uTrackMap;
       uniform float uTrackBounds;
+      uniform vec2 uTrackOrigin;
+      uniform vec2 uTrackScroll;
+      uniform sampler2D uTrackMask;
+      uniform float uTrackTexel;
       uniform sampler2D uGravelColor;
       varying vec3 vTrackWorldPos;
       varying float vSoilUp;
@@ -582,10 +605,11 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       float soilRelief=mix(sandRelief.r*.024,sandRelief.r*.068,exposedGravel)
         +(grain-.5)*.002*grainVisibility+ripple*.004*(1.0-exposedGravel)*rippleVisibility;
       soilRelief*=1.0-smoothstep(.12,.45,soilPixel);
-      vec2 fTrackUv=(vTrackWorldPos.xz+uTrackBounds)/(uTrackBounds*2.0);
+      vec2 fTrackLocal=(vTrackWorldPos.xz-uTrackOrigin+uTrackBounds)/(uTrackBounds*2.0);
+      vec2 fTrackUv=fract(fTrackLocal+uTrackScroll);
       vec4 fTrack=vec4(0.0);
       float fChevron=0.0;
-      if (fTrackUv.x > 0.002 && fTrackUv.x < 0.998 && fTrackUv.y > 0.002 && fTrackUv.y < 0.998) {
+      if (fTrackLocal.x > 0.002 && fTrackLocal.x < 0.998 && fTrackLocal.y > 0.002 && fTrackLocal.y < 0.998 && texture2D(uTrackMask,fTrackUv).r>.5) {
         fTrack=texture2D(uTrackMap,fTrackUv);
         if (fTrack.r > 0.03) {
           vec2 tDir=normalize(vec2(fTrack.b,fTrack.a)*2.0-1.0+vec2(0.0001));
@@ -726,6 +750,8 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
     heightAt,
     roverHeightAt,
     mudAt: mudDepthAt,
+    updateTracks: trackSystem.update,
+    trackTextureSize: trackSystem.texture.image.width,
     stampRoverTracks: (renderer: T.WebGLRenderer, rover: RoverVehicle) =>
       trackSystem.stampRover(renderer, rover, mudDepthAt),
     stampCuriosityTracks: (renderer: T.WebGLRenderer, curiosity: CuriosityRoverState) =>
@@ -762,12 +788,15 @@ export function createMarsFootprints(scene: T.Scene, heightAt= marsHeight) {
   stamps.renderOrder = 1;
   scene.add(stamps);
   const dummy = new T.Object3D();
+  const up=new T.Vector3(0,1,0),normal=new T.Vector3(),slopeRotation=new T.Quaternion(),headingRotation=new T.Quaternion();
   let index = 0, lastX = 0, lastZ = 12;
   return (x: number, z: number, yaw: number, grounded: boolean) => {
     if (!grounded || Math.hypot(x - lastX, z - lastZ) < .65) return;
     const side = index % 2 ? -.17 : .17, sx = x + Math.cos(yaw) * side, sz = z - Math.sin(yaw) * side;
     dummy.position.set(sx, heightAt(sx, sz) + .025, sz);
-    dummy.rotation.set(0, yaw, 0);
+    normal.set(heightAt(sx-.15,sz)-heightAt(sx+.15,sz),.3,heightAt(sx,sz-.15)-heightAt(sx,sz+.15)).normalize();
+    slopeRotation.setFromUnitVectors(up,normal);headingRotation.setFromAxisAngle(up,yaw);
+    dummy.quaternion.copy(slopeRotation).multiply(headingRotation);
     dummy.updateMatrix();
     stamps.setMatrixAt(index % 160, dummy.matrix);
     stamps.count = Math.min(160, ++index);
