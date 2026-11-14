@@ -68,7 +68,7 @@ export default function MarsFreeRoam() {
 
   const roverDistance = view?.roverX === undefined || view.roverZ === undefined ? null : Math.round(Math.hypot(view.x - view.roverX, view.z - view.roverZ));
   return <main className="sv-root mars-root roam-root" data-controls={mode} data-phase="explore">
-    <SurvivalWorld key={attempt} freeRoam planet="mars" enabled={arrived && !modal && !blocked} onReady={ready} onTerrainMode={setStreamed}
+    <SurvivalWorld key={attempt} freeRoam playDropPodIntro planet="mars" enabled={arrived && !modal && !blocked} onReady={ready} onTerrainMode={setStreamed}
       showTouchControls={mode === "mobile"} autoDetectTouch={false} onTouchControlsChange={active => setMode(active ? "mobile" : "pc")}
       event={night ? "night" : "quiet"} day={0} target="" effect={null} failure={false} stabilized={false} animating={false}
       initialQuality={lowGraphics ? "performance" : "auto"} onInspect={inspectRover} onView={setView} onUnavailable={unavailable} />

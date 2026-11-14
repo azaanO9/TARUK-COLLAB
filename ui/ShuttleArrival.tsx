@@ -8,7 +8,7 @@ export default function ShuttleArrival({ready,onComplete}:{ready:boolean;onCompl
   useEffect(()=>{
     if(!ready)return;
     const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const remaining=Math.max(0,(reduced?800:5500)-(Date.now()-began.current));
+    const remaining=Math.max(0,(reduced?300:800)-(Date.now()-began.current));
     const timer=window.setTimeout(onComplete,remaining);
     return()=>window.clearTimeout(timer);
   },[ready,onComplete]);

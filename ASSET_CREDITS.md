@@ -41,3 +41,7 @@ Generation prompts: the regolith prompt requested a seamless orthographic, evenl
 - The team logo, generated landing illustration and horizon have resized WebP derivatives for delivery; the original PNGs remain in the repository. Mars exploration uses procedural geometry and does not load the NASA astronaut model.
 
 - The atmosphere, changed terrain colors, and reduced-resolution terrain texture are generated procedurally in the browser. No additional model, photograph, texture download, external rendering service, or runtime asset was added for this pass.
+
+## Mars arrival shuttle (2026-11-14)
+
+Original procedural fictional spacecraft in `ui/world/createShuttleLanding.ts`: modeled hull, swept wings, landing struts, footpads and original runtime-generated glow/dust textures. No external models or image downloads. The 14-second powered descent is an artistic animation, not a NASA vehicle or flight-validated trajectory. Terrain contacts reuse the game surface.
