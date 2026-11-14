@@ -1,6 +1,8 @@
 /** Continuous horizontal collision for a walking capsule or a compound rover footprint. */
 export type CollisionObstacle = {
   x: number; z: number; radius: number; id?: string; traversable?: boolean;
+  /** World-space top of a jumpable rock; omitted obstacles stay solid at all heights. */
+  topY?: number;
   halfX?: number; halfZ?: number; yaw?: number;
 };
 export type CollisionDisc = { x: number; z: number; radius: number; halfX?: number; halfZ?: number; yaw?: number };

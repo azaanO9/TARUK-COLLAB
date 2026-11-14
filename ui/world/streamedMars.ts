@@ -31,7 +31,7 @@ export function createStreamedMars(root:T.Group, ground:T.Mesh, baseHeight:(x:nu
    const r=streamedRock(slot.x,slot.z,i),height=heightAt(r.x,r.z);
    dummy.position.set(r.x-slot.x*S,height+r.sy*.55,r.z-slot.z*S);dummy.rotation.set(.1,r.yaw,.08);dummy.scale.set(r.sx,r.sy,r.sz);dummy.updateMatrix();slot.rocks.setMatrixAt(i,dummy.matrix);
    tint.setHex(0x78503a).lerp(paleRock,r.tint);slot.rocks.setColorAt(i,tint);
-   slot.contacts.push({x:r.x,z:r.z,radius:Math.max(r.sx,r.sz)*1.05,traversable:false});
+   slot.contacts.push({x:r.x,z:r.z,radius:Math.max(r.sx,r.sz)*1.05,topY:height+r.sy*1.55,traversable:false});
   }
   slot.rocks.position.set(slot.x*S,0,slot.z*S);slot.rocks.instanceMatrix.needsUpdate=true;if(slot.rocks.instanceColor)slot.rocks.instanceColor.needsUpdate=true;slot.rocks.computeBoundingSphere();slot.rocks.visible=true;
  }

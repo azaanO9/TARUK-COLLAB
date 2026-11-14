@@ -48,6 +48,8 @@ test("free exploration removes invisible hardware floors while keeping natural t
     }
     assert.equal(terrain.roverHeightAt(17, 10), 0, "no floating service pad under the crew rover");
     assert.ok(terrain.obstacles.length > 0, "natural rocks retain collision");
+    assert.ok(terrain.obstacles.some(o=>Math.abs(o.x)>150 || Math.abs(o.z)>150), "distant original rocks remain solid");
+    assert.ok(terrain.obstacles.every(o=>Number.isFinite(o.topY)), "rock tops allow height-aware jumps");
     assert.ok(root.children.length > 0, "terrain still renders");
   } finally {
     terrain.disposeTracks();

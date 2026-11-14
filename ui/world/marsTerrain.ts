@@ -81,7 +81,7 @@ export function colonySurfaceElevation(x: number, z: number): number {
 type TraversableRock = { x: number; z: number; r: number; bump: number };
 
 export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceTextures, freeRoam = false) {
-  const obstacles: { x: number; z: number; radius: number; traversable?: boolean }[] = [];
+  const obstacles: { x: number; z: number; radius: number; traversable?: boolean; topY?: number }[] = [];
   const surfaces = suppliedSurfaces ?? fallbackMarsSurfaceTextures();
 
   const PLANE_SIZE = 420;
@@ -406,13 +406,13 @@ export function createMarsTerrain(root: T.Group, suppliedSurfaces?: MarsSurfaceT
       const rockTop=burial+bounds.max.y*sy;
       const footprint=Math.max(sx,sz)*.94;
 
-      if (Math.abs(x) < 92 && Math.abs(z) < 92) {
+      if (Math.abs(x) < 210 && Math.abs(z) < 210) {
         if (big && rockTop > .55) {
           // True large boulders block both walker and rover
-          obstacles.push({ x, z, radius: footprint, traversable: false });
-        } else if (big && size > .25) {
+          obstacles.push({ x, z, radius: footprint, topY: baseH + rockTop, traversable: false });
+        } else if (rockTop > .22 || (big && size > .25)) {
           // Medium scattered rocks: walker walks around them, rover crawls cleanly over them
-          if(rockTop>.22)obstacles.push({ x, z, radius: footprint, traversable: true });
+          if(rockTop>.22)obstacles.push({ x, z, radius: footprint, topY: baseH + rockTop, traversable: true });
           const r = footprint;
           const bump = rockTop;
           const k = hashKey(Math.floor(x / ROCK_CELL), Math.floor(z / ROCK_CELL));

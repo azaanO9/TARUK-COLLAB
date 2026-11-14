@@ -57,3 +57,23 @@ test('analog thumbstick scales locomotion smoothly and activates outer-ring spri
   }
   assert.ok(gentle.z < startZ && walking.z < gentle.z && sprinting.z < walking.z);
 });
+
+
+test('rocks block walking at distant coordinates, but clear jumps cross them',()=>{
+ const rock={x:300,z:0,radius:.6,topY:.5};
+ let w={...spawnWalker(),x:298,z:0};
+ for(let i=0;i<80;i++)w=stepMarsLocomotion(w,{height:0,velocity:0},new Set(['d']),.02,flat,[rock],undefined,Infinity).walker;
+ assert.ok(w.x<299.1);
+ const clear=stepMarsLocomotion({...w,vx:3},{height:.8,velocity:0},new Set(),.05,flat,[rock],undefined,Infinity);
+ assert.ok(clear.walker.x>w.x+.1);
+ const tall={...rock,topY:3};
+ const blocked=stepMarsLocomotion({...w,vx:3},{height:.8,velocity:0},new Set(),.05,flat,[tall],undefined,Infinity);
+ assert.ok(blocked.walker.x<299.1);
+});
+test('descending onto a rock supports the feet and allows another jump',()=>{
+ const rock={x:300,z:0,radius:1,topY:.5};
+ const landed=stepMarsLocomotion({...spawnWalker(),x:300,z:0},{height:.51,velocity:-1},new Set(),.05,flat,[rock],undefined,Infinity);
+ assert.equal(landed.jump.height,.5);assert.equal(landed.jump.velocity,0);assert.equal(landed.walker.x,300);
+ const hop=stepMarsLocomotion(landed.walker,landed.jump,new Set(['jump']),.05,flat,[rock],undefined,Infinity);
+ assert.ok(hop.jump.height>.5);assert.ok(hop.jump.velocity>0);
+});
